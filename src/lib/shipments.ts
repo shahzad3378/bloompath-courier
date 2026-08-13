@@ -49,6 +49,11 @@ export type Shipment = {
   delivered_at: string | null;
   warehouse_location: string | null;
   warehouse_received_at: string | null;
+  delivery_attempt_count: number;
+  fourth_attempt_authorized: boolean;
+  fourth_attempt_authorized_at: string | null;
+  fourth_attempt_authorized_by: string | null;
+  last_undelivered_reason: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   delete_reason: string | null;

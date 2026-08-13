@@ -18,7 +18,7 @@ const internalNav: NavItem[] = [
   { label: "Shipments", href: "/shipments", icon: PackageCheck },
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Warehouse", href: "/warehouse", icon: Warehouse },
-  { label: "Dispatch", href: "/dispatch", icon: Truck, disabled: true },
+  { label: "Dispatch", href: "/dispatch", icon: Truck },
   { label: "Returns", href: "/returns", icon: RotateCcw, disabled: true },
   { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign, disabled: true },
   { label: "Shippers", href: "/shippers", icon: UsersRound },
@@ -38,8 +38,6 @@ const shipperNav: NavItem[] = [
 
 const driverNav: NavItem[] = [
   { label: "My Route", href: "/driver", icon: Truck },
-  { label: "Assigned", href: "/driver/assigned", icon: PackageCheck, disabled: true },
-  { label: "Scan", href: "/driver/scan", icon: ScanLine, disabled: true },
   { label: "History", href: "/driver/history", icon: ClipboardList, disabled: true },
 ];
 
