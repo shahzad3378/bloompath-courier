@@ -158,9 +158,8 @@ export async function receiveManifestShipmentAction(
   await requireProfile(warehouseRoles);
   const manifestId = validId(formData.get("manifest_id"));
   const trackingNumber = cleanText(formData.get("tracking_number"), 3, 40)?.toUpperCase();
-  const warehouseLocation = cleanText(formData.get("warehouse_location"), 1, 50)?.toUpperCase();
-  if (!manifestId || !trackingNumber || !warehouseLocation) {
-    return { status: "error", message: "Scan an AWB and enter its warehouse bin/location." };
+  if (!manifestId || !trackingNumber) {
+    return { status: "error", message: "Scan or enter a valid AWB number." };
   }
 
   const supabase = await createClient();
@@ -183,7 +182,7 @@ export async function receiveManifestShipmentAction(
 
   const { data, error } = await supabase
     .from("pickup_manifest_items")
-    .update({ received_at: new Date().toISOString(), warehouse_location: warehouseLocation })
+    .update({ received_at: new Date().toISOString() })
     .eq("id", item.id)
     .is("received_at", null)
     .select("id")
@@ -194,5 +193,5 @@ export async function receiveManifestShipmentAction(
   revalidatePath("/pickup-manifests");
   revalidatePath("/warehouse");
   revalidatePath("/shipments");
-  return { status: "success", message: `AWB ${trackingNumber} received in ${warehouseLocation}.` };
+  return { status: "success", message: `AWB ${trackingNumber} received at warehouse.` };
 }
