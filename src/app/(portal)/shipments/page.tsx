@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, PackagePlus, Search } from "lucide-react";
+import { Eye, PackagePlus, Search, UploadCloud } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
@@ -35,7 +35,10 @@ export default async function ShipmentsPage({
     <div className="mx-auto max-w-[1500px]">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[#188459]">Order management</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">Shipments</h1><p className="mt-2 text-sm text-[#74827b]">Book, search and print UAE courier AWBs.</p></div>
-        <Link href="/shipments/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white shadow-lg shadow-[#13734b]/15"><PackagePlus className="size-4" /> New shipment</Link>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link href="/shipments/import" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-5 text-sm font-bold text-[#13734b] shadow-sm"><UploadCloud className="size-4" /> Bulk upload</Link>
+          <Link href="/shipments/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white shadow-lg shadow-[#13734b]/15"><PackagePlus className="size-4" /> New shipment</Link>
+        </div>
       </div>
 
       <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:grid-cols-[1fr_220px_auto]">

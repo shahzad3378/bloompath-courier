@@ -27,9 +27,9 @@ const internalNav: NavItem[] = [
 
 const shipperNav: NavItem[] = [
   { label: "Overview", href: "/shipper", icon: LayoutDashboard },
-  { label: "New Shipment", href: "/shipper/new", icon: ClipboardList, disabled: true },
-  { label: "Bulk Upload", href: "/shipper/import", icon: ScanLine, disabled: true },
-  { label: "My Shipments", href: "/shipper/shipments", icon: PackageCheck, disabled: true },
+  { label: "New Shipment", href: "/shipments/new", icon: ClipboardList },
+  { label: "Bulk Upload", href: "/shipments/import", icon: ScanLine },
+  { label: "My Shipments", href: "/shipments", icon: PackageCheck },
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw, disabled: true },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText, disabled: true },
 ];
