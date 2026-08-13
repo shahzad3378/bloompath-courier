@@ -16,7 +16,8 @@ type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; disa
 const internalNav: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Shipments", href: "/shipments", icon: PackageCheck },
-  { label: "Warehouse", href: "/warehouse", icon: Warehouse, disabled: true },
+  { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
+  { label: "Warehouse", href: "/warehouse", icon: Warehouse },
   { label: "Dispatch", href: "/dispatch", icon: Truck, disabled: true },
   { label: "Returns", href: "/returns", icon: RotateCcw, disabled: true },
   { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign, disabled: true },
@@ -30,6 +31,7 @@ const shipperNav: NavItem[] = [
   { label: "New Shipment", href: "/shipments/new", icon: ClipboardList },
   { label: "Bulk Upload", href: "/shipments/import", icon: ScanLine },
   { label: "My Shipments", href: "/shipments", icon: PackageCheck },
+  { label: "Dispatch Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw, disabled: true },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText, disabled: true },
 ];

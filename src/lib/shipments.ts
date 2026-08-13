@@ -47,6 +47,8 @@ export type Shipment = {
   delivery_instructions: string | null;
   booked_at: string;
   delivered_at: string | null;
+  warehouse_location: string | null;
+  warehouse_received_at: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   delete_reason: string | null;
