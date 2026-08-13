@@ -15,9 +15,16 @@ import {
 } from "lucide-react";
 import {
   importShipmentsAction,
-  initialBulkUploadState,
+  type BulkUploadState,
   type ImportedShipment,
 } from "@/app/(portal)/shipments/import/actions";
+
+const initialBulkUploadState: BulkUploadState = {
+  status: "idle",
+  message: "",
+  errors: [],
+  imported: [],
+};
 
 function downloadResults(shipments: ImportedShipment[]) {
   const escape = (value: string) => {

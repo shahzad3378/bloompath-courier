@@ -19,13 +19,6 @@ export type BulkUploadState = {
   imported: ImportedShipment[];
 };
 
-export const initialBulkUploadState: BulkUploadState = {
-  status: "idle",
-  message: "",
-  errors: [],
-  imported: [],
-};
-
 export async function importShipmentsAction(
   _previousState: BulkUploadState,
   formData: FormData,
