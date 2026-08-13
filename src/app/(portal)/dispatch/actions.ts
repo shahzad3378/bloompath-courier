@@ -42,8 +42,8 @@ export async function addDispatchAwbAction(_state: DispatchActionState, formData
   const supabase = await createClient();
   const { data: shipment } = await supabase.from("shipments").select("id, status, delivery_attempt_count, fourth_attempt_authorized").eq("tracking_number", tracking).is("deleted_at", null).maybeSingle();
   if (!shipment) return { status: "error", message: `AWB ${tracking} was not found.` };
-  const eligible = shipment.status === "at_warehouse" || shipment.status === "undelivered" || (shipment.status === "return_initiated" && shipment.delivery_attempt_count === 3 && shipment.fourth_attempt_authorized);
-  if (!eligible) return { status: "error", message: `AWB ${tracking} is not ready for dispatch.` };
+  const eligible = shipment.status === "at_warehouse" || (shipment.status === "return_initiated" && shipment.delivery_attempt_count === 3 && shipment.fourth_attempt_authorized);
+  if (!eligible) return { status: "error", message: `AWB ${tracking} must be physically scanned into warehouse before dispatch.` };
   const { error } = await supabase.from("dispatch_run_items").insert({ run_id: Number(runId), shipment_id: shipment.id, added_by: profile.id });
   if (error?.code === "23505") return { status: "error", message: `AWB ${tracking} is already on an active route.` };
   if (error) return { status: "error", message: `AWB ${tracking} could not be added.` };
