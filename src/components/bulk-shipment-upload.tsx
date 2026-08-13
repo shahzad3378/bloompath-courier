@@ -51,6 +51,7 @@ function downloadResults(shipments: ImportedShipment[]) {
 export function BulkShipmentUpload() {
   const [state, formAction, pending] = useActionState(importShipmentsAction, initialBulkUploadState);
   const [fileName, setFileName] = useState("");
+  const importedIds = state.imported.map((shipment) => shipment.id).join(",");
 
   return (
     <div className="mx-auto max-w-[1250px]">
@@ -127,9 +128,13 @@ export function BulkShipmentUpload() {
 
           {state.imported.length > 0 ? (
             <>
-              <div className="flex flex-col justify-between gap-3 border-b border-[#e8eeeb] px-5 py-4 sm:flex-row sm:items-center">
+              <div className="flex flex-col justify-between gap-3 border-b border-[#e8eeeb] px-5 py-4 lg:flex-row lg:items-center">
                 <p className="text-sm font-semibold text-[#516159]">Generated AWBs</p>
-                <button type="button" onClick={() => downloadResults(state.imported)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#cddbd4] px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Download results CSV</button>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/print/shipments/bulk?ids=${encodeURIComponent(importedIds)}&format=4x6`} target="_blank" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#13734b] px-3 text-xs font-bold text-white"><Printer className="size-3.5" /> Print all 4×6</Link>
+                  <Link href={`/print/shipments/bulk?ids=${encodeURIComponent(importedIds)}&format=a4`} target="_blank" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#cddbd4] px-3 text-xs font-bold text-[#405048]"><Printer className="size-3.5" /> Print all A4</Link>
+                  <button type="button" onClick={() => downloadResults(state.imported)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#cddbd4] px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Results CSV</button>
+                </div>
               </div>
               <div className="max-h-[520px] overflow-auto">
                 <table className="w-full min-w-[720px] text-left text-sm">

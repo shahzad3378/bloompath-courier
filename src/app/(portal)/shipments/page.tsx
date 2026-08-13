@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Eye, PackagePlus, Search, UploadCloud } from "lucide-react";
-import { StatusBadge } from "@/components/status-badge";
+import { PackagePlus, Search, UploadCloud } from "lucide-react";
+import { ShipmentSelectionTable } from "@/components/shipment-selection-table";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
-import { formatAed, formatDubaiDate, shipmentStatuses, statusLabels, type Shipment, type ShipmentStatus } from "@/lib/shipments";
+import { shipmentStatuses, statusLabels, type Shipment, type ShipmentStatus } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Shipments" };
@@ -51,14 +51,7 @@ export default async function ShipmentsPage({
         {error ? <div className="p-8 text-center text-sm font-semibold text-[#b74646]">Shipments could not be loaded.</div> : shipments.length === 0 ? (
           <div className="grid min-h-72 place-items-center p-8 text-center"><div><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#e7f4ed] text-[#188459]"><PackagePlus className="size-7" /></div><h2 className="mt-4 text-lg font-bold text-[#26372f]">No shipments found</h2><p className="mt-1 text-sm text-[#7a8881]">Create your first shipment to generate a printable AWB.</p><Link href="/shipments/new" className="mt-5 inline-flex rounded-xl bg-[#13734b] px-5 py-2.5 text-sm font-bold text-white">Create shipment</Link></div></div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-left">
-              <thead className="border-b border-[#e8eeeb] bg-[#f8faf9] text-[11px] uppercase tracking-[0.08em] text-[#77847e]"><tr><th className="px-5 py-3.5">AWB / Reference</th><th className="px-5 py-3.5">Consignee</th><th className="px-5 py-3.5">Destination</th><th className="px-5 py-3.5">COD</th><th className="px-5 py-3.5">Status</th><th className="px-5 py-3.5">Booked</th><th className="px-5 py-3.5 text-right">View</th></tr></thead>
-              <tbody className="divide-y divide-[#edf1ef]">
-                {shipments.map((shipment) => <tr key={shipment.id} className="text-sm transition hover:bg-[#fbfcfb]"><td className="px-5 py-4"><p className="font-bold text-[#24362d]">{shipment.tracking_number}</p><p className="mt-1 text-xs text-[#87938d]">{shipment.reference_number || "No seller reference"}</p></td><td className="px-5 py-4"><p className="font-semibold text-[#34453c]">{shipment.consignee_name}</p><p className="mt-1 text-xs text-[#87938d]">{shipment.consignee_phone}</p></td><td className="px-5 py-4 text-[#516159]">{shipment.consignee_city}{shipment.consignee_area ? ` · ${shipment.consignee_area}` : ""}</td><td className="px-5 py-4 font-semibold text-[#34453c]">{formatAed(shipment.cod_amount)}</td><td className="px-5 py-4"><StatusBadge status={shipment.status} /></td><td className="px-5 py-4 text-xs text-[#68766f]">{formatDubaiDate(shipment.booked_at)}</td><td className="px-5 py-4 text-right"><Link aria-label={`View ${shipment.tracking_number}`} href={`/shipments/${shipment.id}`} className="inline-grid size-9 place-items-center rounded-lg border border-[#dfe7e3] text-[#13734b] hover:bg-[#edf7f2]"><Eye className="size-4" /></Link></td></tr>)}
-              </tbody>
-            </table>
-          </div>
+          <ShipmentSelectionTable shipments={shipments} />
         )}
       </section>
       <p className="mt-3 text-right text-xs text-[#8a9690]">Showing {shipments.length} of the latest 100 shipments</p>
