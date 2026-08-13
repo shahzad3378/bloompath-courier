@@ -40,3 +40,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .fade-up { animation: fade-up 420ms ease both; }
 .fade-up-delay { animation: fade-up 480ms 80ms ease both; }
+
+.awb-print-sheet {
+  border: 1px solid #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.awb-4x6 { width: 4in; min-height: 6in; }
+.awb-a4 { width: 190mm; min-height: 270mm; }
+
+@page label-page { size: 4in 6in; margin: 0; }
+@page a4-page { size: A4; margin: 10mm; }
+
+@media print {
+  body { background: #fff; }
+  .print-controls { display: none !important; }
+  .awb-print-sheet { margin: 0 auto; box-shadow: none; }
+  .awb-4x6 { page: label-page; width: 4in; min-height: 6in; }
+  .awb-a4 { page: a4-page; width: 190mm; min-height: 270mm; }
+}

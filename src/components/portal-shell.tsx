@@ -15,7 +15,7 @@ type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; disa
 
 const internalNav: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Shipments", href: "/shipments", icon: PackageCheck, disabled: true },
+  { label: "Shipments", href: "/shipments", icon: PackageCheck },
   { label: "Warehouse", href: "/warehouse", icon: Warehouse, disabled: true },
   { label: "Dispatch", href: "/dispatch", icon: Truck, disabled: true },
   { label: "Returns", href: "/returns", icon: RotateCcw, disabled: true },
@@ -69,7 +69,7 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Workspace</p>
           <div className="space-y-1">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
               if (item.disabled) {
                 return (
