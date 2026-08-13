@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f7f6;
+  --foreground: #17231e;
+  --surface: #ffffff;
+  --muted: #66756e;
+  --line: #dfe7e3;
+  --brand: #13734b;
+  --brand-dark: #0c4d33;
+  --brand-soft: #e7f4ed;
+  --nav: #10291f;
+  --warning: #c77912;
+  --danger: #c64242;
 }
 
 @theme inline {
@@ -12,15 +21,22 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+* { box-sizing: border-box; }
+html { background: var(--background); }
 body {
+  min-height: 100vh;
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: #bfe5cf; color: #0b3d29; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 420ms ease both; }
+.fade-up-delay { animation: fade-up 480ms 80ms ease both; }

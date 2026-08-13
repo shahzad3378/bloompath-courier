@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BloomPath Courier
 
-## Getting Started
+Multi-tenant courier operations platform covering secure role-based access, shipper booking, AWB printing, warehouse scans, dispatch, driver delivery, NDR/reattempts, returns, COD and shipment-level invoicing.
 
-First, run the development server:
+## Phase 1
+
+- Next.js App Router portal foundation
+- Supabase SSR authentication
+- Verified JWT claims in the Next.js proxy
+- Database-backed roles and account status
+- Organization-scoped RLS policies
+- Internal, shipper and driver portal shells
+
+## Local setup
 
 ```bash
+cp .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set the courier project's URL and **publishable** key in `.env.local`. Never expose or prefix a Supabase secret key with `NEXT_PUBLIC_`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Apply `supabase/migrations/202608130001_phase_1_identity_and_access.sql` to a new courier Supabase project, create the first Auth user, then follow the two bootstrap statements at the bottom of the migration.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Verification
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
