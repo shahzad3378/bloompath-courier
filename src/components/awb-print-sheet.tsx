@@ -1,4 +1,4 @@
-import { Code39Barcode } from "@/components/code39-barcode";
+import { ShipmentCodes } from "@/components/shipment-codes";
 import { formatAed, formatDubaiDate, serviceLabels, type Shipment } from "@/lib/shipments";
 
 function Detail({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
@@ -13,7 +13,7 @@ export function AwbPrintSheet({ shipment, format }: { shipment: Shipment; format
         <div className="text-right"><p className="text-[9px] font-bold uppercase">Air Waybill</p><p className="mt-1 text-xs font-black">{serviceLabels[shipment.service_type]}</p></div>
       </header>
 
-      <section className="border-b-2 border-black px-4 py-3"><Code39Barcode value={shipment.tracking_number} height={52} /><p className="mt-1 text-center font-mono text-sm font-black tracking-[0.2em]">{shipment.tracking_number}</p></section>
+      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /></section>
 
       <section className="grid grid-cols-2 border-b-2 border-black">
         <div className="border-r-2 border-black p-3"><p className="text-[9px] font-bold uppercase text-black/55">From / Shipper</p><p className="mt-1 text-sm font-black">{shipment.sender_name}</p><p className="mt-1 text-[11px] font-bold">{shipment.sender_phone}</p><p className="mt-1 text-[10px] leading-4">{shipment.sender_address}, {shipment.sender_city}</p></div>

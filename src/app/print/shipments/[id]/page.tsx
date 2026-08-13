@@ -20,7 +20,7 @@ export default async function PrintAwbPage({
   const format = requestedFormat === "a4" ? "a4" : "4x6";
   if (!/^\d+$/.test(id)) notFound();
   const supabase = await createClient();
-  const { data } = await supabase.from("shipments").select("*").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("shipments").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
   if (!data) notFound();
   const shipment = data as Shipment;
 

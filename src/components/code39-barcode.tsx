@@ -15,7 +15,8 @@ const patterns: Record<string, string> = {
 export function Code39Barcode({ value, height = 58 }: { value: string; height?: number }) {
   const encoded = `*${value.toUpperCase().replace(/[^0-9A-Z. $/+%-]/g, "-")}*`;
   const bars: Array<{ x: number; width: number }> = [];
-  let x = 0;
+  const quietZone = 10;
+  let x = quietZone;
 
   for (const character of encoded) {
     const pattern = patterns[character];
@@ -30,12 +31,14 @@ export function Code39Barcode({ value, height = 58 }: { value: string; height?: 
   return (
     <svg
       aria-label={`Barcode ${value}`}
-      className="block h-auto w-full"
+      className="block w-full"
+      height={height}
       role="img"
-      viewBox={`0 0 ${x} ${height}`}
-      preserveAspectRatio="none"
+      shapeRendering="crispEdges"
+      viewBox={`0 0 ${x + quietZone} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
     >
-      <rect width={x} height={height} fill="white" />
+      <rect width={x + quietZone} height={height} fill="white" />
       {bars.map((bar, index) => (
         <rect key={`${bar.x}-${index}`} x={bar.x} y="0" width={bar.width} height={height} fill="black" />
       ))}

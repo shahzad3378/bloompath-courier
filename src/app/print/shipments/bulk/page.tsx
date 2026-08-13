@@ -26,6 +26,7 @@ export default async function BulkPrintAwbsPage({
     const { data, error } = await supabase
       .from("shipments")
       .select("*")
+      .is("deleted_at", null)
       .in("id", ids.slice(index, index + 100));
     if (error) notFound();
     fetched.push(...((data ?? []) as Shipment[]));

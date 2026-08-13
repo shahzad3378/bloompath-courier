@@ -1,12 +1,14 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
-import { internalRoles } from "@/lib/roles";
+import { canDeleteShipments, internalRoles } from "@/lib/roles";
 import { paymentTypes, serviceTypes } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateShipmentState = { message: string };
+export type ArchiveShipmentState = { message: string };
 
 function requiredText(formData: FormData, key: string, min: number, max: number) {
   const value = String(formData.get(key) ?? "").trim();
@@ -91,4 +93,43 @@ export async function createShipmentAction(
   }
 
   redirect(`/shipments/${data.id}?created=1`);
+}
+
+export async function archiveShipmentAction(
+  _previousState: ArchiveShipmentState,
+  formData: FormData,
+): Promise<ArchiveShipmentState> {
+  const profile = await requireProfile(internalRoles);
+  if (!profile.organization_id || !canDeleteShipments(profile)) {
+    return { message: "You do not have permission to archive AWBs." };
+  }
+
+  const shipmentId = String(formData.get("shipment_id") ?? "");
+  const reason = requiredText(formData, "delete_reason", 3, 500);
+  if (!/^\d+$/.test(shipmentId) || !reason) {
+    return { message: "Enter an archive reason between 3 and 500 characters." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("shipments")
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: profile.id,
+      delete_reason: reason,
+    })
+    .eq("id", shipmentId)
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "booked")
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    return { message: error?.message || "Only an active booked AWB can be archived." };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/shipments");
+  redirect("/shipments?archived=1");
 }

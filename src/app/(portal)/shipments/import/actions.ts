@@ -49,6 +49,7 @@ export async function importShipmentsAction(
       const { data: existing, error: referenceError } = await supabase
         .from("shipments")
         .select("reference_number")
+        .is("deleted_at", null)
         .in("reference_number", references.slice(index, index + 100));
 
       if (referenceError) {

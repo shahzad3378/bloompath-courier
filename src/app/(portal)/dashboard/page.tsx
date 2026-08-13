@@ -17,13 +17,13 @@ export default async function DashboardPage() {
   ) - 4 * 60 * 60 * 1000).toISOString();
   const supabase = await createClient();
   const [booked, outForDelivery, delivered, undelivered, returns, cod, recent] = await Promise.all([
-    supabase.from("shipments").select("id", { count: "exact", head: true }).gte("booked_at", startOfDubaiDayUtc),
-    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "out_for_delivery"),
-    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "delivered").gte("delivered_at", startOfDubaiDayUtc),
-    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "undelivered"),
-    supabase.from("shipments").select("id", { count: "exact", head: true }).eq("status", "return_initiated"),
-    supabase.from("shipments").select("cod_amount").eq("status", "delivered").gte("delivered_at", startOfDubaiDayUtc),
-    supabase.from("shipments").select("id, tracking_number, consignee_name, consignee_city, cod_amount, status, booked_at").order("created_at", { ascending: false }).limit(5),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).is("deleted_at", null).gte("booked_at", startOfDubaiDayUtc),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "out_for_delivery"),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "delivered").gte("delivered_at", startOfDubaiDayUtc),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "undelivered"),
+    supabase.from("shipments").select("id", { count: "exact", head: true }).is("deleted_at", null).eq("status", "return_initiated"),
+    supabase.from("shipments").select("cod_amount").is("deleted_at", null).eq("status", "delivered").gte("delivered_at", startOfDubaiDayUtc),
+    supabase.from("shipments").select("id, tracking_number, consignee_name, consignee_city, cod_amount, status, booked_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
   ]);
 
   return <DashboardUI name={profile.full_name} stats={{

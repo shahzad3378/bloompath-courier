@@ -21,6 +21,7 @@ export type Profile = {
   employee_code: string | null;
   role: AppRole;
   status: AccountStatus;
+  can_delete_shipments: boolean;
 };
 
 export const internalRoles: readonly AppRole[] = [
@@ -31,6 +32,19 @@ export const internalRoles: readonly AppRole[] = [
   "finance_staff",
   "customer_service",
 ];
+
+export const shipmentDeleteDelegateRoles: readonly AppRole[] = [
+  "operations_admin",
+  "warehouse_staff",
+  "dispatcher",
+  "finance_staff",
+  "customer_service",
+];
+
+export function canDeleteShipments(profile: Pick<Profile, "role" | "can_delete_shipments">) {
+  return profile.role === "super_admin"
+    || (shipmentDeleteDelegateRoles.includes(profile.role) && profile.can_delete_shipments);
+}
 
 export function roleLabel(role: AppRole) {
   return role
