@@ -77,7 +77,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL(homeForRole(profile.role), request.url));
   }
 
-  if (pathname.startsWith("/shipper") && profile.role !== "shipper") {
+  if (
+    (pathname === "/shipper" || pathname.startsWith("/shipper/")) &&
+    profile.role !== "shipper"
+  ) {
     return NextResponse.redirect(new URL(homeForRole(profile.role), request.url));
   }
 
