@@ -20,7 +20,7 @@ type PendingDriverReturn = Shipment & { profiles: { full_name: string } | null }
 export default async function WarehousePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; q?: string }>;
 }) {
   const profile = await requireProfile(internalRoles);
   const params = await searchParams;
@@ -39,6 +39,22 @@ export default async function WarehousePage({
     : "all";
 
   const supabase = await createClient();
+
+  const lookupTracking = String(params.q ?? "").trim().toUpperCase();
+
+  const lookupResult = lookupTracking
+    ? await supabase
+        .from("shipments")
+        .select(
+          "*, profiles!shipments_assigned_driver_id_fkey(full_name)",
+        )
+        .eq("tracking_number", lookupTracking)
+        .is("deleted_at", null)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  const lookupShipment =
+    lookupResult.data as unknown as PendingDriverReturn | null;
 
   const [
     { data: manifestData, error: manifestError },
@@ -203,7 +219,167 @@ export default async function WarehousePage({
         </div>
       </div>
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">
+      <section className="mt-7 rounded-2xl border border-[#dce6e1] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">
+              Universal AWB check
+            </p>
+            <h2 className="mt-1 text-lg font-bold text-[#26372f]">
+              Scan or search any shipment
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              Check where an AWB is, whether warehouse has physical custody and what action is required next.
+            </p>
+          </div>
+
+          <form
+            action="/warehouse"
+            method="get"
+            className="flex w-full max-w-xl gap-2"
+          >
+            <input type="hidden" name="view" value={view} />
+            <input
+              name="q"
+              defaultValue={lookupTracking}
+              placeholder="Scan / enter AWB"
+              autoComplete="off"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[#dbe5e0] bg-white px-4 text-sm font-semibold uppercase text-[#25352d] outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10"
+            />
+            <button className="h-11 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white">
+              Check AWB
+            </button>
+          </form>
+        </div>
+
+        {lookupTracking ? (
+          <div className="mt-5 border-t border-[#edf1ef] pt-5">
+            {!lookupShipment ? (
+              <div className="rounded-xl border border-[#efcccc] bg-[#fff5f5] px-4 py-4 text-sm font-semibold text-[#a63e3e]">
+                AWB {lookupTracking} was not found.
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr_1.2fr]">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                    Shipment
+                  </p>
+                  <Link
+                    href={`/shipments/${lookupShipment.id}`}
+                    className="mt-1 block font-mono text-base font-black text-[#13734b]"
+                  >
+                    {lookupShipment.tracking_number}
+                  </Link>
+                  <p className="mt-1 text-xs text-[#87938d]">
+                    {lookupShipment.consignee_name} · {lookupShipment.consignee_city}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                    Current status
+                  </p>
+                  <p className="mt-1 text-sm font-black capitalize text-[#405048]">
+                    {lookupShipment.status.replaceAll("_", " ")}
+                  </p>
+                  <p className="mt-1 text-xs text-[#87938d]">
+                    Attempt #{lookupShipment.delivery_attempt_count}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                    Physical custody
+                  </p>
+
+                  {lookupShipment.status === "at_warehouse" ||
+                  (lookupShipment.status === "return_initiated" &&
+                    !lookupShipment.assigned_driver_id) ? (
+                    <>
+                      <p className="mt-1 text-sm font-black text-[#13734b]">
+                        In warehouse
+                      </p>
+                      <p className="mt-1 text-xs text-[#87938d]">
+                        {lookupShipment.status === "return_initiated"
+                          ? "RTO / Return to Shipper"
+                          : lookupShipment.delivery_attempt_count > 0
+                            ? "Returned for reattempt"
+                            : "New pickup received"}
+                      </p>
+                    </>
+                  ) : lookupShipment.status === "undelivered" &&
+                    lookupShipment.assigned_driver_id ? (
+                    <>
+                      <p className="mt-1 text-sm font-black text-[#b76223]">
+                        With driver
+                      </p>
+                      <p className="mt-1 text-xs text-[#87938d]">
+                        Physical warehouse return pending
+                      </p>
+                    </>
+                  ) : lookupShipment.status === "out_for_delivery" ? (
+                    <>
+                      <p className="mt-1 text-sm font-black text-[#376eb1]">
+                        With delivery driver
+                      </p>
+                      <p className="mt-1 text-xs text-[#87938d]">
+                        Not in warehouse
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-sm font-black text-[#68766f]">
+                        Not in warehouse
+                      </p>
+                      <p className="mt-1 text-xs text-[#87938d]">
+                        No physical warehouse custody currently
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                    Next action
+                  </p>
+
+                  <p className="mt-1 text-sm font-black text-[#26372f]">
+                    {lookupShipment.status === "at_warehouse"
+                      ? lookupShipment.delivery_attempt_count > 0
+                        ? "Dispatch for reattempt"
+                        : "Ready for dispatch"
+                      : lookupShipment.status === "return_initiated" &&
+                          !lookupShipment.assigned_driver_id
+                        ? "Add to Return to Shipper run"
+                        : lookupShipment.status === "undelivered" &&
+                            lookupShipment.assigned_driver_id
+                          ? "Receive driver return at warehouse"
+                          : lookupShipment.status === "out_for_delivery"
+                            ? "Await delivery result"
+                            : lookupShipment.status === "delivered"
+                              ? "Completed — no warehouse action"
+                              : lookupShipment.status === "returned_to_shipper"
+                                ? "Completed — returned to shipper"
+                                : "Follow current shipment workflow"}
+                  </p>
+
+                  {lookupShipment.last_undelivered_reason ? (
+                    <p className="mt-1 text-xs capitalize text-[#87938d]">
+                      Reason:{" "}
+                      {lookupShipment.last_undelivered_reason.replaceAll(
+                        "_",
+                        " ",
+                      )}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[360px_1fr]">
         {canReceiveReturns ? (
           <WarehouseReturnForm />
         ) : (
