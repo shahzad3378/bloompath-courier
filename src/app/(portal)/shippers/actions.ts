@@ -149,19 +149,23 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   const userId = authData.user.id;
 
   try {
-    const { error: profileError } = await admin.from("profiles").insert({
-      id: userId,
-      organization_id: profile.organization_id,
-      full_name: companyName,
-      email,
-      phone: phone || null,
-      role: "shipper",
-      status: "active",
-    });
+    const { data: updatedProfile, error: profileError } = await admin
+      .from("profiles")
+      .update({
+        organization_id: profile.organization_id,
+        full_name: companyName,
+        email,
+        phone: phone || null,
+        role: "shipper",
+        status: "active",
+      })
+      .eq("id", userId)
+      .select("id")
+      .maybeSingle();
 
-    if (profileError) {
+    if (profileError || !updatedProfile) {
       console.error("CREATE_SHIPPER_PROFILE_ERROR", profileError);
-      throw profileError;
+      throw profileError ?? new Error("Auto-created shipper profile was not found.");
     }
 
     const { error: businessError } = await admin
