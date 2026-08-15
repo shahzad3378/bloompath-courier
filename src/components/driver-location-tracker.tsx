@@ -51,15 +51,15 @@ export function DriverLocationTracker({
           organization_id: organizationId,
           latitude: coords.latitude,
           longitude: coords.longitude,
-          accuracy_meters: coords.accuracy,
-          speed_kph:
+          accuracy_m: coords.accuracy,
+          speed_mps:
             coords.speed === null
               ? null
-              : Math.max(0, coords.speed * 3.6),
-          heading:
+              : Math.max(0, coords.speed),
+          heading_deg:
             coords.heading === null ? null : coords.heading,
           is_online: true,
-          last_seen_at: new Date().toISOString(),
+          recorded_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {

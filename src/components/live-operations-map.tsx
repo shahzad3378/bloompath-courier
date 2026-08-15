@@ -13,11 +13,11 @@ type DriverLocation = {
   driver_id: string;
   latitude: number;
   longitude: number;
-  speed_kph: number | null;
-  heading: number | null;
-  accuracy_meters: number | null;
+  speed_mps: number | null;
+  heading_deg: number | null;
+  accuracy_m: number | null;
   is_online: boolean;
-  last_seen_at: string;
+  recorded_at: string;
   driver_name: string;
   assigned_count: number;
 };
@@ -77,11 +77,11 @@ export function LiveOperationsMap({
               driver_id,
               latitude,
               longitude,
-              speed_kph,
-              heading,
-              accuracy_meters,
+              speed_mps,
+              heading_deg,
+              accuracy_m,
               is_online,
-              last_seen_at,
+              recorded_at,
               driver:profiles!driver_locations_driver_id_fkey(
                 full_name,
                 email
@@ -96,20 +96,20 @@ export function LiveOperationsMap({
               driver_id: row.driver_id,
               latitude: Number(row.latitude),
               longitude: Number(row.longitude),
-              speed_kph:
-                row.speed_kph === null
+              speed_mps:
+                row.speed_mps === null
                   ? null
-                  : Number(row.speed_kph),
-              heading:
-                row.heading === null
+                  : Number(row.speed_mps),
+              heading_deg:
+                row.heading_deg === null
                   ? null
-                  : Number(row.heading),
-              accuracy_meters:
-                row.accuracy_meters === null
+                  : Number(row.heading_deg),
+              accuracy_m:
+                row.accuracy_m === null
                   ? null
-                  : Number(row.accuracy_meters),
+                  : Number(row.accuracy_m),
               is_online: Boolean(row.is_online),
-              last_seen_at: row.last_seen_at,
+              last_seen_at: row.recorded_at,
               driver_name:
                 row.driver?.full_name ||
                 row.driver?.email ||
@@ -226,12 +226,12 @@ export function LiveOperationsMap({
                     Assigned AWBs: {driver.assigned_count}
                     <br />
                     Speed:{" "}
-                    {driver.speed_kph === null
+                    {driver.speed_mps === null
                       ? "—"
-                      : `${driver.speed_kph.toFixed(0)} km/h`}
+                      : `${(driver.speed_mps * 3.6).toFixed(0)} km/h`}
                     <br />
                     Last seen:{" "}
-                    {dubaiTime(driver.last_seen_at)}
+                    {dubaiTime(driver.recorded_at)}
                   </div>
                 </Popup>
               </CircleMarker>
@@ -319,7 +319,7 @@ export function LiveOperationsMap({
 
                   <p className="mt-1 text-[11px] text-[#9aa39f]">
                     Last seen{" "}
-                    {dubaiTime(driver.last_seen_at)}
+                    {dubaiTime(driver.recorded_at)}
                   </p>
                 </div>
               ))}

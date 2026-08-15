@@ -30,11 +30,11 @@ export default async function LiveMapPage() {
           driver_id,
           latitude,
           longitude,
-          speed_kph,
-          heading,
-          accuracy_meters,
+          speed_mps,
+          heading_deg,
+          accuracy_m,
           is_online,
-          last_seen_at,
+          recorded_at,
           driver:profiles!driver_locations_driver_id_fkey(
             full_name,
             email
@@ -73,16 +73,16 @@ export default async function LiveMapPage() {
     driver_id: row.driver_id,
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
-    speed_kph:
-      row.speed_kph === null ? null : Number(row.speed_kph),
-    heading:
-      row.heading === null ? null : Number(row.heading),
-    accuracy_meters:
-      row.accuracy_meters === null
+    speed_mps:
+      row.speed_mps === null ? null : Number(row.speed_mps),
+    heading_deg:
+      row.heading_deg === null ? null : Number(row.heading_deg),
+    accuracy_m:
+      row.accuracy_m === null
         ? null
-        : Number(row.accuracy_meters),
+        : Number(row.accuracy_m),
     is_online: Boolean(row.is_online),
-    last_seen_at: row.last_seen_at,
+    last_seen_at: row.recorded_at,
     driver_name:
       row.driver?.full_name ||
       row.driver?.email ||
