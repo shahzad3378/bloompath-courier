@@ -19,6 +19,31 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Shipments" };
 
+function agingDaysSince(value: string) {
+  const start = new Date(value);
+  const now = new Date();
+
+  const startDubai = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+  const nowDubai = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+  const startDay = Date.UTC(
+    startDubai.getUTCFullYear(),
+    startDubai.getUTCMonth(),
+    startDubai.getUTCDate(),
+  );
+
+  const nowDay = Date.UTC(
+    nowDubai.getUTCFullYear(),
+    nowDubai.getUTCMonth(),
+    nowDubai.getUTCDate(),
+  );
+
+  return Math.max(
+    0,
+    Math.floor((nowDay - startDay) / 86400000),
+  );
+}
+
 export default async function ShipmentsPage({
   searchParams,
 }: {
@@ -151,15 +176,65 @@ export default async function ShipmentsPage({
 
   const { data, error } = await query;
 
-  const shipments = ((data ?? []) as Shipment[]).filter((shipment) => {
-    if (!queryText) return true;
+  const filteredShipments = ((data ?? []) as Shipment[]).filter(
+    (shipment) => {
+      if (!queryText) return true;
 
-    return (
-      shipment.tracking_number.toLowerCase().includes(queryText) ||
-      shipment.reference_number?.toLowerCase().includes(queryText) ||
-      shipment.consignee_name.toLowerCase().includes(queryText) ||
-      shipment.consignee_phone.toLowerCase().includes(queryText)
-    );
+      return (
+        shipment.tracking_number.toLowerCase().includes(queryText) ||
+        shipment.reference_number?.toLowerCase().includes(queryText) ||
+        shipment.consignee_name.toLowerCase().includes(queryText) ||
+        shipment.consignee_phone.toLowerCase().includes(queryText)
+      );
+    },
+  );
+
+  const visibleShipmentIds = filteredShipments.map(
+    (shipment) => shipment.id,
+  );
+
+  const latestUndeliveredByShipment = new Map<number, string>();
+
+  if (visibleShipmentIds.length > 0) {
+    const { data: undeliveredAttempts } = await supabase
+      .from("delivery_attempts")
+      .select("shipment_id, created_at")
+      .in("shipment_id", visibleShipmentIds)
+      .eq("outcome", "undelivered")
+      .order("created_at", { ascending: false });
+
+    for (const attempt of undeliveredAttempts ?? []) {
+      const shipmentId = Number(attempt.shipment_id);
+
+      if (
+        !latestUndeliveredByShipment.has(shipmentId) &&
+        attempt.created_at
+      ) {
+        latestUndeliveredByShipment.set(
+          shipmentId,
+          attempt.created_at,
+        );
+      }
+    }
+  }
+
+  const shipments = filteredShipments.map((shipment) => {
+    const lastUndeliveredAt =
+      latestUndeliveredByShipment.get(shipment.id) ?? null;
+
+    const agingClosed =
+      shipment.status === "delivered" ||
+      shipment.status === "returned_to_shipper" ||
+      shipment.status === "cancelled";
+
+    return {
+      ...shipment,
+      last_undelivered_at: lastUndeliveredAt,
+      undelivered_aging_days:
+        lastUndeliveredAt && !agingClosed
+          ? agingDaysSince(lastUndeliveredAt)
+          : null,
+    };
   });
 
   const exportParams = new URLSearchParams();

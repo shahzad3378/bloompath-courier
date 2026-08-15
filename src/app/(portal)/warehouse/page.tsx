@@ -15,7 +15,66 @@ export const metadata = { title: "Warehouse Receiving" };
 
 const warehouseRoles = ["super_admin", "operations_admin", "warehouse_staff"] as const;
 type WarehouseManifest = PickupManifest & { pickup_manifest_items: Array<{ id: number; received_at: string | null }> };
-type PendingDriverReturn = Shipment & { profiles: { full_name: string } | null };
+type PendingDriverReturn = Shipment & {
+  profiles: { full_name: string } | null;
+  last_undelivered_at?: string | null;
+  undelivered_aging_days?: number | null;
+};
+
+function agingDaysSince(value: string) {
+  const start = new Date(value);
+  const now = new Date();
+
+  const startDubai = new Date(
+    start.getTime() + 4 * 60 * 60 * 1000,
+  );
+
+  const nowDubai = new Date(
+    now.getTime() + 4 * 60 * 60 * 1000,
+  );
+
+  const startDay = Date.UTC(
+    startDubai.getUTCFullYear(),
+    startDubai.getUTCMonth(),
+    startDubai.getUTCDate(),
+  );
+
+  const nowDay = Date.UTC(
+    nowDubai.getUTCFullYear(),
+    nowDubai.getUTCMonth(),
+    nowDubai.getUTCDate(),
+  );
+
+  return Math.max(
+    0,
+    Math.floor((nowDay - startDay) / 86400000),
+  );
+}
+
+function agingLabel(days: number | null | undefined) {
+  if (days === null || days === undefined) return "—";
+  return `${days} ${days === 1 ? "Day" : "Days"}`;
+}
+
+function agingClass(days: number | null | undefined) {
+  if (days === null || days === undefined) {
+    return "text-[#87938d]";
+  }
+
+  if (days >= 8) {
+    return "bg-[#fff0f0] text-[#b74646]";
+  }
+
+  if (days >= 4) {
+    return "bg-[#fff3df] text-[#a66516]";
+  }
+
+  if (days >= 2) {
+    return "bg-[#fff9e8] text-[#8a6a1c]";
+  }
+
+  return "bg-[#edf8f2] text-[#176a47]";
+}
 
 export default async function WarehousePage({
   searchParams,
@@ -95,13 +154,76 @@ export default async function WarehousePage({
   ]);
 
   const manifests = (manifestData ?? []) as WarehouseManifest[];
-  const pendingReturns =
+  const rawPendingReturns =
     (returnData ?? []) as unknown as PendingDriverReturn[];
 
-  const warehouseInventory = [
+  const rawWarehouseInventory = [
     ...((warehouseData ?? []) as unknown as PendingDriverReturn[]),
     ...((rtoData ?? []) as unknown as PendingDriverReturn[]),
   ];
+
+  const agingShipmentIds = [
+    ...new Set([
+      ...rawPendingReturns.map((shipment) => shipment.id),
+      ...rawWarehouseInventory.map((shipment) => shipment.id),
+      ...(lookupShipment ? [lookupShipment.id] : []),
+    ]),
+  ];
+
+  const latestUndeliveredByShipment =
+    new Map<number, string>();
+
+  if (agingShipmentIds.length > 0) {
+    const { data: undeliveredAttempts } = await supabase
+      .from("delivery_attempts")
+      .select("shipment_id, created_at")
+      .in("shipment_id", agingShipmentIds)
+      .eq("outcome", "undelivered")
+      .order("created_at", { ascending: false });
+
+    for (const attempt of undeliveredAttempts ?? []) {
+      const shipmentId = Number(attempt.shipment_id);
+
+      if (
+        !latestUndeliveredByShipment.has(shipmentId) &&
+        attempt.created_at
+      ) {
+        latestUndeliveredByShipment.set(
+          shipmentId,
+          attempt.created_at,
+        );
+      }
+    }
+  }
+
+  const withAging = (
+    shipment: PendingDriverReturn,
+  ): PendingDriverReturn => {
+    const lastUndeliveredAt =
+      latestUndeliveredByShipment.get(shipment.id) ?? null;
+
+    const agingClosed =
+      shipment.status === "delivered" ||
+      shipment.status === "returned_to_shipper" ||
+      shipment.status === "cancelled";
+
+    return {
+      ...shipment,
+      last_undelivered_at: lastUndeliveredAt,
+      undelivered_aging_days:
+        lastUndeliveredAt && !agingClosed
+          ? agingDaysSince(lastUndeliveredAt)
+          : null,
+    };
+  };
+
+  const pendingReturns = rawPendingReturns.map(withAging);
+
+  const warehouseInventory =
+    rawWarehouseInventory.map(withAging);
+
+  const lookupShipmentWithAging =
+    lookupShipment ? withAging(lookupShipment) : null;
 
   const pendingPickupAwbs = manifests.reduce(
     (sum, manifest) =>
@@ -293,6 +415,27 @@ export default async function WarehousePage({
                   <p className="mt-1 text-xs text-[#87938d]">
                     Attempt #{lookupShipment.delivery_attempt_count}
                   </p>
+
+                  {lookupShipmentWithAging?.undelivered_aging_days !== null &&
+                  lookupShipmentWithAging?.undelivered_aging_days !== undefined ? (
+                    <span
+                      title={
+                        lookupShipmentWithAging.last_undelivered_at
+                          ? `Last undelivered: ${formatDubaiDate(
+                              lookupShipmentWithAging.last_undelivered_at,
+                            )}`
+                          : undefined
+                      }
+                      className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ${agingClass(
+                        lookupShipmentWithAging.undelivered_aging_days,
+                      )}`}
+                    >
+                      Aging:{" "}
+                      {agingLabel(
+                        lookupShipmentWithAging.undelivered_aging_days,
+                      )}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div>
@@ -433,13 +576,14 @@ export default async function WarehousePage({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left">
+                <table className="w-full min-w-[1000px] text-left">
                   <thead className="border-b border-[#e8eeeb] bg-[#f8faf9] text-[11px] uppercase tracking-[0.08em] text-[#77847e]">
                     <tr>
                       <th className="px-5 py-3.5">AWB</th>
                       <th className="px-5 py-3.5">Consignee</th>
                       <th className="px-5 py-3.5">Type</th>
                       <th className="px-5 py-3.5">Attempt</th>
+                      <th className="px-5 py-3.5">Aging</th>
                       <th className="px-5 py-3.5">Reason</th>
                       <th className="px-5 py-3.5">Returning driver</th>
                     </tr>
@@ -476,6 +620,33 @@ export default async function WarehousePage({
                         <td className="px-5 py-4 font-black text-[#8a5b18]">
                           #{shipment.delivery_attempt_count}
                         </td>
+
+                        <td className="px-5 py-4">
+                          {shipment.undelivered_aging_days !== null &&
+                          shipment.undelivered_aging_days !== undefined ? (
+                            <span
+                              title={
+                                shipment.last_undelivered_at
+                                  ? `Last undelivered: ${formatDubaiDate(
+                                      shipment.last_undelivered_at,
+                                    )}`
+                                  : undefined
+                              }
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${agingClass(
+                                shipment.undelivered_aging_days,
+                              )}`}
+                            >
+                              {agingLabel(
+                                shipment.undelivered_aging_days,
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[#87938d]">
+                              —
+                            </span>
+                          )}
+                        </td>
+
                         <td className="px-5 py-4 text-xs font-semibold capitalize text-[#68766f]">
                           {shipment.last_undelivered_reason?.replaceAll(
                             "_",
@@ -509,13 +680,14 @@ export default async function WarehousePage({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] text-left">
+              <table className="w-full min-w-[1160px] text-left">
                 <thead className="border-b border-[#e8eeeb] bg-[#f8faf9] text-[11px] uppercase tracking-[0.08em] text-[#77847e]">
                   <tr>
                     <th className="px-5 py-3.5">AWB</th>
                     <th className="px-5 py-3.5">Consignee</th>
                     <th className="px-5 py-3.5">Why here</th>
                     <th className="px-5 py-3.5">Attempt</th>
+                    <th className="px-5 py-3.5">Aging</th>
                     <th className="px-5 py-3.5">Status</th>
                     <th className="px-5 py-3.5">Next action</th>
                     <th className="px-5 py-3.5">Updated</th>
@@ -561,6 +733,32 @@ export default async function WarehousePage({
 
                       <td className="px-5 py-4 font-black text-[#405048]">
                         #{shipment.delivery_attempt_count}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {shipment.undelivered_aging_days !== null &&
+                        shipment.undelivered_aging_days !== undefined ? (
+                          <span
+                            title={
+                              shipment.last_undelivered_at
+                                ? `Last undelivered: ${formatDubaiDate(
+                                    shipment.last_undelivered_at,
+                                  )}`
+                                : undefined
+                            }
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${agingClass(
+                              shipment.undelivered_aging_days,
+                            )}`}
+                          >
+                            {agingLabel(
+                              shipment.undelivered_aging_days,
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#87938d]">
+                            —
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-5 py-4 text-xs font-semibold capitalize text-[#68766f]">
