@@ -19,7 +19,7 @@ const internalNav: NavItem[] = [
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Warehouse", href: "/warehouse", icon: Warehouse },
   { label: "Dispatch", href: "/dispatch", icon: Truck },
-  { label: "Returns", href: "/returns", icon: RotateCcw, disabled: true },
+  { label: "Returns", href: "/returns", icon: RotateCcw },
   { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign, disabled: true },
   { label: "Shippers", href: "/shippers", icon: UsersRound },
   { label: "Users & Roles", href: "/users", icon: UserRoundCog },
