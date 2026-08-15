@@ -93,10 +93,20 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
                 Help & support
               </span>
 
-              <span className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-white/35">
-                <Settings className="size-[17px]" />
-                Settings
-              </span>
+              {profile.role !== "shipper" && profile.role !== "driver" ? (
+                <Link
+                  href="/settings"
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+                    pathname === "/settings"
+                      ? "bg-white/10 text-white"
+                      : "text-white/60 hover:bg-white/8 hover:text-white"
+                  }`}
+                >
+                  <Settings className="size-[17px]" />
+                  Settings
+                </Link>
+              ) : null}
 
               <form action={logoutAction}>
                 <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 transition hover:bg-white/8 hover:text-white">
