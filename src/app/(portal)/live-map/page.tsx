@@ -82,7 +82,7 @@ export default async function LiveMapPage() {
         ? null
         : Number(row.accuracy_m),
     is_online: Boolean(row.is_online),
-    last_seen_at: row.recorded_at,
+    recorded_at: row.recorded_at,
     driver_name:
       row.driver?.full_name ||
       row.driver?.email ||
