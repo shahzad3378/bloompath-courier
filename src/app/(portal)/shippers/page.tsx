@@ -527,6 +527,10 @@ export default async function ShippersPage({
                             step="0.01"
                             min="0"
                             required
+                            autoComplete="off"
+                            inputMode="decimal"
+                            data-lpignore="true"
+                            data-1p-ignore="true"
                             defaultValue={Number(
                               rate?.delivery_rate ?? 0,
                             ).toFixed(2)}
@@ -555,6 +559,10 @@ export default async function ShippersPage({
                             type="number"
                             step="0.01"
                             min="0"
+                            autoComplete="off"
+                            inputMode="decimal"
+                            data-lpignore="true"
+                            data-1p-ignore="true"
                             defaultValue={Number(
                               rate?.return_rate ?? 0,
                             ).toFixed(2)}
