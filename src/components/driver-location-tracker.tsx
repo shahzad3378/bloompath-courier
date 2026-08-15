@@ -114,13 +114,13 @@ export function DriverLocationTracker({
         } else if (error.code === error.POSITION_UNAVAILABLE) {
           setStatus("GPS position unavailable");
         } else {
-          setStatus("GPS request timed out");
+          setStatus("GPS could not lock your position. Check Location Services and try again.");
         }
       },
       {
         enableHighAccuracy: true,
         maximumAge: 5000,
-        timeout: 15000,
+        timeout: 30000,
       },
     );
   }
