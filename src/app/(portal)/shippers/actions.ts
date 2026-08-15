@@ -82,3 +82,116 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
   revalidatePath("/finance");
   redirect(`/shippers?saved=1&shipper=${shipperId}`);
 }
+
+import { createAdminClient } from "@/lib/supabase/admin";
+
+function cleanText(formData: FormData, key: string, max = 200) {
+  return String(formData.get(key) ?? "").trim().slice(0, max);
+}
+
+export async function createShipperAction(formData: FormData): Promise<void> {
+  const profile = await requireProfile(["super_admin", "operations_admin"]);
+
+  if (!profile.organization_id) {
+    redirect("/shippers?error=organization");
+  }
+
+  const companyName = cleanText(formData, "company_name", 150);
+  const contactPerson = cleanText(formData, "contact_person", 150);
+  const email = cleanText(formData, "email", 200).toLowerCase();
+  const phone = cleanText(formData, "phone", 50);
+  const address = cleanText(formData, "address", 500);
+  const city = cleanText(formData, "city", 100);
+  const password = String(formData.get("password") ?? "");
+
+  const deliveryRate = money(formData, "delivery_rate");
+  const returnChargeEnabled =
+    String(formData.get("return_charge_enabled") ?? "") === "true";
+  const returnRate = returnChargeEnabled
+    ? money(formData, "return_rate")
+    : 0;
+
+  const codCycleDays = Number(
+    String(formData.get("cod_cycle_days") ?? "7"),
+  );
+
+  if (
+    companyName.length < 2 ||
+    !email.includes("@") ||
+    password.length < 8 ||
+    deliveryRate === null ||
+    returnRate === null ||
+    !Number.isInteger(codCycleDays) ||
+    codCycleDays < 1 ||
+    codCycleDays > 90
+  ) {
+    redirect("/shippers?error=invalid");
+  }
+
+  const admin = createAdminClient();
+
+  const { data: authData, error: authError } =
+    await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: companyName,
+        role: "shipper",
+      },
+    });
+
+  if (authError || !authData.user) {
+    redirect("/shippers?error=account");
+  }
+
+  const userId = authData.user.id;
+
+  try {
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: userId,
+      organization_id: profile.organization_id,
+      full_name: companyName,
+      email,
+      phone: phone || null,
+      role: "shipper",
+      status: "active",
+    });
+
+    if (profileError) throw profileError;
+
+    const { error: businessError } = await admin
+      .from("shipper_business_profiles")
+      .insert({
+        shipper_id: userId,
+        organization_id: profile.organization_id,
+        company_name: companyName,
+        contact_person: contactPerson || null,
+        address: address || null,
+        city: city || null,
+        cod_cycle_days: codCycleDays,
+      });
+
+    if (businessError) throw businessError;
+
+    const { error: rateError } = await admin.from("shipper_rates").insert({
+      organization_id: profile.organization_id,
+      shipper_id: userId,
+      delivery_rate: deliveryRate,
+      return_charge_enabled: returnChargeEnabled,
+      return_rate: returnChargeEnabled ? returnRate : 0,
+      currency: "AED",
+      effective_from: new Date().toISOString(),
+      created_by: profile.id,
+    });
+
+    if (rateError) throw rateError;
+  } catch {
+    await admin.auth.admin.deleteUser(userId);
+    redirect("/shippers?error=create");
+  }
+
+  revalidatePath("/shippers");
+  revalidatePath("/users");
+  redirect(`/shippers?created=1&shipper=${userId}`);
+}

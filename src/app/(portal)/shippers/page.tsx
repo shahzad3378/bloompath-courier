@@ -1,5 +1,5 @@
 import { BadgeDollarSign, RotateCcw, Store, Truck } from "lucide-react";
-import { saveShipperRateAction } from "@/app/(portal)/shippers/actions";
+import { createShipperAction, saveShipperRateAction } from "@/app/(portal)/shippers/actions";
 import { requireProfile } from "@/lib/auth";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
@@ -36,6 +36,7 @@ export default async function ShippersPage({
 }: {
   searchParams: Promise<{
     saved?: string;
+    created?: string;
     error?: string;
     shipper?: string;
   }>;
@@ -99,6 +100,18 @@ export default async function ShippersPage({
         </div>
       </div>
 
+      {params.created === "1" ? (
+        <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
+          Shipper account and initial rate card created successfully.
+        </div>
+      ) : null}
+
+      {params.created === "1" ? (
+        <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
+          Shipper account and initial rate card created successfully.
+        </div>
+      ) : null}
+
       {params.saved === "1" ? (
         <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
           Shipper rate card updated successfully.
@@ -109,6 +122,296 @@ export default async function ShippersPage({
         <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
           Rate card could not be saved. Please verify the values and retry.
         </div>
+      ) : null}
+
+      {["super_admin", "operations_admin"].includes(profile.role) ? (
+        <section className="mt-6 rounded-2xl border border-[#dfe8e3] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:p-6">
+          <div>
+            <p className="text-sm font-semibold text-[#188459]">New customer</p>
+            <h2 className="mt-1 text-xl font-bold text-[#26372f]">Create shipper account</h2>
+            <p className="mt-1 text-sm text-[#87938d]">
+              Create login credentials, business details and the initial commercial rate card in one step.
+            </p>
+          </div>
+
+          <form action={createShipperAction} className="mt-6 grid gap-4 lg:grid-cols-2">
+            <label className="text-xs font-bold text-[#526159]">
+              Company / shipper name
+              <input
+                name="company_name"
+                required
+                minLength={2}
+                maxLength={150}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Contact person
+              <input
+                name="contact_person"
+                maxLength={150}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Login email
+              <input
+                name="email"
+                type="email"
+                required
+                maxLength={200}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Phone
+              <input
+                name="phone"
+                maxLength={50}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              City
+              <input
+                name="city"
+                maxLength={100}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Temporary password
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="lg:col-span-2 text-xs font-bold text-[#526159]">
+              Business / return address
+              <textarea
+                name="address"
+                rows={3}
+                maxLength={500}
+                className="mt-2 w-full rounded-xl border border-[#dbe5e0] px-3 py-2.5 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              COD settlement cycle
+              <select
+                name="cod_cycle_days"
+                defaultValue="7"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              >
+                <option value="1">Daily</option>
+                <option value="3">Every 3 days</option>
+                <option value="7">Weekly</option>
+                <option value="14">Every 14 days</option>
+                <option value="30">Monthly</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Delivery rate — AED
+              <input
+                name="delivery_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="15.00"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Return charge
+              <select
+                name="return_charge_enabled"
+                defaultValue="false"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              >
+                <option value="false">Free return</option>
+                <option value="true">Charge return fee</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Return rate — AED
+              <input
+                name="return_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue="0.00"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <div className="lg:col-span-2 flex flex-col gap-3 rounded-xl border border-[#e4ebe7] bg-[#f8faf9] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-[#74827b]">
+                Reattempt fee is fixed at AED 0.00. The shipper account will be activated immediately.
+              </p>
+              <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white">
+                Create shipper
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
+      {["super_admin", "operations_admin"].includes(profile.role) ? (
+        <section className="mt-6 rounded-2xl border border-[#dfe8e3] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:p-6">
+          <div>
+            <p className="text-sm font-semibold text-[#188459]">New customer</p>
+            <h2 className="mt-1 text-xl font-bold text-[#26372f]">Create shipper account</h2>
+            <p className="mt-1 text-sm text-[#87938d]">
+              Create login credentials, business details and the initial commercial rate card in one step.
+            </p>
+          </div>
+
+          <form action={createShipperAction} className="mt-6 grid gap-4 lg:grid-cols-2">
+            <label className="text-xs font-bold text-[#526159]">
+              Company / shipper name
+              <input
+                name="company_name"
+                required
+                minLength={2}
+                maxLength={150}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Contact person
+              <input
+                name="contact_person"
+                maxLength={150}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Login email
+              <input
+                name="email"
+                type="email"
+                required
+                maxLength={200}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Phone
+              <input
+                name="phone"
+                maxLength={50}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              City
+              <input
+                name="city"
+                maxLength={100}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Temporary password
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="lg:col-span-2 text-xs font-bold text-[#526159]">
+              Business / return address
+              <textarea
+                name="address"
+                rows={3}
+                maxLength={500}
+                className="mt-2 w-full rounded-xl border border-[#dbe5e0] px-3 py-2.5 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              COD settlement cycle
+              <select
+                name="cod_cycle_days"
+                defaultValue="7"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              >
+                <option value="1">Daily</option>
+                <option value="3">Every 3 days</option>
+                <option value="7">Weekly</option>
+                <option value="14">Every 14 days</option>
+                <option value="30">Monthly</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Delivery rate — AED
+              <input
+                name="delivery_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="15.00"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Return charge
+              <select
+                name="return_charge_enabled"
+                defaultValue="false"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              >
+                <option value="false">Free return</option>
+                <option value="true">Charge return fee</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              Return rate — AED
+              <input
+                name="return_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue="0.00"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal"
+              />
+            </label>
+
+            <div className="lg:col-span-2 flex flex-col gap-3 rounded-xl border border-[#e4ebe7] bg-[#f8faf9] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-[#74827b]">
+                Reattempt fee is fixed at AED 0.00. The shipper account will be activated immediately.
+              </p>
+              <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white">
+                Create shipper
+              </button>
+            </div>
+          </form>
+        </section>
       ) : null}
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
