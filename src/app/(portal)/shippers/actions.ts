@@ -195,3 +195,38 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   revalidatePath("/users");
   redirect(`/shippers?created=1&shipper=${userId}`);
 }
+
+export async function setShipperStatusAction(formData: FormData): Promise<void> {
+  const profile = await requireProfile(["super_admin", "operations_admin"]);
+
+  const shipperId = String(formData.get("shipper_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+
+  if (
+    !profile.organization_id ||
+    !/^[0-9a-f-]{36}$/i.test(shipperId) ||
+    !["active", "suspended", "inactive"].includes(status)
+  ) {
+    redirect("/shippers?error=status");
+  }
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ status })
+    .eq("id", shipperId)
+    .eq("organization_id", profile.organization_id)
+    .eq("role", "shipper")
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect("/shippers?error=status");
+  }
+
+  revalidatePath("/shippers");
+  revalidatePath("/shipments");
+
+  redirect(`/shippers?status_saved=1&shipper=${shipperId}`);
+}
