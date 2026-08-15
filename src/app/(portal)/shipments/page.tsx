@@ -29,6 +29,8 @@ export default async function ShipmentsPage({
     archived?: string;
     from?: string;
     to?: string;
+    shipper?: string;
+    driver?: string;
   }>;
 }) {
   const profile = await requireProfile([...internalRoles, "shipper"]);
@@ -41,12 +43,47 @@ export default async function ShipmentsPage({
     : "";
   const supabase = await createClient();
 
+  const isShipper = profile.role === "shipper";
+
+  const [{ data: shippers }, { data: drivers }] = await Promise.all([
+    isShipper
+      ? Promise.resolve({ data: [] })
+      : supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("organization_id", profile.organization_id)
+          .eq("role", "shipper")
+          .eq("status", "active")
+          .order("full_name"),
+
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "driver")
+      .eq("status", "active")
+      .order("full_name"),
+  ]);
+
   // Dashboard counts are calculated from active AWBs independently
   // from the table status filter.
   let dashboardQuery = supabase
     .from("shipments")
     .select("status")
     .is("deleted_at", null);
+
+  if (isShipper) {
+    dashboardQuery = dashboardQuery.eq("shipper_id", profile.id);
+  } else if (params.shipper) {
+    dashboardQuery = dashboardQuery.eq("shipper_id", params.shipper);
+  }
+
+  if (params.driver) {
+    dashboardQuery = dashboardQuery.eq(
+      "assigned_driver_id",
+      params.driver,
+    );
+  }
 
   if (params.from) {
     dashboardQuery = dashboardQuery.gte(
@@ -90,6 +127,16 @@ export default async function ShipmentsPage({
     ? query.not("deleted_at", "is", null)
     : query.is("deleted_at", null);
 
+  if (isShipper) {
+    query = query.eq("shipper_id", profile.id);
+  } else if (params.shipper) {
+    query = query.eq("shipper_id", params.shipper);
+  }
+
+  if (params.driver) {
+    query = query.eq("assigned_driver_id", params.driver);
+  }
+
   if (requestedStatus) {
     query = query.eq("status", requestedStatus);
   }
@@ -122,7 +169,17 @@ export default async function ShipmentsPage({
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
 
+  if (!isShipper && params.shipper) {
+    exportParams.set("shipper", params.shipper);
+  }
+
+  if (params.driver) {
+    exportParams.set("driver", params.driver);
+  }
+
   const exportHref = `/shipments/export?${exportParams.toString()}`;
+  const excelExportHref =
+    `/shipments/export-xlsx?${exportParams.toString()}`;
 
   const dashboardCards = [
     ["", "All Shipments", allCount, PackageCheck],
@@ -159,13 +216,23 @@ export default async function ShipmentsPage({
               </h2>
             </div>
 
-            <Link
-              href={exportHref}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"
-            >
-              <Download className="size-4" />
-              Export CSV
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={exportHref}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"
+              >
+                <Download className="size-4" />
+                CSV
+              </Link>
+
+              <Link
+                href={excelExportHref}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#13734b] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d5e3d]"
+              >
+                <Download className="size-4" />
+                Excel
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
@@ -175,6 +242,14 @@ export default async function ShipmentsPage({
               if (status) href.set("status", status);
               if (params.from) href.set("from", params.from);
               if (params.to) href.set("to", params.to);
+
+              if (!isShipper && params.shipper) {
+                href.set("shipper", params.shipper);
+              }
+
+              if (params.driver) {
+                href.set("driver", params.driver);
+              }
 
               const active =
                 status === ""
@@ -211,10 +286,47 @@ export default async function ShipmentsPage({
         </section>
       ) : null}
 
-      <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] lg:grid-cols-[1fr_190px_160px_160px_auto]">
+      <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-[1fr_180px_190px_190px_150px_150px_auto]">
         {showArchived ? <input type="hidden" name="view" value="archived" /> : null}
         <label className="relative"><Search className="absolute left-3.5 top-3.5 size-4 text-[#819088]" /><input name="q" defaultValue={params.q} className="h-11 w-full rounded-xl border border-[#dbe5e0] pl-10 pr-3 text-sm outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10" placeholder="AWB, reference, customer or phone" /></label>
-        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{shipmentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select>
+        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]">
+          <option value="">All statuses</option>
+          {shipmentStatuses.map((status) => (
+            <option key={status} value={status}>
+              {statusLabels[status]}
+            </option>
+          ))}
+        </select>
+
+        {!isShipper ? (
+          <select
+            name="shipper"
+            defaultValue={params.shipper ?? ""}
+            className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
+          >
+            <option value="">All shippers</option>
+            {(shippers ?? []).map((shipper) => (
+              <option key={shipper.id} value={shipper.id}>
+                {shipper.full_name || shipper.email}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input type="hidden" name="shipper" value="" />
+        )}
+
+        <select
+          name="driver"
+          defaultValue={params.driver ?? ""}
+          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
+        >
+          <option value="">All drivers</option>
+          {(drivers ?? []).map((driver) => (
+            <option key={driver.id} value={driver.id}>
+              {driver.full_name || driver.email}
+            </option>
+          ))}
+        </select>
 
         <input
           name="from"

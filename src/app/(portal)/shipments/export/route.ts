@@ -30,7 +30,7 @@ function dubaiDate(value: string | null | undefined) {
 }
 
 export async function GET(request: Request) {
-  await requireProfile([...internalRoles, "shipper"]);
+  const profile = await requireProfile([...internalRoles, "shipper"]);
 
   const url = new URL(request.url);
 
@@ -46,6 +46,8 @@ export async function GET(request: Request) {
 
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const shipper = url.searchParams.get("shipper");
+  const driver = url.searchParams.get("driver");
 
   const supabase = await createClient();
 
@@ -54,6 +56,16 @@ export async function GET(request: Request) {
     .select("*")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+
+  if (profile.role === "shipper") {
+    query = query.eq("shipper_id", profile.id);
+  } else if (shipper) {
+    query = query.eq("shipper_id", shipper);
+  }
+
+  if (driver) {
+    query = query.eq("assigned_driver_id", driver);
+  }
 
   if (status) {
     query = query.eq("status", status);
