@@ -1,7 +1,9 @@
+import Link from "next/link";
 import {
   ArrowDownRight,
   ArrowUpRight,
   BadgeDollarSign,
+  Download,
   FileText,
   PackageCheck,
   RotateCcw,
@@ -288,7 +290,20 @@ export default async function ReportsPage({
     driverMap.set(row.assigned_driver_id, current);
   }
 
-  const deliveryRate = booked > 0 ? Math.round((delivered / booked) * 100) : 0;
+  const deliveryRate =
+    booked > 0 ? Math.round((delivered / booked) * 100) : 0;
+
+  const exportParams = new URLSearchParams();
+
+  exportParams.set("range", range);
+
+  if (params.from) exportParams.set("from", params.from);
+  if (params.to) exportParams.set("to", params.to);
+  if (params.shipper) exportParams.set("shipper", params.shipper);
+  if (params.driver) exportParams.set("driver", params.driver);
+  if (params.status) exportParams.set("status", params.status);
+
+  const exportHref = `/reports/export?${exportParams.toString()}`;
 
   return (
     <div className="mx-auto max-w-[1500px]">
@@ -308,7 +323,7 @@ export default async function ReportsPage({
         <form
           action="/reports"
           method="get"
-          className="grid w-full gap-2 rounded-2xl border border-[#dfe7e3] bg-white p-3 shadow-sm md:grid-cols-3 xl:max-w-[850px] xl:grid-cols-6"
+          className="grid w-full gap-2 rounded-2xl border border-[#dfe7e3] bg-white p-3 shadow-sm md:grid-cols-3 xl:max-w-[1050px] xl:grid-cols-7"
         >
           <select
             name="range"
@@ -360,6 +375,23 @@ export default async function ReportsPage({
                 {driver.full_name || driver.email}
               </option>
             ))}
+          </select>
+
+          <select
+            name="status"
+            defaultValue={params.status ?? ""}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs font-semibold"
+          >
+            <option value="">All statuses</option>
+            <option value="booked">Booked</option>
+            <option value="ready_for_pickup">Ready for pickup</option>
+            <option value="picked_up">Picked up</option>
+            <option value="at_warehouse">At warehouse</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="delivered">Delivered</option>
+            <option value="undelivered">Undelivered</option>
+            <option value="return_initiated">Return initiated</option>
+            <option value="returned_to_shipper">Returned to shipper</option>
           </select>
 
           <button className="h-10 rounded-lg bg-[#13734b] px-4 text-xs font-bold text-white">
@@ -501,13 +533,23 @@ export default async function ReportsPage({
             </p>
           </div>
 
-          <div className="text-right">
-            <p className="text-xs font-bold text-[#13734b]">
-              Net payable {money(totalNetPayable)}
-            </p>
-            <p className="mt-1 text-[10px] text-[#87938d]">
-              Paid {money(totalPaid)}
-            </p>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-xs font-bold text-[#13734b]">
+                Net payable {money(totalNetPayable)}
+              </p>
+              <p className="mt-1 text-[10px] text-[#87938d]">
+                Paid {money(totalPaid)}
+              </p>
+            </div>
+
+            <Link
+              href={exportHref}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] transition hover:bg-[#edf7f2]"
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Link>
           </div>
         </div>
 
