@@ -3,11 +3,14 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BadgeDollarSign,
+  Boxes,
   Download,
   FileText,
   PackageCheck,
   RotateCcw,
+  SlidersHorizontal,
   Truck,
+  UserRoundCheck,
   WalletCards,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
@@ -85,10 +88,13 @@ export default async function ReportsPage({
     shipper?: string;
     driver?: string;
     status?: string;
+    report?: string;
   }>;
 }) {
   const profile = await requireProfile(internalRoles);
   const params = await searchParams;
+
+  const reportMode = params.report ?? "overview";
 
   const now = new Date();
   const todayStart = dubaiDayStartUtc(now);
@@ -375,6 +381,7 @@ export default async function ReportsPage({
   if (params.shipper) exportParams.set("shipper", params.shipper);
   if (params.driver) exportParams.set("driver", params.driver);
   if (params.status) exportParams.set("status", params.status);
+  if (params.report) exportParams.set("report", params.report);
 
   const exportHref = `/reports/export?${exportParams.toString()}`;
 
@@ -386,10 +393,35 @@ export default async function ReportsPage({
             Analytics & exports
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">
-            Reports
+            {reportMode === "delivery"
+              ? "Delivery Reports"
+              : reportMode === "drivers"
+                ? "Driver Reports"
+                : reportMode === "warehouse"
+                  ? "Warehouse Reports"
+                  : reportMode === "returns"
+                    ? "Returns / RTO Reports"
+                    : reportMode === "finance"
+                      ? "COD & Finance Reports"
+                      : reportMode === "shipments"
+                        ? "Shipment Reports"
+                        : "Reports"}
           </h1>
+
           <p className="mt-2 text-sm text-[#74827b]">
-            Operational, shipper, driver and AWB-level reporting.
+            {reportMode === "delivery"
+              ? "Delivered, undelivered, delivery attempts and aging performance."
+              : reportMode === "drivers"
+                ? "Driver assignments, delivery results and field performance."
+                : reportMode === "warehouse"
+                  ? "Warehouse received shipments and operational inventory flow."
+                  : reportMode === "returns"
+                    ? "Return initiated, RTO and returned-to-shipper performance."
+                    : reportMode === "finance"
+                      ? "COD value, courier charges, settlements and net payable."
+                      : reportMode === "shipments"
+                        ? "AWB bookings, shipment status and operational activity."
+                        : "Operational, shipper, driver and AWB-level reporting."}
           </p>
         </div>
 
@@ -398,6 +430,9 @@ export default async function ReportsPage({
           method="get"
           className="grid w-full gap-2 rounded-2xl border border-[#dfe7e3] bg-white p-3 shadow-sm md:grid-cols-3 xl:max-w-[1050px] xl:grid-cols-7"
         >
+          {reportMode !== "overview" ? (
+            <input type="hidden" name="report" value={reportMode} />
+          ) : null}
           <select
             name="range"
             defaultValue={range}
@@ -472,6 +507,106 @@ export default async function ReportsPage({
           </button>
         </form>
       </div>
+
+      <section className="mt-7">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-[#26372f]">
+              Report Center
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              Quick access to operational, delivery, finance and custom reporting.
+            </p>
+          </div>
+
+          <Link
+            href="/reports/custom"
+            className="hidden items-center gap-2 text-xs font-bold text-[#13734b] hover:underline sm:inline-flex"
+          >
+            <SlidersHorizontal className="size-4" />
+            Custom Reports
+          </Link>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              title: "Shipment Reports",
+              description: "AWB bookings, status and shipment activity.",
+              icon: PackageCheck,
+              href: "/reports?report=shipments",
+            },
+            {
+              title: "Delivery Reports",
+              description: "Delivered, undelivered and attempt performance.",
+              icon: Truck,
+              href: "/reports?report=delivery",
+            },
+            {
+              title: "Driver Reports",
+              description: "Driver assignments and delivery results.",
+              icon: UserRoundCheck,
+              href: "/reports?report=drivers#driver-performance",
+            },
+            {
+              title: "Warehouse Reports",
+              description: "Warehouse received and operational shipment flow.",
+              icon: Boxes,
+              href: "/reports?report=warehouse",
+            },
+            {
+              title: "Returns / RTO",
+              description: "Return initiated and returned shipment reporting.",
+              icon: RotateCcw,
+              href: "/reports?report=returns",
+            },
+            {
+              title: "COD & Finance",
+              description: "COD value, courier charges and net payable.",
+              icon: WalletCards,
+              href: "/reports?report=finance#awb-detail",
+            },
+            {
+              title: "Settlement Reports",
+              description: "Shipper settlement and payout reporting.",
+              icon: BadgeDollarSign,
+              href: "/finance",
+            },
+            {
+              title: "Custom Reports",
+              description: "Build and save your own reusable reports.",
+              icon: SlidersHorizontal,
+              href: "/reports/custom",
+            },
+          ].map((report) => {
+            const ReportIcon = report.icon;
+
+            return (
+              <Link
+                key={report.title}
+                href={report.href}
+                className="group rounded-2xl border border-[#e0e8e4] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#b9d8c9] hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-[#edf8f2] text-[#13734b] transition group-hover:bg-[#13734b] group-hover:text-white">
+                    <ReportIcon className="size-5" />
+                  </div>
+
+                  <ArrowUpRight className="size-4 text-[#a4afa9] transition group-hover:text-[#13734b]" />
+                </div>
+
+                <h3 className="mt-4 text-sm font-black text-[#26372f]">
+                  {report.title}
+                </h3>
+
+                <p className="mt-1.5 text-xs leading-5 text-[#87938d]">
+                  {report.description}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
         {[
