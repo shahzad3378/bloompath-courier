@@ -60,6 +60,7 @@ export default async function WarehousePage({
     { data: manifestData, error: manifestError },
     { data: returnData, error: returnError },
     { data: warehouseData, error: warehouseError },
+    { data: rtoData, error: rtoError },
   ] = await Promise.all([
     supabase
       .from("pickup_manifests")
@@ -83,14 +84,24 @@ export default async function WarehousePage({
       .eq("status", "at_warehouse")
       .is("deleted_at", null)
       .order("updated_at", { ascending: true }),
+
+    supabase
+      .from("shipments")
+      .select("*")
+      .eq("status", "return_initiated")
+      .is("assigned_driver_id", null)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: true }),
   ]);
 
   const manifests = (manifestData ?? []) as WarehouseManifest[];
   const pendingReturns =
     (returnData ?? []) as unknown as PendingDriverReturn[];
 
-  const warehouseInventory =
-    (warehouseData ?? []) as unknown as PendingDriverReturn[];
+  const warehouseInventory = [
+    ...((warehouseData ?? []) as unknown as PendingDriverReturn[]),
+    ...((rtoData ?? []) as unknown as PendingDriverReturn[]),
+  ];
 
   const pendingPickupAwbs = manifests.reduce(
     (sum, manifest) =>
@@ -480,7 +491,7 @@ export default async function WarehousePage({
                 </table>
               </div>
             )
-          ) : warehouseError ? (
+          ) : warehouseError || rtoError ? (
             <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
               Warehouse inventory could not be loaded.
             </p>
