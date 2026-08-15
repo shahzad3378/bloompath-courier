@@ -79,10 +79,8 @@ export default async function WarehousePage({
 
     supabase
       .from("shipments")
-      .select(
-        "*, profiles!shipments_assigned_driver_id_fkey(full_name)",
-      )
-      .in("status", ["at_warehouse", "return_initiated"])
+      .select("*")
+      .eq("status", "at_warehouse")
       .is("deleted_at", null)
       .order("updated_at", { ascending: true }),
   ]);
@@ -91,14 +89,8 @@ export default async function WarehousePage({
   const pendingReturns =
     (returnData ?? []) as unknown as PendingDriverReturn[];
 
-  const warehouseInventory = (
-    (warehouseData ?? []) as unknown as PendingDriverReturn[]
-  ).filter(
-    (shipment) =>
-      shipment.status === "at_warehouse" ||
-      (shipment.status === "return_initiated" &&
-        !shipment.assigned_driver_id),
-  );
+  const warehouseInventory =
+    (warehouseData ?? []) as unknown as PendingDriverReturn[];
 
   const pendingPickupAwbs = manifests.reduce(
     (sum, manifest) =>
