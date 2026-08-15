@@ -293,7 +293,7 @@ export function DashboardUI({
               ["AWB & booking", "Ready"],
               ["Warehouse & dispatch", "Ready"],
               ["Delivery & RTS", "Ready"],
-              ["COD & finance", "In progress"],
+              ["COD & finance", "Ready"],
             ].map(([label, status], index) => (
               <div key={label} className="flex items-center gap-3">
                 <span
