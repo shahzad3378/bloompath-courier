@@ -19,7 +19,19 @@ function CitySelect({ name, defaultValue = "Dubai" }: { name: string; defaultVal
   );
 }
 
-export function ShipmentForm() {
+type ShipperOption = {
+  id: string;
+  full_name: string;
+  email: string;
+};
+
+export function ShipmentForm({
+  shippers,
+  requiresShipperSelection,
+}: {
+  shippers: ShipperOption[];
+  requiresShipperSelection: boolean;
+}) {
   const [state, formAction, pending] = useActionState(createShipmentAction, initialState);
 
   return (
@@ -37,6 +49,47 @@ export function ShipmentForm() {
       </div>
 
       {state.message ? <p role="alert" className="mt-5 rounded-xl border border-[#f1cece] bg-[#fff3f3] px-4 py-3 text-sm font-semibold text-[#a63e3e]">{state.message}</p> : null}
+
+      {requiresShipperSelection ? (
+        <section className="mt-7 rounded-2xl border border-[#cfe2d8] bg-[#f8fcfa] p-5 shadow-[0_8px_30px_rgba(24,51,39,0.035)] sm:p-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">
+              Shipper account
+            </p>
+            <h2 className="mt-1 font-bold text-[#26372f]">
+              Select the seller for this AWB
+            </h2>
+            <p className="mt-1 text-xs text-[#7a8881]">
+              Finance rates, COD settlement and return charges will be linked to this shipper.
+            </p>
+          </div>
+
+          <label className={`${labelClass} mt-4 block max-w-xl`}>
+            Shipper *
+            <select
+              name="shipper_id"
+              required
+              defaultValue=""
+              className={inputClass}
+            >
+              <option value="" disabled>
+                Select active shipper
+              </option>
+              {shippers.map((shipper) => (
+                <option key={shipper.id} value={shipper.id}>
+                  {shipper.full_name} · {shipper.email}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {shippers.length === 0 ? (
+            <p className="mt-3 text-xs font-semibold text-[#a13f3f]">
+              No active shipper account is available. Create or reactivate a shipper first.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-2">
         <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:p-6">

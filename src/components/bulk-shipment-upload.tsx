@@ -48,7 +48,19 @@ function downloadResults(shipments: ImportedShipment[]) {
   URL.revokeObjectURL(url);
 }
 
-export function BulkShipmentUpload() {
+type ShipperOption = {
+  id: string;
+  full_name: string;
+  email: string;
+};
+
+export function BulkShipmentUpload({
+  shippers,
+  requiresShipperSelection,
+}: {
+  shippers: ShipperOption[];
+  requiresShipperSelection: boolean;
+}) {
   const [state, formAction, pending] = useActionState(importShipmentsAction, initialBulkUploadState);
   const [fileName, setFileName] = useState("");
   const importedIds = state.imported.map((shipment) => shipment.id).join(",");
@@ -71,6 +83,33 @@ export function BulkShipmentUpload() {
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#e7f4ed] text-[#188459]"><UploadCloud className="size-5" /></span>
             <div><h2 className="font-bold text-[#26372f]">Choose your completed file</h2><p className="mt-1 text-sm text-[#7a8881]">Accepted: .xlsx or .csv · Maximum file size: 5 MB</p></div>
           </div>
+
+          {requiresShipperSelection ? (
+            <label className="mt-5 block text-xs font-bold text-[#516159]">
+              Shipper for this batch *
+              <select
+                name="shipper_id"
+                required
+                defaultValue=""
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal text-[#25352d]"
+              >
+                <option value="" disabled>
+                  Select active shipper
+                </option>
+                {shippers.map((shipper) => (
+                  <option key={shipper.id} value={shipper.id}>
+                    {shipper.full_name} · {shipper.email}
+                  </option>
+                ))}
+              </select>
+
+              {shippers.length === 0 ? (
+                <span className="mt-2 block text-xs font-semibold text-[#a13f3f]">
+                  No active shipper is available. Create or reactivate a shipper first.
+                </span>
+              ) : null}
+            </label>
+          ) : null}
 
           <label className="mt-6 grid min-h-52 cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-[#bed5c9] bg-[#f8fbf9] p-6 text-center transition hover:border-[#2b9466] hover:bg-[#f1f8f4]">
             <input

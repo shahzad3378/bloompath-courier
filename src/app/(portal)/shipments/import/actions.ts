@@ -39,6 +39,42 @@ export async function importShipmentsAction(
   }
 
   const supabase = await createClient();
+
+  let shipperId = profile.id;
+
+  if (profile.role !== "shipper") {
+    const selectedShipperId = String(formData.get("shipper_id") ?? "");
+
+    if (!/^[0-9a-f-]{36}$/i.test(selectedShipperId)) {
+      return {
+        status: "error",
+        message: "Select an active shipper before importing the batch.",
+        errors: [],
+        imported: [],
+      };
+    }
+
+    const { data: selectedShipper, error: shipperError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", selectedShipperId)
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "shipper")
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (shipperError || !selectedShipper) {
+      return {
+        status: "error",
+        message: "The selected shipper is not active or does not belong to your organization.",
+        errors: [],
+        imported: [],
+      };
+    }
+
+    shipperId = selectedShipper.id;
+  }
+
   const references = parsed.rows
     .map(({ shipment }) => shipment.reference_number)
     .filter((reference): reference is string => Boolean(reference));
@@ -77,7 +113,7 @@ export async function importShipmentsAction(
   const insertRows = parsed.rows.map(({ shipment }) => ({
     ...shipment,
     organization_id: profile.organization_id,
-    shipper_id: profile.role === "shipper" ? profile.id : null,
+    shipper_id: shipperId,
     created_by: profile.id,
   }));
 

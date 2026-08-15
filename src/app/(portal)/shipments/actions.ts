@@ -56,11 +56,37 @@ export async function createShipmentAction(
   }
 
   const supabase = await createClient();
+
+  let shipperId = profile.id;
+
+  if (profile.role !== "shipper") {
+    const selectedShipperId = String(formData.get("shipper_id") ?? "");
+
+    if (!/^[0-9a-f-]{36}$/i.test(selectedShipperId)) {
+      return { message: "Select an active shipper before booking the shipment." };
+    }
+
+    const { data: selectedShipper, error: shipperError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", selectedShipperId)
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "shipper")
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (shipperError || !selectedShipper) {
+      return { message: "The selected shipper is not active or does not belong to your organization." };
+    }
+
+    shipperId = selectedShipper.id;
+  }
+
   const { data, error } = await supabase
     .from("shipments")
     .insert({
       organization_id: profile.organization_id,
-      shipper_id: profile.role === "shipper" ? profile.id : null,
+      shipper_id: shipperId,
       created_by: profile.id,
       reference_number: optionalText(formData, "reference_number", 80),
       service_type: serviceType,
