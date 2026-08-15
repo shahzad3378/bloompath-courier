@@ -88,10 +88,18 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
         <div className="border-t border-white/10 p-3">
           <div className="border-t border-white/10 pt-3">
             <div className="space-y-1">
-              <span className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-white/35">
+              <Link
+                href="/help"
+                onClick={() => setOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+                  pathname === "/help"
+                    ? "bg-white/10 text-white"
+                    : "text-white/60 hover:bg-white/8 hover:text-white"
+                }`}
+              >
                 <LifeBuoy className="size-[17px]" />
                 Help & support
-              </span>
+              </Link>
 
               {profile.role !== "shipper" && profile.role !== "driver" ? (
                 <Link
