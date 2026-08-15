@@ -50,6 +50,31 @@ function money(value: number) {
   return `AED ${Number(value || 0).toFixed(2)}`;
 }
 
+function agingDaysSince(value: string) {
+  const start = new Date(value);
+  const now = new Date();
+
+  const startDubai = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+  const nowDubai = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+  const startDay = Date.UTC(
+    startDubai.getUTCFullYear(),
+    startDubai.getUTCMonth(),
+    startDubai.getUTCDate(),
+  );
+
+  const nowDay = Date.UTC(
+    nowDubai.getUTCFullYear(),
+    nowDubai.getUTCMonth(),
+    nowDubai.getUTCDate(),
+  );
+
+  return Math.max(
+    0,
+    Math.floor((nowDay - startDay) / 86400000),
+  );
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -189,6 +214,54 @@ export default async function ReportsPage({
   ]);
 
   const shipments = (shipmentData ?? []) as any[];
+
+  const latestUndeliveredByShipment = new Map<number, string>();
+
+  if (shipments.length > 0) {
+    const { data: undeliveredAttempts } = await supabase
+      .from("delivery_attempts")
+      .select("shipment_id, created_at")
+      .in(
+        "shipment_id",
+        shipments.map((row) => Number(row.id)),
+      )
+      .eq("outcome", "undelivered")
+      .order("created_at", { ascending: false });
+
+    for (const attempt of undeliveredAttempts ?? []) {
+      const shipmentId = Number(attempt.shipment_id);
+
+      if (
+        !latestUndeliveredByShipment.has(shipmentId) &&
+        attempt.created_at
+      ) {
+        latestUndeliveredByShipment.set(
+          shipmentId,
+          attempt.created_at,
+        );
+      }
+    }
+  }
+
+  const reportShipments = shipments.map((row) => {
+    const lastUndeliveredAt =
+      latestUndeliveredByShipment.get(Number(row.id)) ?? null;
+
+    const agingClosed =
+      row.status === "delivered" ||
+      row.status === "returned_to_shipper" ||
+      row.status === "cancelled";
+
+    return {
+      ...row,
+      last_undelivered_at: lastUndeliveredAt,
+      aging_days:
+        lastUndeliveredAt && !agingClosed
+          ? agingDaysSince(lastUndeliveredAt)
+          : null,
+    };
+  });
+
   const ledgerRows = (ledgerData ?? []) as any[];
   const settlements = (settlementData ?? []) as any[];
 
@@ -557,13 +630,13 @@ export default async function ReportsPage({
           <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
             Report data could not be loaded.
           </p>
-        ) : shipments.length === 0 ? (
+        ) : reportShipments.length === 0 ? (
           <p className="p-8 text-center text-sm text-[#87938d]">
             No AWBs found for this report.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1250px] text-left text-sm">
+            <table className="w-full min-w-[1360px] text-left text-sm">
               <thead className="bg-[#f8faf9] text-[11px] uppercase tracking-wide text-[#77847e]">
                 <tr>
                   <th className="px-4 py-3">AWB</th>
@@ -574,6 +647,7 @@ export default async function ReportsPage({
                   <th className="px-4 py-3">City</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Attempt</th>
+                  <th className="px-4 py-3">Aging</th>
                   <th className="px-4 py-3">Payment</th>
                   <th className="px-4 py-3">COD</th>
                   <th className="px-4 py-3">Service</th>
@@ -581,7 +655,7 @@ export default async function ReportsPage({
               </thead>
 
               <tbody className="divide-y divide-[#edf1ef]">
-                {shipments.map((row) => (
+                {reportShipments.map((row) => (
                   <tr key={row.id}>
                     <td className="px-4 py-3 font-mono font-black text-[#13734b]">
                       {row.tracking_number}
@@ -607,6 +681,35 @@ export default async function ReportsPage({
                     <td className="px-4 py-3">
                       {row.delivery_attempt_count}
                     </td>
+
+                    <td className="px-4 py-3">
+                      {row.aging_days === null ? (
+                        <span className="text-[#87938d]">—</span>
+                      ) : (
+                        <span
+                          title={
+                            row.last_undelivered_at
+                              ? `Last undelivered: ${formatDubaiDate(
+                                  row.last_undelivered_at,
+                                )}`
+                              : undefined
+                          }
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
+                            row.aging_days >= 8
+                              ? "bg-[#fff0f0] text-[#b74646]"
+                              : row.aging_days >= 4
+                                ? "bg-[#fff3df] text-[#a66516]"
+                                : row.aging_days >= 2
+                                  ? "bg-[#fff9e8] text-[#8a6a1c]"
+                                  : "bg-[#edf8f2] text-[#176a47]"
+                          }`}
+                        >
+                          {row.aging_days}{" "}
+                          {row.aging_days === 1 ? "Day" : "Days"}
+                        </span>
+                      )}
+                    </td>
+
                     <td className="px-4 py-3 uppercase">
                       {row.payment_type}
                     </td>
