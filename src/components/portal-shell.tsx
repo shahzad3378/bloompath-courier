@@ -20,7 +20,7 @@ const internalNav: NavItem[] = [
   { label: "Warehouse", href: "/warehouse", icon: Warehouse },
   { label: "Dispatch", href: "/dispatch", icon: Truck },
   { label: "Returns", href: "/returns", icon: RotateCcw },
-  { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign, disabled: true },
+  { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign },
   { label: "Shippers", href: "/shippers", icon: UsersRound },
   { label: "Users & Roles", href: "/users", icon: UserRoundCog },
   { label: "Reports", href: "/reports", icon: FileText, disabled: true },
