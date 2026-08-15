@@ -1,0 +1,586 @@
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  BadgeDollarSign,
+  FileText,
+  PackageCheck,
+  RotateCcw,
+  Truck,
+  WalletCards,
+} from "lucide-react";
+import { requireProfile } from "@/lib/auth";
+import { internalRoles } from "@/lib/roles";
+import { formatAed, formatDubaiDate } from "@/lib/shipments";
+import { createClient } from "@/lib/supabase/server";
+
+export const metadata = { title: "Reports" };
+
+type RangeKey = "today" | "7d" | "30d" | "month" | "custom";
+
+function dubaiDayStartUtc(date: Date) {
+  const dubai = new Date(date.getTime() + 4 * 60 * 60 * 1000);
+
+  return new Date(
+    Date.UTC(
+      dubai.getUTCFullYear(),
+      dubai.getUTCMonth(),
+      dubai.getUTCDate(),
+    ) -
+      4 * 60 * 60 * 1000,
+  );
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 86400000);
+}
+
+function parseDubaiDate(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  return new Date(
+    Date.UTC(year, month - 1, day) - 4 * 60 * 60 * 1000,
+  );
+}
+
+function money(value: number) {
+  return `AED ${Number(value || 0).toFixed(2)}`;
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    range?: string;
+    from?: string;
+    to?: string;
+    shipper?: string;
+    driver?: string;
+    status?: string;
+  }>;
+}) {
+  const profile = await requireProfile(internalRoles);
+  const params = await searchParams;
+
+  const now = new Date();
+  const todayStart = dubaiDayStartUtc(now);
+
+  const requestedRange = params.range ?? "7d";
+  const range: RangeKey = ["today", "7d", "30d", "month", "custom"].includes(
+    requestedRange,
+  )
+    ? (requestedRange as RangeKey)
+    : "7d";
+
+  let start = addDays(todayStart, -6);
+  let endExclusive = addDays(todayStart, 1);
+
+  if (range === "today") {
+    start = todayStart;
+  } else if (range === "30d") {
+    start = addDays(todayStart, -29);
+  } else if (range === "month") {
+    const dubai = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+    start = new Date(
+      Date.UTC(
+        dubai.getUTCFullYear(),
+        dubai.getUTCMonth(),
+        1,
+      ) -
+        4 * 60 * 60 * 1000,
+    );
+  } else if (range === "custom") {
+    const customFrom = parseDubaiDate(params.from);
+    const customTo = parseDubaiDate(params.to);
+
+    if (customFrom && customTo && customFrom <= customTo) {
+      start = customFrom;
+      endExclusive = addDays(customTo, 1);
+    }
+  }
+
+  const startIso = start.toISOString();
+  const endIso = endExclusive.toISOString();
+
+  const supabase = await createClient();
+
+  let shipmentQuery = supabase
+    .from("shipments")
+    .select(
+      `
+      id,
+      tracking_number,
+      reference_number,
+      shipper_id,
+      assigned_driver_id,
+      consignee_name,
+      consignee_city,
+      payment_type,
+      cod_amount,
+      service_type,
+      status,
+      delivery_attempt_count,
+      booked_at,
+      delivered_at,
+      created_at,
+      shipper:profiles!shipments_shipper_id_fkey(full_name,email),
+      driver:profiles!shipments_assigned_driver_id_fkey(full_name,email)
+      `,
+    )
+    .is("deleted_at", null)
+    .gte("booked_at", startIso)
+    .lt("booked_at", endIso)
+    .order("booked_at", { ascending: false });
+
+  if (params.shipper) {
+    shipmentQuery = shipmentQuery.eq("shipper_id", params.shipper);
+  }
+
+  if (params.driver) {
+    shipmentQuery = shipmentQuery.eq("assigned_driver_id", params.driver);
+  }
+
+  if (params.status) {
+    shipmentQuery = shipmentQuery.eq("status", params.status);
+  }
+
+  const [
+    { data: shipmentData, error: shipmentError },
+    { data: shippers },
+    { data: drivers },
+    { data: ledgerData },
+    { data: settlementData },
+  ] = await Promise.all([
+    shipmentQuery,
+
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "shipper")
+      .eq("status", "active")
+      .order("full_name"),
+
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "driver")
+      .eq("status", "active")
+      .order("full_name"),
+
+    supabase
+      .from("finance_ledger")
+      .select(
+        "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, transaction_type, transaction_at",
+      )
+      .gte("transaction_at", startIso)
+      .lt("transaction_at", endIso),
+
+    supabase
+      .from("settlements")
+      .select("id, shipper_id, status, net_payable, paid_at, created_at")
+      .gte("created_at", startIso)
+      .lt("created_at", endIso),
+  ]);
+
+  const shipments = (shipmentData ?? []) as any[];
+  const ledgerRows = (ledgerData ?? []) as any[];
+  const settlements = (settlementData ?? []) as any[];
+
+  const booked = shipments.length;
+  const delivered = shipments.filter((row) => row.status === "delivered").length;
+  const undelivered = shipments.filter((row) => row.status === "undelivered").length;
+  const outForDelivery = shipments.filter(
+    (row) => row.status === "out_for_delivery",
+  ).length;
+  const returns = shipments.filter(
+    (row) =>
+      row.status === "return_initiated" ||
+      row.status === "returned_to_shipper",
+  ).length;
+
+  const totalCod = ledgerRows.reduce(
+    (sum, row) => sum + Number(row.cod_amount || 0),
+    0,
+  );
+
+  const totalCharges = ledgerRows.reduce(
+    (sum, row) => sum + Number(row.total_charges || 0),
+    0,
+  );
+
+  const totalNetPayable = ledgerRows.reduce(
+    (sum, row) => sum + Number(row.net_payable || 0),
+    0,
+  );
+
+  const totalPaid = settlements
+    .filter((row) => row.status === "paid")
+    .reduce((sum, row) => sum + Number(row.net_payable || 0), 0);
+
+  const shipperMap = new Map<
+    string,
+    {
+      name: string;
+      awbs: number;
+      delivered: number;
+      cod: number;
+      charges: number;
+      net: number;
+    }
+  >();
+
+  for (const row of shipments) {
+    if (!row.shipper_id) continue;
+
+    const current = shipperMap.get(row.shipper_id) ?? {
+      name: row.shipper?.full_name ?? row.shipper?.email ?? "Shipper",
+      awbs: 0,
+      delivered: 0,
+      cod: 0,
+      charges: 0,
+      net: 0,
+    };
+
+    current.awbs += 1;
+    if (row.status === "delivered") current.delivered += 1;
+
+    shipperMap.set(row.shipper_id, current);
+  }
+
+  for (const row of ledgerRows) {
+    const current = shipperMap.get(row.shipper_id);
+
+    if (!current) continue;
+
+    current.cod += Number(row.cod_amount || 0);
+    current.charges += Number(row.total_charges || 0);
+    current.net += Number(row.net_payable || 0);
+  }
+
+  const driverMap = new Map<
+    string,
+    {
+      name: string;
+      assigned: number;
+      delivered: number;
+      undelivered: number;
+    }
+  >();
+
+  for (const row of shipments) {
+    if (!row.assigned_driver_id) continue;
+
+    const current = driverMap.get(row.assigned_driver_id) ?? {
+      name: row.driver?.full_name ?? row.driver?.email ?? "Driver",
+      assigned: 0,
+      delivered: 0,
+      undelivered: 0,
+    };
+
+    current.assigned += 1;
+    if (row.status === "delivered") current.delivered += 1;
+    if (row.status === "undelivered") current.undelivered += 1;
+
+    driverMap.set(row.assigned_driver_id, current);
+  }
+
+  const deliveryRate = booked > 0 ? Math.round((delivered / booked) * 100) : 0;
+
+  return (
+    <div className="mx-auto max-w-[1500px]">
+      <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+        <div>
+          <p className="text-sm font-semibold text-[#188459]">
+            Analytics & exports
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">
+            Reports
+          </h1>
+          <p className="mt-2 text-sm text-[#74827b]">
+            Operational, shipper, driver and AWB-level reporting.
+          </p>
+        </div>
+
+        <form
+          action="/reports"
+          method="get"
+          className="grid w-full gap-2 rounded-2xl border border-[#dfe7e3] bg-white p-3 shadow-sm md:grid-cols-3 xl:max-w-[850px] xl:grid-cols-6"
+        >
+          <select
+            name="range"
+            defaultValue={range}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs font-semibold"
+          >
+            <option value="today">Today</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="month">This Month</option>
+            <option value="custom">Custom</option>
+          </select>
+
+          <input
+            name="from"
+            type="date"
+            defaultValue={params.from ?? ""}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs"
+          />
+
+          <input
+            name="to"
+            type="date"
+            defaultValue={params.to ?? ""}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs"
+          />
+
+          <select
+            name="shipper"
+            defaultValue={params.shipper ?? ""}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs font-semibold"
+          >
+            <option value="">All shippers</option>
+            {(shippers ?? []).map((shipper) => (
+              <option key={shipper.id} value={shipper.id}>
+                {shipper.full_name || shipper.email}
+              </option>
+            ))}
+          </select>
+
+          <select
+            name="driver"
+            defaultValue={params.driver ?? ""}
+            className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs font-semibold"
+          >
+            <option value="">All drivers</option>
+            {(drivers ?? []).map((driver) => (
+              <option key={driver.id} value={driver.id}>
+                {driver.full_name || driver.email}
+              </option>
+            ))}
+          </select>
+
+          <button className="h-10 rounded-lg bg-[#13734b] px-4 text-xs font-bold text-white">
+            Apply filters
+          </button>
+        </form>
+      </div>
+
+      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+        {[
+          ["Booked", String(booked), PackageCheck],
+          ["Out for delivery", String(outForDelivery), Truck],
+          ["Delivered", String(delivered), ArrowUpRight],
+          ["Undelivered", String(undelivered), ArrowDownRight],
+          ["Returns", String(returns), RotateCcw],
+          ["Delivery rate", `${deliveryRate}%`, FileText],
+          ["COD", money(totalCod), WalletCards],
+          ["Courier charges", money(totalCharges), BadgeDollarSign],
+        ].map(([label, value, Icon]) => {
+          const CardIcon = Icon as typeof PackageCheck;
+
+          return (
+            <div
+              key={String(label)}
+              className="rounded-2xl border border-[#e0e8e4] bg-white p-4"
+            >
+              <CardIcon className="size-4 text-[#13734b]" />
+              <p className="mt-3 text-xl font-black text-[#26372f]">
+                {String(value)}
+              </p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                {String(label)}
+              </p>
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="mt-7 grid gap-5 xl:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
+          <div className="border-b border-[#e8eeeb] px-5 py-4">
+            <h2 className="font-bold text-[#26372f]">
+              Shipper performance
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              AWBs, delivery performance and financial value by seller.
+            </p>
+          </div>
+
+          {[...shipperMap.values()].length === 0 ? (
+            <p className="p-8 text-center text-sm text-[#87938d]">
+              No shipper activity in this period.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="bg-[#f8faf9] text-[11px] uppercase tracking-wide text-[#77847e]">
+                  <tr>
+                    <th className="px-4 py-3">Shipper</th>
+                    <th className="px-4 py-3">AWBs</th>
+                    <th className="px-4 py-3">Delivered</th>
+                    <th className="px-4 py-3">COD</th>
+                    <th className="px-4 py-3">Charges</th>
+                    <th className="px-4 py-3">Net</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#edf1ef]">
+                  {[...shipperMap.values()].map((row) => (
+                    <tr key={row.name}>
+                      <td className="px-4 py-3 font-bold">{row.name}</td>
+                      <td className="px-4 py-3">{row.awbs}</td>
+                      <td className="px-4 py-3">{row.delivered}</td>
+                      <td className="px-4 py-3">{money(row.cod)}</td>
+                      <td className="px-4 py-3">{money(row.charges)}</td>
+                      <td className="px-4 py-3 font-black text-[#13734b]">
+                        {money(row.net)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
+          <div className="border-b border-[#e8eeeb] px-5 py-4">
+            <h2 className="font-bold text-[#26372f]">
+              Driver performance
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              Assigned shipments and delivery results by driver.
+            </p>
+          </div>
+
+          {[...driverMap.values()].length === 0 ? (
+            <p className="p-8 text-center text-sm text-[#87938d]">
+              No driver activity in this period.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="bg-[#f8faf9] text-[11px] uppercase tracking-wide text-[#77847e]">
+                  <tr>
+                    <th className="px-4 py-3">Driver</th>
+                    <th className="px-4 py-3">Assigned</th>
+                    <th className="px-4 py-3">Delivered</th>
+                    <th className="px-4 py-3">Undelivered</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#edf1ef]">
+                  {[...driverMap.values()].map((row) => (
+                    <tr key={row.name}>
+                      <td className="px-4 py-3 font-bold">{row.name}</td>
+                      <td className="px-4 py-3">{row.assigned}</td>
+                      <td className="px-4 py-3 text-[#13734b]">
+                        {row.delivered}
+                      </td>
+                      <td className="px-4 py-3 text-[#b76223]">
+                        {row.undelivered}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-7 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
+        <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
+          <div>
+            <h2 className="font-bold text-[#26372f]">
+              AWB detail report
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              Row-level shipment detail for the selected period.
+            </p>
+          </div>
+
+          <div className="text-right">
+            <p className="text-xs font-bold text-[#13734b]">
+              Net payable {money(totalNetPayable)}
+            </p>
+            <p className="mt-1 text-[10px] text-[#87938d]">
+              Paid {money(totalPaid)}
+            </p>
+          </div>
+        </div>
+
+        {shipmentError ? (
+          <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
+            Report data could not be loaded.
+          </p>
+        ) : shipments.length === 0 ? (
+          <p className="p-8 text-center text-sm text-[#87938d]">
+            No AWBs found for this report.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1250px] text-left text-sm">
+              <thead className="bg-[#f8faf9] text-[11px] uppercase tracking-wide text-[#77847e]">
+                <tr>
+                  <th className="px-4 py-3">AWB</th>
+                  <th className="px-4 py-3">Booked</th>
+                  <th className="px-4 py-3">Shipper</th>
+                  <th className="px-4 py-3">Driver</th>
+                  <th className="px-4 py-3">Consignee</th>
+                  <th className="px-4 py-3">City</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Attempt</th>
+                  <th className="px-4 py-3">Payment</th>
+                  <th className="px-4 py-3">COD</th>
+                  <th className="px-4 py-3">Service</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-[#edf1ef]">
+                {shipments.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-3 font-mono font-black text-[#13734b]">
+                      {row.tracking_number}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDubaiDate(row.booked_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.shipper?.full_name ||
+                        row.shipper?.email ||
+                        "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.driver?.full_name ||
+                        row.driver?.email ||
+                        "—"}
+                    </td>
+                    <td className="px-4 py-3">{row.consignee_name}</td>
+                    <td className="px-4 py-3">{row.consignee_city}</td>
+                    <td className="px-4 py-3 capitalize">
+                      {row.status.replaceAll("_", " ")}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.delivery_attempt_count}
+                    </td>
+                    <td className="px-4 py-3 uppercase">
+                      {row.payment_type}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatAed(row.cod_amount)}
+                    </td>
+                    <td className="px-4 py-3 capitalize">
+                      {row.service_type.replaceAll("_", " ")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

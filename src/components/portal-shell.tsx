@@ -23,7 +23,7 @@ const internalNav: NavItem[] = [
   { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign },
   { label: "Shippers", href: "/shippers", icon: UsersRound },
   { label: "Users & Roles", href: "/users", icon: UserRoundCog },
-  { label: "Reports", href: "/reports", icon: FileText, disabled: true },
+  { label: "Reports", href: "/reports", icon: FileText },
 ];
 
 const shipperNav: NavItem[] = [
