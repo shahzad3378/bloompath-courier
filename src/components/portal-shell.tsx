@@ -86,9 +86,26 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <span className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/35"><LifeBuoy className="size-[18px]" />Help & support</span>
-          <span className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/35"><Settings className="size-[18px]" />Settings</span>
-          <form action={logoutAction}><button className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/55 transition hover:bg-white/8 hover:text-white"><LogOut className="size-[18px]" />Sign out</button></form>
+          <div className="border-t border-white/10 pt-3">
+            <div className="space-y-1">
+              <span className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-white/35">
+                <LifeBuoy className="size-[17px]" />
+                Help & support
+              </span>
+
+              <span className="flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-white/35">
+                <Settings className="size-[17px]" />
+                Settings
+              </span>
+
+              <form action={logoutAction}>
+                <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 transition hover:bg-white/8 hover:text-white">
+                  <LogOut className="size-[17px]" />
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
       </aside>
 
