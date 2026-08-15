@@ -62,3 +62,5 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .awb-bulk-item:last-child { break-after: auto; page-break-after: auto; }
   .awb-bulk-item + .awb-bulk-item { margin-top: 0; }
 }
+
+@import "leaflet/dist/leaflet.css";

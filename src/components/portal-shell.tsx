@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BadgeDollarSign, Bell, ChevronDown, CircleUserRound, ClipboardList,
-  FileText, LayoutDashboard, LifeBuoy, LogOut, Menu, PackageCheck, RotateCcw,
+  FileText, LayoutDashboard, LifeBuoy, LogOut, MapPinned, Menu, PackageCheck, RotateCcw,
   ScanLine, Settings, Truck, UserRoundCog, UsersRound, Warehouse, X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -19,6 +19,7 @@ const internalNav: NavItem[] = [
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Warehouse", href: "/warehouse", icon: Warehouse },
   { label: "Dispatch", href: "/dispatch", icon: Truck },
+  { label: "Live Map", href: "/live-map", icon: MapPinned },
   { label: "Returns", href: "/returns", icon: RotateCcw },
   { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign },
   { label: "Shippers", href: "/shippers", icon: UsersRound },

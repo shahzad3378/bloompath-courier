@@ -4,6 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { type DispatchRun, type DispatchRunItem } from "@/lib/dispatch";
 import { formatAed, formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import { DriverLocationTracker } from "@/components/driver-location-tracker";
 
 export const metadata = { title: "My Delivery Route" };
 
@@ -69,6 +70,15 @@ export default async function DriverPage({
     <div className="mx-auto max-w-[1050px]">
       {updated === "1" ? <div className="mb-5 flex items-center gap-3 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]"><CheckCircle2 className="size-5" /> Delivery result and proof saved successfully.</div> : null}
       {return_updated === "1" ? <div className="mb-5 flex items-center gap-3 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]"><CheckCircle2 className="size-5" /> Seller POD saved. Shipment returned to shipper successfully.</div> : null}
+      {profile.organization_id ? (
+        <div className="mb-5">
+          <DriverLocationTracker
+            driverId={profile.id}
+            organizationId={profile.organization_id}
+          />
+        </div>
+      ) : null}
+
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[#188459]">Driver application</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">My delivery route</h1><p className="mt-2 text-sm text-[#74827b]">Open an AWB, complete the attempt and upload a proof photo.</p></div>
         <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Pending stops</p><p className="mt-1 text-2xl font-black text-[#13734b]">{pendingCount}</p></div>
