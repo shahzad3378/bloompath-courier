@@ -35,8 +35,17 @@ export async function receiveUndeliveredReturnAction(
     .maybeSingle();
 
   if (!shipment) return { status: "error", message: `AWB ${tracking} was not found.` };
-  if (shipment.status !== "undelivered" || ![1, 2].includes(shipment.delivery_attempt_count)) {
-    return { status: "error", message: `AWB ${tracking} is not pending an undelivered warehouse return.` };
+  const isReattemptReturn =
+    shipment.status === "undelivered" &&
+    [1, 2].includes(shipment.delivery_attempt_count);
+
+  const isFinalReturn =
+    shipment.status === "return_initiated" &&
+    shipment.delivery_attempt_count >= 1 &&
+    shipment.delivery_attempt_count <= 4;
+
+  if (!isReattemptReturn && !isFinalReturn) {
+    return { status: "error", message: `AWB ${tracking} is not pending a warehouse return.` };
   }
   if (!shipment.assigned_driver_id) {
     return { status: "error", message: `AWB ${tracking} has no returning driver assigned.` };
@@ -60,5 +69,10 @@ export async function receiveUndeliveredReturnAction(
   revalidatePath("/warehouse");
   revalidatePath("/shipments");
   revalidatePath("/dispatch");
-  return { status: "success", message: `AWB ${tracking} returned to warehouse and is ready for reattempt.` };
+  return {
+    status: "success",
+    message: isFinalReturn
+      ? `AWB ${tracking} received at warehouse and is ready for Return to Seller.`
+      : `AWB ${tracking} returned to warehouse and is ready for reattempt.`,
+  };
 }
