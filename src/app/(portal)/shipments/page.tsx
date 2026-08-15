@@ -1,5 +1,16 @@
 import Link from "next/link";
-import { Archive, PackagePlus, Search, UploadCloud } from "lucide-react";
+import {
+  Archive,
+  Download,
+  PackageCheck,
+  PackagePlus,
+  RotateCcw,
+  Search,
+  Truck,
+  UploadCloud,
+  Warehouse,
+  XCircle,
+} from "lucide-react";
 import { ShipmentSelectionTable } from "@/components/shipment-selection-table";
 import { requireProfile } from "@/lib/auth";
 import { canDeleteShipments, internalRoles } from "@/lib/roles";
@@ -11,7 +22,14 @@ export const metadata = { title: "Shipments" };
 export default async function ShipmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; view?: string; archived?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    view?: string;
+    archived?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const profile = await requireProfile([...internalRoles, "shipper"]);
   const params = await searchParams;
@@ -22,17 +40,100 @@ export default async function ShipmentsPage({
     ? params.status as ShipmentStatus
     : "";
   const supabase = await createClient();
-  let query = supabase.from("shipments").select("*").order(showArchived ? "deleted_at" : "created_at", { ascending: false }).limit(100);
-  query = showArchived ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
-  if (requestedStatus) query = query.eq("status", requestedStatus);
+
+  // Dashboard counts are calculated from active AWBs independently
+  // from the table status filter.
+  let dashboardQuery = supabase
+    .from("shipments")
+    .select("status")
+    .is("deleted_at", null);
+
+  if (params.from) {
+    dashboardQuery = dashboardQuery.gte(
+      "created_at",
+      `${params.from}T00:00:00+04:00`,
+    );
+  }
+
+  if (params.to) {
+    dashboardQuery = dashboardQuery.lte(
+      "created_at",
+      `${params.to}T23:59:59.999+04:00`,
+    );
+  }
+
+  const { data: dashboardData } = await dashboardQuery;
+
+  const dashboardShipments = dashboardData ?? [];
+
+  const statusCount = (status: string) =>
+    dashboardShipments.filter((shipment) => shipment.status === status).length;
+
+  const allCount = dashboardShipments.length;
+  const bookedCount = statusCount("booked");
+  const pickupCount =
+    statusCount("ready_for_pickup") + statusCount("picked_up");
+  const warehouseCount = statusCount("at_warehouse");
+  const ofdCount = statusCount("out_for_delivery");
+  const deliveredCount = statusCount("delivered");
+  const undeliveredCount = statusCount("undelivered");
+  const rtoCount =
+    statusCount("return_initiated") + statusCount("returned_to_shipper");
+
+  let query = supabase
+    .from("shipments")
+    .select("*")
+    .order(showArchived ? "deleted_at" : "created_at", { ascending: false })
+    .limit(100);
+
+  query = showArchived
+    ? query.not("deleted_at", "is", null)
+    : query.is("deleted_at", null);
+
+  if (requestedStatus) {
+    query = query.eq("status", requestedStatus);
+  }
+
+  if (params.from) {
+    query = query.gte("created_at", `${params.from}T00:00:00+04:00`);
+  }
+
+  if (params.to) {
+    query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
+  }
+
   const { data, error } = await query;
+
   const shipments = ((data ?? []) as Shipment[]).filter((shipment) => {
     if (!queryText) return true;
-    return shipment.tracking_number.toLowerCase().includes(queryText)
-      || shipment.reference_number?.toLowerCase().includes(queryText)
-      || shipment.consignee_name.toLowerCase().includes(queryText)
-      || shipment.consignee_phone.toLowerCase().includes(queryText);
+
+    return (
+      shipment.tracking_number.toLowerCase().includes(queryText) ||
+      shipment.reference_number?.toLowerCase().includes(queryText) ||
+      shipment.consignee_name.toLowerCase().includes(queryText) ||
+      shipment.consignee_phone.toLowerCase().includes(queryText)
+    );
   });
+
+  const exportParams = new URLSearchParams();
+
+  if (params.q) exportParams.set("q", params.q);
+  if (requestedStatus) exportParams.set("status", requestedStatus);
+  if (params.from) exportParams.set("from", params.from);
+  if (params.to) exportParams.set("to", params.to);
+
+  const exportHref = `/shipments/export?${exportParams.toString()}`;
+
+  const dashboardCards = [
+    ["", "All Shipments", allCount, PackageCheck],
+    ["booked", "Booked", bookedCount, PackagePlus],
+    ["ready_for_pickup", "Pickup", pickupCount, Truck],
+    ["at_warehouse", "Warehouse", warehouseCount, Warehouse],
+    ["out_for_delivery", "Out for Delivery", ofdCount, Truck],
+    ["delivered", "Delivered", deliveredCount, PackageCheck],
+    ["undelivered", "Undelivered", undeliveredCount, XCircle],
+    ["return_initiated", "RTO / Returns", rtoCount, RotateCcw],
+  ] as const;
 
   return (
     <div className="mx-auto max-w-[1500px]">
@@ -45,10 +146,92 @@ export default async function ShipmentsPage({
       </div>
 
       {params.archived === "1" ? <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">AWB archived successfully. Its audit record is available under Archived AWBs.</div> : null}
-      <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:grid-cols-[1fr_220px_auto]">
+
+      {!showArchived ? (
+        <section className="mt-7">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">
+                Live operations
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-[#26372f]">
+                Shipment dashboard
+              </h2>
+            </div>
+
+            <Link
+              href={exportHref}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+            {dashboardCards.map(([status, label, count, Icon]) => {
+              const href = new URLSearchParams();
+
+              if (status) href.set("status", status);
+              if (params.from) href.set("from", params.from);
+              if (params.to) href.set("to", params.to);
+
+              const active =
+                status === ""
+                  ? !requestedStatus
+                  : requestedStatus === status;
+
+              return (
+                <Link
+                  key={label}
+                  href={`/shipments?${href.toString()}`}
+                  className={`rounded-2xl border p-4 transition ${
+                    active
+                      ? "border-[#13734b] bg-[#13734b] text-white shadow-lg shadow-[#13734b]/10"
+                      : "border-[#e0e8e4] bg-white text-[#26372f] hover:border-[#9fc8b4]"
+                  }`}
+                >
+                  <Icon
+                    className={`size-4 ${
+                      active ? "text-white/80" : "text-[#13734b]"
+                    }`}
+                  />
+                  <p className="mt-3 text-2xl font-black">{count}</p>
+                  <p
+                    className={`mt-1 text-[9px] font-bold uppercase tracking-wide ${
+                      active ? "text-white/65" : "text-[#87938d]"
+                    }`}
+                  >
+                    {label}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] lg:grid-cols-[1fr_190px_160px_160px_auto]">
         {showArchived ? <input type="hidden" name="view" value="archived" /> : null}
         <label className="relative"><Search className="absolute left-3.5 top-3.5 size-4 text-[#819088]" /><input name="q" defaultValue={params.q} className="h-11 w-full rounded-xl border border-[#dbe5e0] pl-10 pr-3 text-sm outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10" placeholder="AWB, reference, customer or phone" /></label>
         <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{shipmentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select>
+
+        <input
+          name="from"
+          type="date"
+          defaultValue={params.from ?? ""}
+          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
+          aria-label="From date"
+        />
+
+        <input
+          name="to"
+          type="date"
+          defaultValue={params.to ?? ""}
+          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
+          aria-label="To date"
+        />
+
         <button className="h-11 rounded-xl bg-[#e7f4ed] px-5 text-sm font-bold text-[#13734b]">Apply filters</button>
       </form>
 
