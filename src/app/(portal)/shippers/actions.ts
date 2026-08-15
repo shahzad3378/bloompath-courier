@@ -142,6 +142,7 @@ export async function createShipperAction(formData: FormData): Promise<void> {
     });
 
   if (authError || !authData.user) {
+    console.error("CREATE_SHIPPER_AUTH_ERROR", authError);
     redirect("/shippers?error=account");
   }
 
@@ -158,7 +159,10 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       status: "active",
     });
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error("CREATE_SHIPPER_PROFILE_ERROR", profileError);
+      throw profileError;
+    }
 
     const { error: businessError } = await admin
       .from("shipper_business_profiles")
@@ -172,7 +176,10 @@ export async function createShipperAction(formData: FormData): Promise<void> {
         cod_cycle_days: codCycleDays,
       });
 
-    if (businessError) throw businessError;
+    if (businessError) {
+      console.error("CREATE_SHIPPER_BUSINESS_ERROR", businessError);
+      throw businessError;
+    }
 
     const { error: rateError } = await admin.from("shipper_rates").insert({
       organization_id: profile.organization_id,
@@ -185,8 +192,12 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       created_by: profile.id,
     });
 
-    if (rateError) throw rateError;
-  } catch {
+    if (rateError) {
+      console.error("CREATE_SHIPPER_RATE_ERROR", rateError);
+      throw rateError;
+    }
+  } catch (error) {
+    console.error("CREATE_SHIPPER_FAILED", error);
     await admin.auth.admin.deleteUser(userId);
     redirect("/shippers?error=create");
   }
