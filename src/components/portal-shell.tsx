@@ -94,6 +94,7 @@ const internalSections: Array<{
           { label: "Dispatch", href: "/dispatch" },
           { label: "Live Map", href: "/live-map" },
           { label: "Returns / RTO", href: "/returns" },
+          { label: "Service Zones", href: "/service-zones" },
         ],
       },
     ],
