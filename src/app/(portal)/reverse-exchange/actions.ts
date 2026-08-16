@@ -414,3 +414,234 @@ export async function createReverseOrderAction(
     )}`,
   );
 }
+
+export async function generateReverseAwbAction(
+  formData: FormData,
+): Promise<void> {
+  const profile = await requireProfile([
+    ...internalRoles,
+  ]);
+
+  if (!profile.organization_id) {
+    redirect("/reverse-exchange?error=organization");
+  }
+
+  const reverseOrderId = Number(
+    String(formData.get("reverse_order_id") ?? ""),
+  );
+
+  if (
+    !Number.isInteger(reverseOrderId) ||
+    reverseOrderId <= 0
+  ) {
+    redirect("/reverse-exchange?error=invalid");
+  }
+
+  const supabase = await createClient();
+
+  const { data: reverseOrder } = await supabase
+    .from("reverse_orders")
+    .select(`
+      id,
+      reverse_number,
+      order_type,
+      shipper_id,
+      original_shipment_id,
+      reverse_shipment_id,
+      reason,
+      customer_notes,
+      expected_item_description,
+      expected_pieces,
+      original:shipments!reverse_orders_original_shipment_id_fkey(
+        id,
+        tracking_number,
+        service_type,
+        currency,
+        pieces,
+        weight_kg,
+        parcel_description,
+        consignee_name,
+        consignee_phone,
+        consignee_address,
+        consignee_city,
+        consignee_country_code,
+        consignee_postal_code,
+        sender_name,
+        sender_phone,
+        sender_address,
+        sender_city,
+        sender_country_code,
+        sender_postal_code
+      )
+    `)
+    .eq("id", reverseOrderId)
+    .eq(
+      "organization_id",
+      profile.organization_id,
+    )
+    .maybeSingle();
+
+  if (!reverseOrder) {
+    redirect("/reverse-exchange?error=not_found");
+  }
+
+  if (reverseOrder.reverse_shipment_id) {
+    redirect(
+      `/reverse-exchange?awb_exists=1&case=${reverseOrder.id}`,
+    );
+  }
+
+  const original = Array.isArray(reverseOrder.original)
+    ? reverseOrder.original[0]
+    : reverseOrder.original;
+
+  if (!original) {
+    redirect("/reverse-exchange?error=original");
+  }
+
+  const {
+    data: reverseShipment,
+    error: reverseShipmentError,
+  } = await supabase
+    .from("shipments")
+    .insert({
+      organization_id:
+        profile.organization_id,
+
+      shipper_id:
+        reverseOrder.shipper_id,
+
+      created_by:
+        profile.id,
+
+      shipment_flow:
+        "reverse_pickup",
+
+      reverse_order_id:
+        reverseOrder.id,
+
+      reference_number:
+        reverseOrder.reverse_number,
+
+      service_type:
+        original.service_type || "next_day",
+
+      payment_type:
+        "prepaid",
+
+      cod_amount:
+        0,
+
+      currency:
+        original.currency || "AED",
+
+      sender_name:
+        original.consignee_name,
+
+      sender_phone:
+        original.consignee_phone,
+
+      sender_address:
+        original.consignee_address,
+
+      sender_city:
+        original.consignee_city,
+
+      sender_country_code:
+        original.consignee_country_code || null,
+
+      sender_postal_code:
+        original.consignee_postal_code || null,
+
+      consignee_name:
+        original.sender_name,
+
+      consignee_phone:
+        original.sender_phone,
+
+      consignee_address:
+        original.sender_address,
+
+      consignee_city:
+        original.sender_city,
+
+      consignee_country_code:
+        original.sender_country_code || null,
+
+      consignee_postal_code:
+        original.sender_postal_code || null,
+
+      pieces:
+        reverseOrder.expected_pieces ||
+        original.pieces ||
+        1,
+
+      weight_kg:
+        original.weight_kg || 1,
+
+      parcel_description:
+        reverseOrder.expected_item_description ||
+        original.parcel_description ||
+        "Reverse pickup",
+
+      delivery_instructions:
+        [
+          `Reverse case ${reverseOrder.reverse_number}`,
+          reverseOrder.reason
+            ? `Reason: ${reverseOrder.reason}`
+            : null,
+          reverseOrder.customer_notes || null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+    })
+    .select("id, tracking_number")
+    .single();
+
+  if (
+    reverseShipmentError ||
+    !reverseShipment
+  ) {
+    console.error(
+      "Generate reverse AWB failed:",
+      reverseShipmentError,
+    );
+
+    redirect(
+      `/reverse-exchange?error=reverse_awb&case=${reverseOrder.id}`,
+    );
+  }
+
+  const { error: linkError } =
+    await supabase
+      .from("reverse_orders")
+      .update({
+        reverse_shipment_id:
+          reverseShipment.id,
+      })
+      .eq("id", reverseOrder.id)
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      );
+
+  if (linkError) {
+    console.error(
+      "Link generated reverse AWB failed:",
+      linkError,
+    );
+
+    redirect(
+      `/reverse-exchange?error=reverse_link&case=${reverseOrder.id}`,
+    );
+  }
+
+  revalidatePath("/reverse-exchange");
+  revalidatePath("/shipments");
+
+  redirect(
+    `/reverse-exchange?awb_generated=1&reverse_awb=${encodeURIComponent(
+      reverseShipment.tracking_number,
+    )}`,
+  );
+}
