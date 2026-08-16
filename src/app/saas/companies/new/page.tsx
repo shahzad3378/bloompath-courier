@@ -22,6 +22,8 @@ function errorMessage(code?: string) {
       return "AWB prefix must be 2 to 6 letters or numbers.";
     case "billing":
       return "Select a valid billing cycle.";
+    case "market":
+      return "Select a valid primary country, operating countries, base currency and supported currencies.";
     case "plan":
       return "Selected SaaS plan is not available.";
     case "company_exists":
@@ -49,13 +51,33 @@ export default async function NewCourierCompanyPage({
 
   const admin = createAdminClient();
 
-  const { data: plans } = await admin
-    .from("saas_plans")
-    .select(
-      "id, name, code, monthly_price, annual_price, currency, max_internal_users, max_drivers, max_awbs_per_month",
-    )
-    .eq("is_active", true)
-    .order("display_order");
+  const [
+    { data: plans },
+    { data: countries },
+    { data: currencies },
+  ] = await Promise.all([
+    admin
+      .from("saas_plans")
+      .select(
+        "id, name, code, monthly_price, annual_price, currency, max_internal_users, max_drivers, max_awbs_per_month",
+      )
+      .eq("is_active", true)
+      .order("display_order"),
+
+    admin
+      .from("countries")
+      .select(
+        "code, name, default_currency_code, location_strategy, postal_code_label",
+      )
+      .eq("is_active", true)
+      .order("name"),
+
+    admin
+      .from("currencies")
+      .select("code, name, symbol")
+      .eq("is_active", true)
+      .order("code"),
+  ]);
 
   return (
     <div className="bp-page">
@@ -146,21 +168,7 @@ export default async function NewCourierCompanyPage({
                 />
               </label>
 
-              <label className="text-xs font-bold text-[#53645c]">
-                Currency *
-                <select
-                  name="currency"
-                  defaultValue="AED"
-                  className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-semibold"
-                >
-                  <option value="AED">AED</option>
-                  <option value="SAR">SAR</option>
-                  <option value="USD">USD</option>
-                  <option value="QAR">QAR</option>
-                  <option value="KWD">KWD</option>
-                  <option value="OMR">OMR</option>
-                </select>
-              </label>
+
 
               <label className="text-xs font-bold text-[#53645c]">
                 AWB Prefix *
@@ -172,6 +180,141 @@ export default async function NewCourierCompanyPage({
                   className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm uppercase"
                 />
               </label>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#e0e8e4] bg-white p-6">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-[#edf8f2] text-[#13734b]">
+                <Building2 className="size-5" />
+              </span>
+
+              <div>
+                <h2 className="font-bold text-[#26372f]">
+                  Market Coverage
+                </h2>
+
+                <p className="mt-1 text-xs text-[#87938d]">
+                  Configure the tenant's primary market, operating countries and currencies.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <label className="text-xs font-bold text-[#53645c]">
+                Primary Country *
+                <select
+                  name="primary_country"
+                  required
+                  defaultValue="AE"
+                  className="bp-input mt-2 bg-white font-semibold"
+                >
+                  {(countries ?? []).map((country) => (
+                    <option
+                      key={country.code}
+                      value={country.code}
+                    >
+                      {country.name} ({country.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs font-bold text-[#53645c]">
+                Base Currency *
+                <select
+                  name="base_currency"
+                  required
+                  defaultValue="AED"
+                  className="bp-input mt-2 bg-white font-semibold"
+                >
+                  {(currencies ?? []).map((currency) => (
+                    <option
+                      key={currency.code}
+                      value={currency.code}
+                    >
+                      {currency.code} — {currency.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-xs font-bold text-[#53645c]">
+                Operating Countries *
+              </p>
+
+              <p className="mt-1 text-[11px] text-[#87938d]">
+                Select every country where this courier company will operate.
+              </p>
+
+              <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto rounded-xl border border-[#e4ebe7] bg-[#fafcfb] p-3 sm:grid-cols-2 lg:grid-cols-3">
+                {(countries ?? []).map((country) => (
+                  <label
+                    key={country.code}
+                    className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3"
+                  >
+                    <input
+                      type="checkbox"
+                      name="operating_countries"
+                      value={country.code}
+                      defaultChecked={country.code === "AE"}
+                      className="mt-0.5 size-4"
+                    />
+
+                    <span>
+                      <span className="block text-xs font-bold text-[#34453c]">
+                        {country.name}
+                      </span>
+
+                      <span className="mt-1 block text-[10px] text-[#87938d]">
+                        {country.location_strategy.replaceAll("_", " ")}
+                        {country.postal_code_label
+                          ? ` · ${country.postal_code_label}`
+                          : ""}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-xs font-bold text-[#53645c]">
+                Supported Currencies *
+              </p>
+
+              <p className="mt-1 text-[11px] text-[#87938d]">
+                Base currency must also be selected below.
+              </p>
+
+              <div className="mt-3 grid gap-2 rounded-xl border border-[#e4ebe7] bg-[#fafcfb] p-3 sm:grid-cols-2 lg:grid-cols-4">
+                {(currencies ?? []).map((currency) => (
+                  <label
+                    key={currency.code}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl bg-white p-3"
+                  >
+                    <input
+                      type="checkbox"
+                      name="supported_currencies"
+                      value={currency.code}
+                      defaultChecked={currency.code === "AED"}
+                      className="size-4"
+                    />
+
+                    <span>
+                      <span className="block text-xs font-black text-[#34453c]">
+                        {currency.code}
+                      </span>
+
+                      <span className="mt-0.5 block text-[10px] text-[#87938d]">
+                        {currency.name}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           </section>
 

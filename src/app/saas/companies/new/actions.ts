@@ -17,7 +17,34 @@ export async function createCourierCompany(formData: FormData) {
   const legalName = text(formData, "legal_name");
   const contactEmail = text(formData, "contact_email").toLowerCase();
   const contactPhone = text(formData, "contact_phone");
-  const currency = text(formData, "currency").toUpperCase() || "AED";
+  const primaryCountry = text(
+    formData,
+    "primary_country",
+  ).toUpperCase();
+
+  const operatingCountries = Array.from(
+    new Set(
+      formData
+        .getAll("operating_countries")
+        .map((value) => String(value).trim().toUpperCase())
+        .filter((value) => /^[A-Z]{2}$/.test(value)),
+    ),
+  );
+
+  const baseCurrency = text(
+    formData,
+    "base_currency",
+  ).toUpperCase();
+
+  const supportedCurrencies = Array.from(
+    new Set(
+      formData
+        .getAll("supported_currencies")
+        .map((value) => String(value).trim().toUpperCase())
+        .filter((value) => /^[A-Z]{3}$/.test(value)),
+    ),
+  );
+
   const awbPrefix = text(formData, "awb_prefix").toUpperCase();
 
   const planId = Number(text(formData, "plan_id"));
@@ -33,6 +60,10 @@ export async function createCourierCompany(formData: FormData) {
     !companyName ||
     !slug ||
     !planId ||
+    !primaryCountry ||
+    !baseCurrency ||
+    operatingCountries.length === 0 ||
+    supportedCurrencies.length === 0 ||
     !adminName ||
     !adminEmail ||
     temporaryPassword.length < 8
@@ -52,17 +83,50 @@ export async function createCourierCompany(formData: FormData) {
     redirect("/saas/companies/new?error=billing");
   }
 
+  if (!operatingCountries.includes(primaryCountry)) {
+    redirect("/saas/companies/new?error=market");
+  }
+
+  if (!supportedCurrencies.includes(baseCurrency)) {
+    redirect("/saas/companies/new?error=market");
+  }
+
   const admin = createAdminClient();
 
-  const { data: plan, error: planError } = await admin
-    .from("saas_plans")
-    .select("id, currency")
-    .eq("id", planId)
-    .eq("is_active", true)
-    .maybeSingle();
+  const [
+    { data: plan, error: planError },
+    { data: validCountries },
+    { data: validCurrencies },
+  ] = await Promise.all([
+    admin
+      .from("saas_plans")
+      .select("id, currency")
+      .eq("id", planId)
+      .eq("is_active", true)
+      .maybeSingle(),
+
+    admin
+      .from("countries")
+      .select("code")
+      .in("code", operatingCountries)
+      .eq("is_active", true),
+
+    admin
+      .from("currencies")
+      .select("code")
+      .in("code", supportedCurrencies)
+      .eq("is_active", true),
+  ]);
 
   if (planError || !plan) {
     redirect("/saas/companies/new?error=plan");
+  }
+
+  if (
+    (validCountries ?? []).length !== operatingCountries.length ||
+    (validCurrencies ?? []).length !== supportedCurrencies.length
+  ) {
+    redirect("/saas/companies/new?error=market");
   }
 
   const { data: existingOrganization } = await admin
@@ -121,10 +185,36 @@ export async function createCourierCompany(formData: FormData) {
         contact_phone: contactPhone || adminPhone || null,
         awb_brand_name: companyName,
         awb_prefix: awbPrefix,
-        currency,
+        currency: baseCurrency,
       });
 
     if (settingsError) throw settingsError;
+
+    const { error: countriesError } = await admin
+      .from("organization_countries")
+      .insert(
+        operatingCountries.map((countryCode) => ({
+          organization_id: organizationId,
+          country_code: countryCode,
+          is_primary: countryCode === primaryCountry,
+          is_active: true,
+        })),
+      );
+
+    if (countriesError) throw countriesError;
+
+    const { error: currenciesError } = await admin
+      .from("organization_currencies")
+      .insert(
+        supportedCurrencies.map((currencyCode) => ({
+          organization_id: organizationId,
+          currency_code: currencyCode,
+          is_base: currencyCode === baseCurrency,
+          is_active: true,
+        })),
+      );
+
+    if (currenciesError) throw currenciesError;
 
     const now = new Date();
     const trialEnds = new Date(now);
@@ -161,7 +251,7 @@ export async function createCourierCompany(formData: FormData) {
             : billingCycle === "custom"
               ? null
               : periodEnds.toISOString(),
-        currency,
+        currency: baseCurrency,
         auto_renew: billingCycle !== "custom",
       });
 
