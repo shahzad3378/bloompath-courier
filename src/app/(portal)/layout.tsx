@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PortalShell } from "@/components/portal-shell";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function PortalLayout({
   children,
@@ -14,6 +15,17 @@ export default async function PortalLayout({
     displayName: "BloomPath",
     logoUrl: null as string | null,
   };
+
+  const admin = createAdminClient();
+
+  const { data: platformAdmin } = await admin
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", profile.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const isPlatformAdmin = Boolean(platformAdmin);
 
   if (profile.organization_id) {
     const supabase = await createClient();
@@ -34,7 +46,11 @@ export default async function PortalLayout({
   }
 
   return (
-    <PortalShell profile={profile} branding={branding}>
+    <PortalShell
+      profile={profile}
+      branding={branding}
+      isPlatformAdmin={isPlatformAdmin}
+    >
       {children}
     </PortalShell>
   );

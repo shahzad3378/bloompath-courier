@@ -6,6 +6,7 @@ import {
   BadgeDollarSign,
   Bell,
   Boxes,
+  Building2,
   ChevronDown,
   CircleUserRound,
   ClipboardList,
@@ -374,6 +375,7 @@ function ExpandableNavigationGroup({
 export function PortalShell({
   profile,
   branding,
+  isPlatformAdmin = false,
   children,
 }: {
   profile: Profile;
@@ -381,10 +383,27 @@ export function PortalShell({
     displayName: string;
     logoUrl: string | null;
   };
+  isPlatformAdmin?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const visibleInternalSections = isPlatformAdmin
+    ? [
+        ...internalSections,
+        {
+          label: "Platform",
+          direct: [
+            {
+              label: "SaaS Management",
+              href: "/saas",
+              icon: Building2,
+            },
+          ],
+        },
+      ]
+    : internalSections;
 
   const initialInternalGroup =
     profile.role !== "shipper" &&
@@ -492,7 +511,7 @@ export function PortalShell({
             </div>
           ) : (
             <div className="space-y-5">
-              {internalSections.map((section) => (
+              {visibleInternalSections.map((section) => (
                 <section key={section.label}>
                   <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">
                     {section.label}
