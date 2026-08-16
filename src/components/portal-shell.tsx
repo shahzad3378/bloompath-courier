@@ -122,11 +122,14 @@ const internalSections: Array<{
     label: "Finance",
     groups: [
       {
-        key: "finance",
-        label: "COD & Finance",
+        key: "payments",
+        label: "Payments",
         icon: BadgeDollarSign,
         children: [
-          { label: "Finance Overview", href: "/finance" },
+          { label: "Transactions", href: "/finance" },
+          { label: "COD Management", href: "/finance/cod" },
+          { label: "Settlements", href: "/finance/settlements" },
+          { label: "Invoices", href: "/finance/invoices" },
         ],
       },
     ],
@@ -139,7 +142,9 @@ const internalSections: Array<{
         label: "Reports",
         icon: FileText,
         children: [
-          { label: "Report Center", href: "/reports" },
+          { label: "Delivery Reports", href: "/reports" },
+          { label: "Revenue Reports", href: "/reports/revenue" },
+          { label: "Rider Reports", href: "/reports/riders" },
           { label: "Custom Reports", href: "/reports/custom" },
         ],
       },
