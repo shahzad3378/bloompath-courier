@@ -21,6 +21,9 @@ export default async function ReverseExchangePage({
     created?: string;
     error?: string;
     reverse_awb?: string;
+    bulk_generated?: string;
+    bulk_skipped?: string;
+    bulk_failed?: string;
   }>;
 }) {
   const profile = await requireProfile([
@@ -82,6 +85,18 @@ export default async function ReverseExchangePage({
           {notices.reverse_awb
             ? ` Reverse AWB ${notices.reverse_awb} is ready to print.`
             : ""}
+        </div>
+      ) : null}
+
+      {notices.bulk_generated !== undefined ? (
+        <div className="mb-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
+          Bulk Reverse AWB processing completed:
+          {" "}
+          {notices.bulk_generated || "0"} generated,
+          {" "}
+          {notices.bulk_skipped || "0"} already available,
+          {" "}
+          {notices.bulk_failed || "0"} failed.
         </div>
       ) : null}
 
