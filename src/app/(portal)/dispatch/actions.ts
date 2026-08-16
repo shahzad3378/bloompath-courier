@@ -23,7 +23,7 @@ function numericId(formData: FormData, key: string) {
 
 export async function createDispatchRunAction(_state: DispatchActionState, formData: FormData): Promise<DispatchActionState> {
   const profile = await requireProfile(dispatchRoles);
-  const routeName = text(formData, "route_name", 2, 120);
+  const routeName = text(formData, "route_name", 2, 100);
   const driverId = String(formData.get("driver_id") ?? "");
   if (!profile.organization_id || !routeName || !/^[0-9a-f-]{36}$/i.test(driverId)) return { status: "error", message: "Select a driver and enter a route name." };
   const supabase = await createClient();
