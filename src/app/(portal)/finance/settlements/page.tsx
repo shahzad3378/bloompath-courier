@@ -1,8 +1,10 @@
 import {
   CheckCircle2,
   Clock3,
+  FilePlus2,
   WalletCards,
 } from "lucide-react";
+import { createInvoiceFromSettlementAction } from "@/app/(portal)/finance/actions";
 import { requireProfile } from "@/lib/auth";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
@@ -143,6 +145,7 @@ export default async function SettlementsPage() {
                   <th className="px-5 py-3">Charges</th>
                   <th className="px-5 py-3">Net Payable</th>
                   <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Invoice</th>
                 </tr>
               </thead>
 
@@ -196,11 +199,65 @@ export default async function SettlementsPage() {
                         className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
                           row.status === "paid"
                             ? "bg-[#e8f7ef] text-[#13734b]"
-                            : "bg-[#fff3df] text-[#a66516]"
+                            : row.status === "approved"
+                              ? "bg-[#eef4ff] text-[#46639b]"
+                              : "bg-[#fff3df] text-[#a66516]"
                         }`}
                       >
                         {row.status.replaceAll("_", " ")}
                       </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      {row.status === "approved" ? (
+                        <form
+                          action={createInvoiceFromSettlementAction}
+                          className="flex min-w-[330px] items-center gap-2"
+                        >
+                          <input
+                            type="hidden"
+                            name="settlement_id"
+                            value={row.id}
+                          />
+
+                          <input
+                            type="date"
+                            name="due_date"
+                            className="h-9 rounded-lg border border-[#dbe5e0] px-2 text-[11px]"
+                          />
+
+                          <input
+                            type="number"
+                            name="tax_rate"
+                            min="0"
+                            max="100"
+                            step="0.001"
+                            defaultValue="0"
+                            placeholder="Tax %"
+                            className="h-9 w-20 rounded-lg border border-[#dbe5e0] px-2 text-[11px]"
+                          />
+
+                          <input
+                            type="email"
+                            name="recipient_email"
+                            defaultValue={row.profiles?.email || ""}
+                            placeholder="Email"
+                            className="h-9 min-w-40 rounded-lg border border-[#dbe5e0] px-2 text-[11px]"
+                          />
+
+                          <button
+                            type="submit"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#13734b] px-3 text-[11px] font-bold text-white"
+                          >
+                            <FilePlus2 className="size-3.5" />
+                            Generate
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="text-xs text-[#9aa49f]">
+                          —
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

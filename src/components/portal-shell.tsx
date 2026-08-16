@@ -188,7 +188,6 @@ const shipperNav: SimpleNavItem[] = [
     label: "Invoices",
     href: "/shipper/invoices",
     icon: FileText,
-    disabled: true,
   },
 ];
 

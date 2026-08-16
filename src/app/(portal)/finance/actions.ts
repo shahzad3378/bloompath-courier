@@ -222,3 +222,176 @@ export async function updateSettlementStatusAction(
   revalidatePath("/finance");
   redirect(`/finance?settlement=${settlementId}&status_saved=1`);
 }
+
+export async function createInvoiceFromSettlementAction(
+  formData: FormData,
+): Promise<void> {
+  await requireProfile([
+    "super_admin",
+    "operations_admin",
+    "finance_staff",
+  ]);
+
+  const settlementId = Number(
+    String(formData.get("settlement_id") ?? ""),
+  );
+
+  const dueDateRaw = String(
+    formData.get("due_date") ?? "",
+  ).trim();
+
+  const taxRate = Number(
+    String(formData.get("tax_rate") ?? "0"),
+  );
+
+  const recipientEmail = String(
+    formData.get("recipient_email") ?? "",
+  )
+    .trim()
+    .slice(0, 160);
+
+  if (
+    !Number.isInteger(settlementId) ||
+    settlementId <= 0 ||
+    !Number.isFinite(taxRate) ||
+    taxRate < 0 ||
+    taxRate > 100
+  ) {
+    redirect("/finance/settlements?error=invoice");
+  }
+
+  const supabase = await createClient();
+
+  const { data: invoiceId, error } =
+    await (supabase as any).rpc(
+      "create_invoice_from_settlement",
+      {
+        target_settlement_id: settlementId,
+        target_due_date:
+          dueDateRaw || null,
+        target_tax_rate: taxRate,
+        target_recipient_email:
+          recipientEmail || null,
+      },
+    );
+
+  if (error || !invoiceId) {
+    redirect(
+      `/finance/settlements?error=invoice&settlement=${settlementId}`,
+    );
+  }
+
+  revalidatePath("/finance");
+  revalidatePath("/finance/settlements");
+  revalidatePath("/finance/invoices");
+
+  redirect(
+    `/finance/invoices/${invoiceId}?created=1`,
+  );
+}
+
+export async function updateInvoiceStatusAction(
+  formData: FormData,
+): Promise<void> {
+  const profile = await requireProfile([
+    "super_admin",
+    "operations_admin",
+    "finance_staff",
+  ]);
+
+  const invoiceId = Number(
+    String(formData.get("invoice_id") ?? ""),
+  );
+
+  const action = String(
+    formData.get("invoice_action") ?? "",
+  );
+
+  const paymentReference = String(
+    formData.get("payment_reference") ?? "",
+  )
+    .trim()
+    .slice(0, 120);
+
+  if (
+    !profile.organization_id ||
+    !Number.isInteger(invoiceId) ||
+    invoiceId <= 0 ||
+    !["issue", "mark_paid"].includes(action)
+  ) {
+    redirect("/finance/invoices?error=invoice_status");
+  }
+
+  const supabase = await createClient();
+
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("id, settlement_id, status")
+    .eq("id", invoiceId)
+    .eq("organization_id", profile.organization_id)
+    .maybeSingle();
+
+  if (!invoice) {
+    redirect("/finance/invoices?error=invoice_status");
+  }
+
+  if (action === "issue") {
+    if (invoice.status !== "draft") {
+      redirect(`/finance/invoices/${invoiceId}?error=invalid_status`);
+    }
+
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        status: "issued",
+        issued_at: new Date().toISOString(),
+      })
+      .eq("id", invoiceId);
+
+    if (error) {
+      redirect(`/finance/invoices/${invoiceId}?error=issue`);
+    }
+  }
+
+  if (action === "mark_paid") {
+    if (!["issued", "sent", "overdue"].includes(invoice.status)) {
+      redirect(`/finance/invoices/${invoiceId}?error=invalid_status`);
+    }
+
+    const now = new Date().toISOString();
+
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .update({
+        status: "paid",
+        paid_at: now,
+        paid_by: profile.id,
+        payment_reference: paymentReference || null,
+      })
+      .eq("id", invoiceId);
+
+    if (invoiceError) {
+      redirect(`/finance/invoices/${invoiceId}?error=paid`);
+    }
+
+    const { error: settlementError } = await supabase
+      .from("settlements")
+      .update({
+        status: "paid",
+      })
+      .eq("id", invoice.settlement_id)
+      .eq("status", "approved");
+
+    if (settlementError) {
+      redirect(`/finance/invoices/${invoiceId}?error=settlement_paid`);
+    }
+  }
+
+  revalidatePath("/finance");
+  revalidatePath("/finance/settlements");
+  revalidatePath("/finance/invoices");
+  revalidatePath(`/finance/invoices/${invoiceId}`);
+  revalidatePath("/reports");
+
+  redirect(`/finance/invoices/${invoiceId}?status_saved=1`);
+}

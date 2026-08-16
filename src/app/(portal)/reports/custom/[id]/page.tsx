@@ -346,13 +346,31 @@ export default async function RunCustomReportPage({
           </p>
         </div>
 
-        <Link
-          href={exportHref}
-          className="bp-button-secondary"
-        >
-          <Download className="size-4" />
-          Export CSV
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={exportHref}
+            className="bp-button-secondary"
+          >
+            <Download className="size-4" />
+            CSV
+          </Link>
+
+          <Link
+            href={`/reports/custom/${report.id}/export-xlsx?${exportParams.toString()}`}
+            className="bp-button-secondary"
+          >
+            <Download className="size-4" />
+            Excel
+          </Link>
+
+          <Link
+            href={`/reports/custom/${report.id}/export-pdf?${exportParams.toString()}`}
+            className="bp-button-secondary"
+          >
+            <FileText className="size-4" />
+            PDF
+          </Link>
+        </div>
       </div>
 
       <form

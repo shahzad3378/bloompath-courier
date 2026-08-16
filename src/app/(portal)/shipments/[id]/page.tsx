@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Archive, ArrowLeft, Box, Camera, MapPin, PackageCheck, Printer, ShieldCheck, UserRound } from "lucide-react";
+import { Archive, ArrowLeft, Box, Camera, CircleDollarSign, MapPin, PackageCheck, Printer, ReceiptText, ShieldCheck, UserRound } from "lucide-react";
 import { authorizeFourthAttemptAction } from "@/app/(portal)/dispatch/actions";
 import { ArchiveShipmentForm } from "@/components/archive-shipment-form";
 import { ShipmentCodes } from "@/components/shipment-codes";
@@ -25,15 +25,55 @@ export default async function ShipmentDetailsPage({
   const notices = await searchParams;
   if (!/^\d+$/.test(id)) notFound();
   const supabase = await createClient();
-  const [{ data }, { data: eventData }, { data: attemptData }] = await Promise.all([
+  const [
+    { data },
+    { data: eventData },
+    { data: attemptData },
+    { data: financeTraceData },
+  ] = await Promise.all([
     supabase.from("shipments").select("*").eq("id", id).maybeSingle(),
-    supabase.from("shipment_events").select("id, event_type, previous_status, new_status, notes, created_at").eq("shipment_id", id).order("created_at", { ascending: true }),
-    supabase.from("delivery_attempts").select("id, shipment_id, attempt_number, outcome, undelivered_reason, notes, proof_path, performed_by, created_at").eq("shipment_id", id).order("attempt_number", { ascending: true }),
+
+    supabase
+      .from("shipment_events")
+      .select("id, event_type, previous_status, new_status, notes, created_at")
+      .eq("shipment_id", id)
+      .order("created_at", { ascending: true }),
+
+    supabase
+      .from("delivery_attempts")
+      .select("id, shipment_id, attempt_number, outcome, undelivered_reason, notes, proof_path, performed_by, created_at")
+      .eq("shipment_id", id)
+      .order("attempt_number", { ascending: true }),
+
+    (supabase as any)
+      .from("awb_finance_trace")
+      .select(`
+        shipment_id,
+        tracking_number,
+        settlement_id,
+        settlement_number,
+        settlement_status,
+        invoice_id,
+        invoice_number,
+        invoice_status,
+        invoice_date,
+        due_date,
+        paid_at,
+        payment_reference,
+        cod_amount,
+        delivery_charge,
+        return_charge,
+        total_charges,
+        net_payable
+      `)
+      .eq("shipment_id", Number(id))
+      .limit(1),
   ]);
   if (!data) notFound();
   const shipment = data as Shipment;
   const events = (eventData ?? []) as ShipmentEvent[];
   const attempts = (attemptData ?? []) as DeliveryAttempt[];
+  const financeTrace = (financeTraceData ?? [])[0] ?? null;
   const attemptsWithProof = await Promise.all(attempts.map(async (attempt) => {
     const { data: signed } = await supabase.storage.from("delivery-proofs").createSignedUrl(attempt.proof_path, 3600);
     return { ...attempt, proofUrl: signed?.signedUrl ?? null };
