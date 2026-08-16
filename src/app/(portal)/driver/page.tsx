@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, MapPin, PackageCheck, RotateCcw, Route, Truck } from "lucide-react";
+import { ArrowRight, CheckCircle2, MapPin, PackageCheck, RotateCcw, Route, Truck, WalletCards } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { type DispatchRun, type DispatchRunItem } from "@/lib/dispatch";
 import { formatAed, formatDubaiDate } from "@/lib/shipments";
@@ -18,19 +18,30 @@ export default async function DriverPage({
   const profile = await requireProfile(["driver"]);
   const { updated, return_updated } = await searchParams;
   const supabase = await createClient();
-  const [{ data, error }, { data: returnData, error: returnError }] = await Promise.all([
+  const [
+    { data, error },
+    { data: returnData, error: returnError },
+    { data: codData },
+  ] = await Promise.all([
     supabase
       .from("dispatch_runs")
       .select("*, dispatch_run_items(*, shipments(*))")
       .eq("driver_id", profile.id)
       .eq("status", "handed_over")
       .order("handed_over_at", { ascending: true }),
+
     supabase
       .from("return_runs")
       .select("*, return_run_items(*, shipments(*))")
       .eq("driver_id", profile.id)
       .eq("status", "handed_over")
       .order("handed_over_at", { ascending: true }),
+
+    supabase
+      .from("driver_cod_entries")
+      .select("outstanding_amount")
+      .eq("driver_id", profile.id)
+      .gt("outstanding_amount", 0),
   ]);
 
   const runs = (data ?? []) as unknown as DriverRun[];
@@ -66,6 +77,12 @@ export default async function DriverPage({
 
   const pendingCount = pendingDeliveryCount + pendingReturnCount;
 
+  const outstandingCod = (codData ?? []).reduce(
+    (sum, row) =>
+      sum + Number(row.outstanding_amount || 0),
+    0,
+  );
+
   return (
     <div className="mx-auto max-w-[1050px]">
       {updated === "1" ? <div className="mb-5 flex items-center gap-3 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]"><CheckCircle2 className="size-5" /> Delivery result and proof saved successfully.</div> : null}
@@ -81,7 +98,29 @@ export default async function DriverPage({
 
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[#188459]">Driver application</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">My delivery route</h1><p className="mt-2 text-sm text-[#74827b]">Open an AWB, complete the attempt and upload a proof photo.</p></div>
-        <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Pending stops</p><p className="mt-1 text-2xl font-black text-[#13734b]">{pendingCount}</p></div>
+        <div className="flex flex-wrap gap-3">
+          <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">
+              Pending stops
+            </p>
+            <p className="mt-1 text-2xl font-black text-[#13734b]">
+              {pendingCount}
+            </p>
+          </div>
+
+          <div className="min-w-[180px] rounded-xl border border-[#eadfc9] bg-white px-5 py-3">
+            <div className="flex items-center gap-2">
+              <WalletCards className="size-4 text-[#b57927]" />
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">
+                Outstanding COD
+              </p>
+            </div>
+
+            <p className="mt-1 text-2xl font-black text-[#b57927]">
+              {formatAed(outstandingCod)}
+            </p>
+          </div>
+        </div>
       </div>
 
       {returnRuns.length > 0 ? <div className="mt-7 space-y-5">{returnRuns.map((run) => {
