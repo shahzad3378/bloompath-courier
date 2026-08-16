@@ -29,6 +29,11 @@ export function SaasShell({
       icon: LayoutDashboard,
     },
     {
+      label: "Rates & Plans",
+      href: "/saas/plans",
+      icon: Settings,
+    },
+    {
       label: "Add Courier Company",
       href: "/saas/companies/new",
       icon: Building2,
