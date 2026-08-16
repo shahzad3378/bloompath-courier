@@ -159,6 +159,11 @@ const shipperNav: SimpleNavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    label: "My Shipments",
+    href: "/shipments",
+    icon: PackageCheck,
+  },
+  {
     label: "New Shipment",
     href: "/shipments/new",
     icon: ClipboardList,
@@ -169,12 +174,7 @@ const shipperNav: SimpleNavItem[] = [
     icon: ScanLine,
   },
   {
-    label: "My Shipments",
-    href: "/shipments",
-    icon: PackageCheck,
-  },
-  {
-    label: "Dispatch Manifests",
+    label: "Pickup Manifests",
     href: "/pickup-manifests",
     icon: ClipboardList,
   },
@@ -182,7 +182,6 @@ const shipperNav: SimpleNavItem[] = [
     label: "Returns",
     href: "/shipper/returns",
     icon: RotateCcw,
-    disabled: true,
   },
   {
     label: "Invoices",
