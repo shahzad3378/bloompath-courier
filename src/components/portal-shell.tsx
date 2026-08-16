@@ -11,20 +11,81 @@ import { useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/login/actions";
 import { homeForRole, roleLabel, type Profile } from "@/lib/roles";
 
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; disabled?: boolean };
+type NavItem = {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  disabled?: boolean;
+  section?: "Overview" | "Operations" | "Network" | "Finance" | "Insights";
+};
 
 const internalNav: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Shipments", href: "/shipments", icon: PackageCheck },
-  { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
-  { label: "Warehouse", href: "/warehouse", icon: Warehouse },
-  { label: "Dispatch", href: "/dispatch", icon: Truck },
-  { label: "Live Map", href: "/live-map", icon: MapPinned },
-  { label: "Returns", href: "/returns", icon: RotateCcw },
-  { label: "COD & Finance", href: "/finance", icon: BadgeDollarSign },
-  { label: "Shippers", href: "/shippers", icon: UsersRound },
-  { label: "Users & Roles", href: "/users", icon: UserRoundCog },
-  { label: "Reports", href: "/reports", icon: FileText },
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    section: "Overview",
+  },
+  {
+    label: "Shipments",
+    href: "/shipments",
+    icon: PackageCheck,
+    section: "Operations",
+  },
+  {
+    label: "Pickup Manifests",
+    href: "/pickup-manifests",
+    icon: ClipboardList,
+    section: "Operations",
+  },
+  {
+    label: "Warehouse",
+    href: "/warehouse",
+    icon: Warehouse,
+    section: "Operations",
+  },
+  {
+    label: "Dispatch",
+    href: "/dispatch",
+    icon: Truck,
+    section: "Operations",
+  },
+  {
+    label: "Live Map",
+    href: "/live-map",
+    icon: MapPinned,
+    section: "Operations",
+  },
+  {
+    label: "Returns",
+    href: "/returns",
+    icon: RotateCcw,
+    section: "Operations",
+  },
+  {
+    label: "Shippers",
+    href: "/shippers",
+    icon: UsersRound,
+    section: "Network",
+  },
+  {
+    label: "Users & Roles",
+    href: "/users",
+    icon: UserRoundCog,
+    section: "Network",
+  },
+  {
+    label: "COD & Finance",
+    href: "/finance",
+    icon: BadgeDollarSign,
+    section: "Finance",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: FileText,
+    section: "Insights",
+  },
 ];
 
 const shipperNav: NavItem[] = [
@@ -46,6 +107,55 @@ function navForRole(profile: Profile) {
   if (profile.role === "shipper") return shipperNav;
   if (profile.role === "driver") return driverNav;
   return internalNav;
+}
+
+function NavigationItem({
+  item,
+  pathname,
+  closeNavigation,
+}: {
+  item: NavItem;
+  pathname: string;
+  closeNavigation: () => void;
+}) {
+  const active =
+    pathname === item.href ||
+    pathname.startsWith(`${item.href}/`);
+
+  const Icon = item.icon;
+
+  if (item.disabled) {
+    return (
+      <div
+        className="flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 text-[13px] text-[#a3ada8]"
+        title="Coming in the next module"
+      >
+        <span className="flex items-center gap-3">
+          <Icon className="size-[17px]" />
+          {item.label}
+        </span>
+
+        <span className="rounded-full bg-[#f0f3f1] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide">
+          Soon
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={item.href}
+      onClick={closeNavigation}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${
+        active
+          ? "bg-[#eaf7f0] text-[#138253]"
+          : "text-[#526159] hover:bg-[#f5f8f6] hover:text-[#17231e]"
+      }`}
+    >
+      <Icon className="size-[17px]" />
+      {item.label}
+    </Link>
+  );
 }
 
 export function PortalShell({ profile, children }: { profile: Profile; children: ReactNode }) {
@@ -80,48 +190,62 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9aa49f]">
-            Workspace
-          </p>
-          <div className="space-y-1">
-            {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              const Icon = item.icon;
-              if (item.disabled) {
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {profile.role !== "shipper" && profile.role !== "driver" ? (
+            <div className="space-y-5">
+              {(
+                [
+                  "Overview",
+                  "Operations",
+                  "Network",
+                  "Finance",
+                  "Insights",
+                ] as const
+              ).map((section) => {
+                const sectionItems = navItems.filter(
+                  (item) => item.section === section,
+                );
+
+                if (sectionItems.length === 0) return null;
+
                 return (
-                  <div
-                    key={item.label}
-                    className="flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 text-sm text-[#a3ada8]"
-                    title="Coming in the next module"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon className="size-[18px]" />
-                      {item.label}
-                    </span>
-                    <span className="rounded-full bg-[#f0f3f1] px-2 py-0.5 text-[9px] uppercase">
-                      Soon
-                    </span>
+                  <div key={section}>
+                    <p className="mb-1.5 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-[#9aa49f]">
+                      {section}
+                    </p>
+
+                    <div className="space-y-0.5">
+                      {sectionItems.map((item) => (
+                        <NavigationItem
+                          key={item.label}
+                          item={item}
+                          pathname={pathname}
+                          closeNavigation={() => setOpen(false)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 );
-              }
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                    active
-                      ? "bg-[#eaf7f0] text-[#138253]"
-                      : "text-[#526159] hover:bg-[#f5f8f6] hover:text-[#17231e]"
-                  }`}
-                >
-                  <Icon className="size-[18px]" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
+              })}
+            </div>
+          ) : (
+            <div>
+              <p className="mb-2 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-[#9aa49f]">
+                Workspace
+              </p>
+
+              <div className="space-y-0.5">
+                {navItems.map((item) => (
+                  <NavigationItem
+                    key={item.label}
+                    item={item}
+                    pathname={pathname}
+                    closeNavigation={() => setOpen(false)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="border-t border-[#edf1ef] p-3">

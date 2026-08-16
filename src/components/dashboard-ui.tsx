@@ -9,6 +9,7 @@ import {
   PackageCheck,
   RotateCcw,
   Truck,
+  UsersRound,
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -49,6 +50,13 @@ type MovementBucket = {
   count: number;
 };
 
+type DashboardDriver = {
+  driverId: string;
+  name: string;
+  isOnline: boolean;
+  recordedAt: string;
+};
+
 const rangeLinks = [
   ["Today", "today"],
   ["Yesterday", "yesterday"],
@@ -76,18 +84,28 @@ function buildChartPoints(
     .join(" ");
 }
 
+function driverTime(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dubai",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function DashboardUI({
   name,
   stats,
   recent,
   range,
   movement,
+  drivers,
 }: {
   name: string;
   stats: DashboardStats;
   recent: RecentShipment[];
   range: RangeData;
   movement: MovementBucket[];
+  drivers: DashboardDriver[];
 }) {
   const totalStatus =
     stats.delivered +
@@ -111,14 +129,17 @@ export function DashboardUI({
   const returnPct =
     totalStatus > 0 ? (stats.returns / totalStatus) * 100 : 0;
 
-  const donutBackground = `conic-gradient(
-    #15905c 0% ${deliveredPct}%,
-    #3f82df ${deliveredPct}% ${deliveredPct + transitPct}%,
-    #eea33b ${deliveredPct + transitPct}% ${
-      deliveredPct + transitPct + undeliveredPct
-    }%,
-    #df5555 ${deliveredPct + transitPct + undeliveredPct}% 100%
-  )`;
+  const donutBackground =
+    totalStatus === 0
+      ? "conic-gradient(#edf1ef 0% 100%)"
+      : `conic-gradient(
+          #15905c 0% ${deliveredPct}%,
+          #3f82df ${deliveredPct}% ${deliveredPct + transitPct}%,
+          #eea33b ${deliveredPct + transitPct}% ${
+            deliveredPct + transitPct + undeliveredPct
+          }%,
+          #df5555 ${deliveredPct + transitPct + undeliveredPct}% 100%
+        )`;
 
   const chartPoints = buildChartPoints(movement);
 
@@ -357,6 +378,69 @@ export function DashboardUI({
         </article>
 
         <div className="space-y-5">
+          <article className="bp-panel overflow-hidden">
+            <div className="bp-panel-header flex items-center justify-between">
+              <div>
+                <h2 className="font-black text-[#26372f]">
+                  Active Drivers
+                </h2>
+                <p className="mt-1 text-xs text-[#87938d]">
+                  Latest driver GPS activity.
+                </p>
+              </div>
+
+              <Link
+                href="/live-map"
+                className="text-[11px] font-bold text-[#15905c]"
+              >
+                View map
+              </Link>
+            </div>
+
+            {drivers.length === 0 ? (
+              <div className="p-6 text-center">
+                <div className="mx-auto grid size-11 place-items-center rounded-full bg-[#f1f4f2] text-[#87938d]">
+                  <UsersRound className="size-5" />
+                </div>
+                <p className="mt-3 text-xs font-semibold text-[#69766f]">
+                  No driver GPS activity yet
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#edf1ef]">
+                {drivers.slice(0, 5).map((driver) => (
+                  <div
+                    key={driver.driverId}
+                    className="flex items-center gap-3 px-5 py-3.5"
+                  >
+                    <div className="grid size-9 place-items-center rounded-full bg-[#eef8f2] text-xs font-black text-[#15905c]">
+                      {driver.name.slice(0, 1).toUpperCase()}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-[#33443b]">
+                        {driver.name}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-[#8a9690]">
+                        Updated {driverTime(driver.recordedAt)}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${
+                        driver.isOnline
+                          ? "bg-[#e8f7ef] text-[#13734b]"
+                          : "bg-[#f1f3f2] text-[#7b8580]"
+                      }`}
+                    >
+                      {driver.isOnline ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
           <article className="bp-panel p-5">
             <div className="flex items-center justify-between">
               <h2 className="font-black text-[#26372f]">

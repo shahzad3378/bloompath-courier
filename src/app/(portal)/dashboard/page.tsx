@@ -132,6 +132,7 @@ export default async function DashboardPage({
     cod,
     recent,
     movement,
+    driverLocations,
   ] = await Promise.all([
     supabase
       .from("shipments")
@@ -192,6 +193,21 @@ export default async function DashboardPage({
       .gte("booked_at", startIso)
       .lt("booked_at", endIso)
       .order("booked_at", { ascending: true }),
+
+    supabase
+      .from("driver_locations")
+      .select(`
+        driver_id,
+        is_online,
+        recorded_at,
+        driver:profiles!driver_locations_driver_id_fkey(
+          full_name,
+          email
+        )
+      `)
+      .eq("organization_id", profile.organization_id)
+      .order("recorded_at", { ascending: false })
+      .limit(6),
   ]);
 
   const dayCount = Math.max(
@@ -259,6 +275,15 @@ export default async function DashboardPage({
         to: params.to ?? "",
       }}
       movement={movementBuckets}
+      drivers={(driverLocations.data ?? []).map((row: any) => ({
+        driverId: row.driver_id,
+        name:
+          row.driver?.full_name ||
+          row.driver?.email ||
+          "Driver",
+        isOnline: Boolean(row.is_online),
+        recordedAt: row.recorded_at,
+      }))}
     />
   );
 }
