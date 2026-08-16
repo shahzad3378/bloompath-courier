@@ -1,12 +1,14 @@
 import Link from "next/link";
 import {
   ArrowDownRight,
+  ArrowRight,
   ArrowUpRight,
   CalendarDays,
+  CircleDollarSign,
+  Clock3,
   PackageCheck,
   RotateCcw,
   Truck,
-  WalletCards,
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -14,15 +16,6 @@ import {
   formatDubaiDate,
   type Shipment,
 } from "@/lib/shipments";
-
-const toneClass = {
-  green: "bg-[#e6f5ed] text-[#188459]",
-  blue: "bg-[#e8f0fb] text-[#376eb1]",
-  teal: "bg-[#e4f5f3] text-[#27847c]",
-  orange: "bg-[#fff2df] text-[#c47717]",
-  red: "bg-[#fdeaea] text-[#c45151]",
-  purple: "bg-[#f0eafb] text-[#7251ae]",
-};
 
 type DashboardStats = {
   booked: number;
@@ -59,10 +52,29 @@ type MovementBucket = {
 const rangeLinks = [
   ["Today", "today"],
   ["Yesterday", "yesterday"],
-  ["Last 7 Days", "7d"],
-  ["Last 30 Days", "30d"],
+  ["7 Days", "7d"],
+  ["30 Days", "30d"],
   ["This Month", "month"],
 ] as const;
+
+function buildChartPoints(
+  movement: MovementBucket[],
+  width = 700,
+  height = 210,
+) {
+  if (movement.length === 0) return "";
+
+  const max = Math.max(1, ...movement.map((item) => item.count));
+  const denominator = Math.max(1, movement.length - 1);
+
+  return movement
+    .map((item, index) => {
+      const x = (index / denominator) * width;
+      const y = height - (item.count / max) * (height - 30) - 15;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
 
 export function DashboardUI({
   name,
@@ -77,310 +89,529 @@ export function DashboardUI({
   range: RangeData;
   movement: MovementBucket[];
 }) {
-  const statCards = [
+  const totalStatus =
+    stats.delivered +
+    stats.outForDelivery +
+    stats.undelivered +
+    stats.returns;
+
+  const deliveredPct =
+    totalStatus > 0 ? (stats.delivered / totalStatus) * 100 : 0;
+
+  const transitPct =
+    totalStatus > 0
+      ? (stats.outForDelivery / totalStatus) * 100
+      : 0;
+
+  const undeliveredPct =
+    totalStatus > 0
+      ? (stats.undelivered / totalStatus) * 100
+      : 0;
+
+  const returnPct =
+    totalStatus > 0 ? (stats.returns / totalStatus) * 100 : 0;
+
+  const donutBackground = `conic-gradient(
+    #15905c 0% ${deliveredPct}%,
+    #3f82df ${deliveredPct}% ${deliveredPct + transitPct}%,
+    #eea33b ${deliveredPct + transitPct}% ${
+      deliveredPct + transitPct + undeliveredPct
+    }%,
+    #df5555 ${deliveredPct + transitPct + undeliveredPct}% 100%
+  )`;
+
+  const chartPoints = buildChartPoints(movement);
+
+  const kpis = [
     {
-      label: "Shipments booked",
-      value: String(stats.booked),
+      label: "Total Shipments",
+      value: stats.booked,
       note: range.label,
       icon: PackageCheck,
-      tone: "green",
-    },
-    {
-      label: "Out for delivery",
-      value: String(stats.outForDelivery),
-      note: "Current live queue",
-      icon: Truck,
-      tone: "blue",
+      tone: "bg-[#eaf7f0] text-[#15905c]",
+      trend: "Selected period",
+      trendClass: "text-[#15905c]",
     },
     {
       label: "Delivered",
-      value: String(stats.delivered),
+      value: stats.delivered,
       note: range.label,
-      icon: ArrowUpRight,
-      tone: "teal",
+      icon: Truck,
+      tone: "bg-[#eaf2ff] text-[#3f82df]",
+      trend: "Completed",
+      trendClass: "text-[#15905c]",
     },
     {
-      label: "Undelivered",
-      value: String(stats.undelivered),
-      note: "Current action queue",
-      icon: ArrowDownRight,
-      tone: "orange",
+      label: "In Transit",
+      value: stats.outForDelivery,
+      note: "Current live queue",
+      icon: Clock3,
+      tone: "bg-[#fff3e3] text-[#dd8b24]",
+      trend: "Live",
+      trendClass: "text-[#dd8b24]",
     },
     {
-      label: "Returns pending",
-      value: String(stats.returns),
-      note: "Current RTO queue",
+      label: "Failed / RTO",
+      value: stats.undelivered + stats.returns,
+      note: "Needs operational action",
       icon: RotateCcw,
-      tone: "red",
+      tone: "bg-[#fff0f0] text-[#d85151]",
+      trend: `${stats.returns} RTO`,
+      trendClass: "text-[#d85151]",
     },
-    {
-      label: "COD collected",
-      value: formatAed(stats.codCollected),
-      note: range.label,
-      icon: WalletCards,
-      tone: "purple",
-    },
-  ] as const;
-
-  const maxMovement = Math.max(
-    1,
-    ...movement.map((item) => item.count),
-  );
+  ];
 
   return (
-    <div className="mx-auto max-w-[1500px]">
-      <div className="fade-up flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+    <div className="bp-page">
+      <div className="fade-up flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
         <div>
-          <p className="text-sm font-semibold text-[#188459]">
-            Operations overview
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">
-            Good day, {name.split(" ")[0] || "Team"}
+          <h1 className="bp-heading text-3xl font-black">
+            Dashboard
           </h1>
-          <p className="mt-2 text-sm text-[#74827b]">
-            Review live operations or compare performance across a selected date range.
+
+          <p className="mt-1 text-sm text-[#74827b]">
+            Welcome back, {name.split(" ")[0] || "Admin"}! Here&apos;s what&apos;s happening with your operations.
           </p>
         </div>
 
-        <div className="w-full max-w-3xl rounded-2xl border border-[#dfe7e3] bg-white p-3 shadow-sm">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#405048]">
-            <CalendarDays className="size-4 text-[#188459]" />
+        <div className="rounded-xl border border-[#e1e8e4] bg-white p-2 shadow-sm">
+          <div className="flex items-center gap-2 px-2 py-1 text-xs font-bold text-[#526159]">
+            <CalendarDays className="size-4 text-[#15905c]" />
             {range.label}
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1">
             {rangeLinks.map(([label, key]) => (
               <Link
                 key={key}
                 href={`/dashboard?range=${key}`}
-                className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
                   range.key === key
-                    ? "bg-[#13734b] text-white"
-                    : "bg-[#f3f6f4] text-[#586860] hover:bg-[#e9f0ec]"
+                    ? "bg-[#15905c] text-white"
+                    : "text-[#65736c] hover:bg-[#f2f6f4]"
                 }`}
               >
                 {label}
               </Link>
             ))}
           </div>
-
-          <form
-            action="/dashboard"
-            method="get"
-            className="mt-3 grid gap-2 sm:grid-cols-[auto_1fr_1fr_auto]"
-          >
-            <input type="hidden" name="range" value="custom" />
-
-            <span className="flex items-center text-xs font-bold text-[#68766f]">
-              Custom
-            </span>
-
-            <input
-              name="from"
-              type="date"
-              defaultValue={range.from}
-              required
-              className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs text-[#405048]"
-            />
-
-            <input
-              name="to"
-              type="date"
-              defaultValue={range.to}
-              required
-              className="h-10 rounded-lg border border-[#dbe5e0] bg-white px-3 text-xs text-[#405048]"
-            />
-
-            <button className="h-10 rounded-lg bg-[#376eb1] px-4 text-xs font-bold text-white">
-              Apply
-            </button>
-          </form>
         </div>
       </div>
 
-      <section className="fade-up-delay mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {statCards.map(({ label, value, note, icon: Icon, tone }) => (
-          <article
-            key={label}
-            className="rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]"
-          >
-            <div
-              className={`grid size-10 place-items-center rounded-xl ${toneClass[tone]}`}
+      <section className="fade-up-delay mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <article
+              key={item.label}
+              className="bp-card p-5"
             >
-              <Icon className="size-5" />
-            </div>
-            <p className="mt-5 text-2xl font-bold tracking-tight text-[#17231e]">
-              {value}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-[#405048]">
-              {label}
-            </p>
-            <p className="mt-1 line-clamp-2 text-xs text-[#8a9690]">
-              {note}
-            </p>
-          </article>
-        ))}
+              <div className="flex items-start gap-4">
+                <div
+                  className={`grid size-12 shrink-0 place-items-center rounded-full ${item.tone}`}
+                >
+                  <Icon className="size-5" />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[#68766f]">
+                    {item.label}
+                  </p>
+
+                  <div className="mt-1 flex items-end gap-2">
+                    <p className="text-2xl font-black tracking-[-0.035em] text-[#17231e]">
+                      {item.value.toLocaleString()}
+                    </p>
+
+                    <span
+                      className={`mb-0.5 text-[11px] font-bold ${item.trendClass}`}
+                    >
+                      {item.trend}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 truncate text-[10px] text-[#99a39e]">
+                    {item.note}
+                  </p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
-      <section className="mt-6 grid gap-5 xl:grid-cols-[1.45fr_0.8fr]">
-        <article className="rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:p-6">
-          <div className="flex items-center justify-between">
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.45fr_0.72fr]">
+        <article className="bp-panel overflow-hidden">
+          <div className="bp-panel-header flex items-center justify-between">
             <div>
-              <h2 className="font-bold text-[#1d2d25]">
-                Shipment movement
+              <h2 className="font-black text-[#26372f]">
+                Shipments Overview
               </h2>
-              <p className="mt-1 text-xs text-[#84918a]">
-                {range.label}
+              <p className="mt-1 text-xs text-[#87938d]">
+                Booking movement for the selected period.
               </p>
             </div>
-            <span className="rounded-lg bg-[#edf5f1] px-3 py-1.5 text-xs font-semibold text-[#37604e]">
-              {movement.reduce((sum, item) => sum + item.count, 0)} booked
+
+            <span className="rounded-lg bg-[#f3f7f5] px-3 py-1.5 text-[11px] font-bold text-[#64736c]">
+              {movement.reduce((sum, item) => sum + item.count, 0)} shipments
             </span>
           </div>
 
-          <div className="mt-8 flex h-56 items-end gap-2 overflow-x-auto border-b border-l border-[#e3eae6] px-4">
-            {movement.map((item, index) => {
-              const height =
-                item.count === 0
-                  ? 3
-                  : Math.max(8, (item.count / maxMovement) * 100);
+          <div className="px-5 pb-5 pt-6">
+            <div className="relative h-[240px] overflow-hidden">
+              <div className="absolute inset-0 flex flex-col justify-between">
+                {[0, 1, 2, 3].map((line) => (
+                  <div
+                    key={line}
+                    className="border-t border-dashed border-[#e8eeeb]"
+                  />
+                ))}
+              </div>
+
+              {movement.length > 0 ? (
+                <svg
+                  viewBox="0 0 700 210"
+                  preserveAspectRatio="none"
+                  className="absolute inset-x-0 bottom-5 h-[205px] w-full overflow-visible"
+                >
+                  <defs>
+                    <linearGradient
+                      id="shipmentArea"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#26a269"
+                        stopOpacity="0.28"
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="#26a269"
+                        stopOpacity="0.01"
+                      />
+                    </linearGradient>
+                  </defs>
+
+                  {chartPoints ? (
+                    <>
+                      <polygon
+                        points={`0,210 ${chartPoints} 700,210`}
+                        fill="url(#shipmentArea)"
+                      />
+
+                      <polyline
+                        points={chartPoints}
+                        fill="none"
+                        stroke="#15905c"
+                        strokeWidth="4"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                      />
+                    </>
+                  ) : null}
+                </svg>
+              ) : null}
+
+              <div
+                className="absolute inset-x-0 bottom-0 grid gap-1 text-center text-[10px] text-[#89958f]"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.max(
+                    movement.length,
+                    1,
+                  )}, minmax(0, 1fr))`,
+                }}
+              >
+                {movement.map((item, index) => (
+                  <span key={`${item.label}-${index}`}>
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Booked", stats.booked],
+                ["Delivered", stats.delivered],
+                ["In Transit", stats.outForDelivery],
+                ["Failed / RTO", stats.undelivered + stats.returns],
+              ].map(([label, value]) => (
+                <div
+                  key={String(label)}
+                  className="rounded-xl border border-[#e6ece9] bg-[#fcfdfc] px-4 py-3"
+                >
+                  <p className="text-lg font-black text-[#25362e]">
+                    {Number(value).toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-[10px] text-[#87938d]">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <div className="space-y-5">
+          <article className="bp-panel p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-black text-[#26372f]">
+                Shipment Status
+              </h2>
+
+              <span className="text-[10px] font-semibold text-[#8c9791]">
+                Live status
+              </span>
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row xl:flex-col 2xl:flex-row">
+              <div
+                className="relative grid size-40 shrink-0 place-items-center rounded-full"
+                style={{
+                  background: donutBackground,
+                }}
+              >
+                <div className="grid size-[112px] place-items-center rounded-full bg-white text-center shadow-inner">
+                  <div>
+                    <p className="text-2xl font-black text-[#17231e]">
+                      {totalStatus.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-[#89958f]">
+                      Total
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full space-y-3">
+                {[
+                  ["Delivered", stats.delivered, "#15905c"],
+                  ["In Transit", stats.outForDelivery, "#3f82df"],
+                  ["Undelivered", stats.undelivered, "#eea33b"],
+                  ["Returns / RTO", stats.returns, "#df5555"],
+                ].map(([label, value, color]) => (
+                  <div
+                    key={String(label)}
+                    className="flex items-center justify-between gap-4 text-xs"
+                  >
+                    <span className="flex items-center gap-2 text-[#5f6d66]">
+                      <span
+                        className="size-2 rounded-full"
+                        style={{
+                          backgroundColor: String(color),
+                        }}
+                      />
+                      {label}
+                    </span>
+
+                    <strong className="text-[#26372f]">
+                      {Number(value).toLocaleString()}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <article className="bp-panel p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-black text-[#26372f]">
+                  COD Collections
+                </h2>
+
+                <p className="mt-4 text-2xl font-black tracking-[-0.03em] text-[#17231e]">
+                  {formatAed(stats.codCollected)}
+                </p>
+
+                <p className="mt-1 text-[10px] text-[#87938d]">
+                  Collected amount · {range.label}
+                </p>
+              </div>
+
+              <div className="grid size-12 place-items-center rounded-full bg-[#eaf7f0] text-[#15905c]">
+                <CircleDollarSign className="size-5" />
+              </div>
+            </div>
+
+            <Link
+              href="/finance"
+              className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-[#15905c]"
+            >
+              Open finance
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </article>
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_320px]">
+        <article className="bp-panel overflow-hidden">
+          <div className="bp-panel-header flex items-center justify-between">
+            <div>
+              <h2 className="font-black text-[#26372f]">
+                Recent Shipments
+              </h2>
+
+              <p className="mt-1 text-xs text-[#87938d]">
+                Latest bookings within the selected period.
+              </p>
+            </div>
+
+            <Link
+              href="/shipments"
+              className="text-xs font-bold text-[#15905c]"
+            >
+              View all shipments
+            </Link>
+          </div>
+
+          {recent.length === 0 ? (
+            <div className="grid min-h-52 place-items-center px-6 py-10 text-center">
+              <div>
+                <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#edf5f1] text-[#188459]">
+                  <PackageCheck className="size-6" />
+                </div>
+
+                <p className="mt-4 font-semibold text-[#33433b]">
+                  No shipments in this period
+                </p>
+
+                <p className="mt-1 text-sm text-[#829089]">
+                  Change the date range or create a new shipment.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#85918b]">
+                  <tr>
+                    <th className="px-5 py-3">AWB Number</th>
+                    <th className="px-5 py-3">Recipient</th>
+                    <th className="px-5 py-3">Destination</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">COD</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-[#edf1ef]">
+                  {recent.map((shipment) => (
+                    <tr
+                      key={shipment.id}
+                      className="bp-table-row"
+                    >
+                      <td className="px-5 py-4">
+                        <Link
+                          href={`/shipments/${shipment.id}`}
+                          className="font-mono text-xs font-black text-[#15905c]"
+                        >
+                          {shipment.tracking_number}
+                        </Link>
+                      </td>
+
+                      <td className="px-5 py-4 font-semibold text-[#33443b]">
+                        {shipment.consignee_name}
+                      </td>
+
+                      <td className="px-5 py-4 text-[#65736c]">
+                        {shipment.consignee_city}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <StatusBadge status={shipment.status} />
+                      </td>
+
+                      <td className="px-5 py-4 text-xs text-[#65736c]">
+                        {formatDubaiDate(shipment.booked_at)}
+                      </td>
+
+                      <td className="px-5 py-4 font-bold text-[#33443b]">
+                        {formatAed(shipment.cod_amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
+
+        <article className="bp-panel overflow-hidden">
+          <div className="bp-panel-header">
+            <h2 className="font-black text-[#26372f]">
+              Operational Queues
+            </h2>
+
+            <p className="mt-1 text-xs text-[#87938d]">
+              Items currently requiring attention.
+            </p>
+          </div>
+
+          <div className="divide-y divide-[#edf1ef]">
+            {[
+              {
+                label: "Out for Delivery",
+                value: stats.outForDelivery,
+                icon: Truck,
+                href: "/dispatch",
+                tone: "bg-[#eaf2ff] text-[#3f82df]",
+              },
+              {
+                label: "Undelivered",
+                value: stats.undelivered,
+                icon: ArrowDownRight,
+                href: "/shipments?status=undelivered",
+                tone: "bg-[#fff3e3] text-[#dd8b24]",
+              },
+              {
+                label: "Return Pending",
+                value: stats.returns,
+                icon: RotateCcw,
+                href: "/returns",
+                tone: "bg-[#fff0f0] text-[#d85151]",
+              },
+              {
+                label: "Delivered",
+                value: stats.delivered,
+                icon: ArrowUpRight,
+                href: "/shipments?status=delivered",
+                tone: "bg-[#eaf7f0] text-[#15905c]",
+              },
+            ].map((item) => {
+              const Icon = item.icon;
 
               return (
-                <div
-                  key={`${item.label}-${index}`}
-                  className="flex h-full min-w-8 flex-1 items-end justify-center"
-                  title={`${item.label}: ${item.count}`}
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="flex items-center gap-3 px-5 py-4 transition hover:bg-[#fafcfb]"
                 >
-                  <div
-                    className="w-full max-w-12 rounded-t-lg bg-gradient-to-t from-[#81b79a] to-[#dcece3]"
-                    style={{ height: `${height}%` }}
-                  />
-                </div>
+                  <span
+                    className={`grid size-9 place-items-center rounded-full ${item.tone}`}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#33443b]">
+                      {item.label}
+                    </p>
+                  </div>
+
+                  <strong className="text-sm text-[#26372f]">
+                    {item.value.toLocaleString()}
+                  </strong>
+                </Link>
               );
             })}
           </div>
-
-          <div
-            className="mt-3 grid gap-1 text-center text-[10px] font-medium text-[#8a9690]"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(
-                movement.length,
-                1,
-              )}, minmax(32px, 1fr))`,
-            }}
-          >
-            {movement.map((item, index) => (
-              <span key={`${item.label}-label-${index}`}>
-                {item.label}
-              </span>
-            ))}
-          </div>
         </article>
-
-        <article className="rounded-2xl border border-[#e0e8e4] bg-[#10291f] p-6 text-white shadow-[0_8px_30px_rgba(24,51,39,0.08)]">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#60c892]">
-            V1 status
-          </p>
-          <h2 className="mt-3 text-xl font-bold">
-            Core courier operations are live
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-white/55">
-            Booking, warehouse, dispatch, delivery attempts, returns and COD custody are active.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            {[
-              ["AWB & booking", "Ready"],
-              ["Warehouse & dispatch", "Ready"],
-              ["Delivery & RTS", "Ready"],
-              ["COD & finance", "Ready"],
-            ].map(([label, status], index) => (
-              <div key={label} className="flex items-center gap-3">
-                <span
-                  className={`grid size-7 place-items-center rounded-full text-xs font-bold ${
-                    index < 3
-                      ? "bg-[#2ca66e]"
-                      : "bg-white/10 text-white/70"
-                  }`}
-                >
-                  {index + 1}
-                </span>
-                <span className="flex-1 text-sm text-white/75">
-                  {label}
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-white/35">
-                  {status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
-        <div className="flex items-center justify-between border-b border-[#e6ece9] px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="font-bold text-[#1d2d25]">
-              Recent shipments
-            </h2>
-            <p className="mt-1 text-xs text-[#84918a]">
-              Latest bookings within the selected period
-            </p>
-          </div>
-          <Link
-            href="/shipments"
-            className="text-xs font-bold text-[#188459]"
-          >
-            View all
-          </Link>
-        </div>
-
-        {recent.length === 0 ? (
-          <div className="grid min-h-48 place-items-center px-6 py-10 text-center">
-            <div>
-              <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#edf5f1] text-[#188459]">
-                <PackageCheck className="size-6" />
-              </div>
-              <p className="mt-4 font-semibold text-[#33433b]">
-                No shipments in this period
-              </p>
-              <p className="mt-1 max-w-sm text-sm text-[#829089]">
-                Change the date range or create a new shipment.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="divide-y divide-[#edf1ef]">
-            {recent.map((shipment) => (
-              <Link
-                key={shipment.id}
-                href={`/shipments/${shipment.id}`}
-                className="grid gap-2 px-5 py-4 transition hover:bg-[#fbfcfb] sm:grid-cols-[1fr_1fr_150px_120px] sm:items-center sm:px-6"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[#24362d]">
-                    {shipment.tracking_number}
-                  </p>
-                  <p className="mt-1 text-xs text-[#87938d]">
-                    {formatDubaiDate(shipment.booked_at)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#405048]">
-                    {shipment.consignee_name}
-                  </p>
-                  <p className="mt-1 text-xs text-[#87938d]">
-                    {shipment.consignee_city}
-                  </p>
-                </div>
-                <p className="text-sm font-bold text-[#405048]">
-                  {formatAed(shipment.cod_amount)}
-                </p>
-                <StatusBadge status={shipment.status} />
-              </Link>
-            ))}
-          </div>
-        )}
       </section>
     </div>
   );

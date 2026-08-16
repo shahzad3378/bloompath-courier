@@ -55,47 +55,85 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
   const activeLabel = navItems.find((item) => pathname === item.href)?.label ?? "Operations";
 
   return (
-    <div className="min-h-screen bg-[#f4f7f6] lg:grid lg:grid-cols-[270px_1fr]">
+    <div className="min-h-screen bg-[#f6f8f7] lg:grid lg:grid-cols-[228px_1fr]">
       {open ? <button aria-label="Close navigation" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} /> : null}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col bg-[#10291f] text-white transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[228px] flex-col border-r border-[#e7ece9] bg-white text-[#25352d] shadow-[4px_0_24px_rgba(23,35,30,0.025)] transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+        <div className="flex h-20 items-center justify-between px-4">
           <Link href={homeForRole(profile.role)} className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#2ca66e] text-sm font-black">BP</span>
-            <span><span className="block font-bold tracking-tight">BloomPath Courier</span><span className="block text-[10px] uppercase tracking-[0.16em] text-white/45">Operations System</span></span>
+            <span className="grid size-10 place-items-center rounded-xl bg-[#e9f7ef] text-sm font-black text-[#138253]">BP</span>
+            <span>
+              <span className="block text-[15px] font-black tracking-[-0.02em] text-[#17231e]">
+                BloomPath
+              </span>
+              <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#15905c]">
+                Courier
+              </span>
+            </span>
           </Link>
-          <button aria-label="Close navigation" className="text-white/55 lg:hidden" onClick={() => setOpen(false)}><X className="size-5" /></button>
+
+          <button
+            aria-label="Close navigation"
+            className="text-[#78857e] lg:hidden"
+            onClick={() => setOpen(false)}
+          >
+            <X className="size-5" />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-5">
-          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Workspace</p>
+          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9aa49f]">
+            Workspace
+          </p>
           <div className="space-y-1">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
               if (item.disabled) {
                 return (
-                  <div key={item.label} className="flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 text-sm text-white/35" title="Coming in the next module">
-                    <span className="flex items-center gap-3"><Icon className="size-[18px]" />{item.label}</span><span className="rounded-full bg-white/8 px-2 py-0.5 text-[9px] uppercase">Soon</span>
+                  <div
+                    key={item.label}
+                    className="flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 text-sm text-[#a3ada8]"
+                    title="Coming in the next module"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon className="size-[18px]" />
+                      {item.label}
+                    </span>
+                    <span className="rounded-full bg-[#f0f3f1] px-2 py-0.5 text-[9px] uppercase">
+                      Soon
+                    </span>
                   </div>
                 );
               }
               return (
-                <Link key={item.label} href={item.href} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-[#2ca66e] text-white shadow-lg shadow-black/10" : "text-white/65 hover:bg-white/8 hover:text-white"}`}><Icon className="size-[18px]" />{item.label}</Link>
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                    active
+                      ? "bg-[#eaf7f0] text-[#138253]"
+                      : "text-[#526159] hover:bg-[#f5f8f6] hover:text-[#17231e]"
+                  }`}
+                >
+                  <Icon className="size-[18px]" />
+                  {item.label}
+                </Link>
               );
             })}
           </div>
         </nav>
 
-        <div className="border-t border-white/10 p-3">
-          <div className="border-t border-white/10 pt-3">
+        <div className="border-t border-[#edf1ef] p-3">
+          <div className="pt-2">
             <div className="space-y-1">
               <Link
                 href="/help"
                 onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
                   pathname === "/help"
-                    ? "bg-white/10 text-white"
-                    : "text-white/60 hover:bg-white/8 hover:text-white"
+                    ? "bg-[#eef8f2] text-[#13734b]"
+                    : "text-[#66756e] hover:bg-[#f5f8f6] hover:text-[#17231e]"
                 }`}
               >
                 <LifeBuoy className="size-[17px]" />
@@ -108,8 +146,8 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
                     pathname === "/settings"
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:bg-white/8 hover:text-white"
+                      ? "bg-[#eef8f2] text-[#13734b]"
+                      : "text-[#66756e] hover:bg-[#f5f8f6] hover:text-[#17231e]"
                   }`}
                 >
                   <Settings className="size-[17px]" />
@@ -118,7 +156,7 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
               ) : null}
 
               <form action={logoutAction}>
-                <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 transition hover:bg-white/8 hover:text-white">
+                <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-[#66756e] transition hover:bg-[#f8f3f3] hover:text-[#a84444]">
                   <LogOut className="size-[17px]" />
                   Sign out
                 </button>
@@ -129,10 +167,17 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
       </aside>
 
       <div className="min-w-0">
-        <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-[#e1e8e4] bg-white/90 px-4 backdrop-blur-xl sm:px-7 lg:px-9">
+        <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#e8eeeb] bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-7">
           <div className="flex items-center gap-3">
             <button aria-label="Open navigation" className="grid size-10 place-items-center rounded-xl border border-[#dfe7e3] text-[#46554e] lg:hidden" onClick={() => setOpen(true)}><Menu className="size-5" /></button>
-            <div><p className="text-lg font-bold tracking-tight text-[#17231e]">{activeLabel}</p><p className="hidden text-xs text-[#7a8881] sm:block">Live courier operations workspace</p></div>
+            <div>
+              <p className="text-[17px] font-black tracking-[-0.025em] text-[#17231e]">
+                {activeLabel}
+              </p>
+              <p className="hidden text-[11px] text-[#8a9690] sm:block">
+                Courier operations workspace
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button aria-label="Notifications" className="relative grid size-10 place-items-center rounded-xl border border-[#e1e8e4] text-[#506058]"><Bell className="size-5" /><span className="absolute right-2.5 top-2.5 size-2 rounded-full border-2 border-white bg-[#e1962f]" /></button>
@@ -143,7 +188,7 @@ export function PortalShell({ profile, children }: { profile: Profile; children:
             </div>
           </div>
         </header>
-        <main className="px-4 py-6 sm:px-7 lg:px-9 lg:py-8">{children}</main>
+        <main className="px-4 py-6 sm:px-6 lg:px-7 lg:py-7">{children}</main>
       </div>
     </div>
   );

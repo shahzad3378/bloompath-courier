@@ -26,13 +26,191 @@ html { background: var(--background); }
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(44, 166, 110, 0.045), transparent 28rem),
+    linear-gradient(180deg, #f7f9f8 0%, var(--background) 38%, #f2f5f4 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-feature-settings: "kern", "liga", "calt";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-button, input, select, textarea { font: inherit; }
-button, a { -webkit-tap-highlight-color: transparent; }
-::selection { background: #bfe5cf; color: #0b3d29; }
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #7fbea1;
+  box-shadow: 0 0 0 3px rgba(44, 166, 110, 0.10);
+}
+
+::selection {
+  background: #bfe5cf;
+  color: #0b3d29;
+}
+
+/* BloomPath SaaS design primitives */
+.bp-page {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+}
+
+.bp-panel {
+  border: 1px solid #e1e8e4;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 1px 2px rgba(22, 48, 36, 0.025),
+    0 10px 32px rgba(22, 48, 36, 0.035);
+}
+
+.bp-panel-header {
+  border-bottom: 1px solid #e8eeeb;
+  padding: 18px 20px;
+}
+
+.bp-card {
+  border: 1px solid #e1e8e4;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 24px rgba(22, 48, 36, 0.025);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.bp-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: #bfd9cc;
+  box-shadow: 0 12px 32px rgba(22, 48, 36, 0.065);
+}
+
+.bp-heading {
+  color: #17231e;
+  letter-spacing: -0.035em;
+}
+
+.bp-muted {
+  color: #74827b;
+}
+
+.bp-section-label {
+  color: #188459;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.bp-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #dbe5e0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 12px;
+  color: #26372f;
+}
+
+.bp-button-primary {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #168052, #116840);
+  padding: 0 18px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 750;
+  box-shadow: 0 8px 20px rgba(19, 115, 75, 0.16);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.bp-button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 11px 24px rgba(19, 115, 75, 0.22);
+  filter: brightness(1.02);
+}
+
+.bp-button-secondary {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #d7e3dd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 18px;
+  color: #315244;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.bp-button-secondary:hover {
+  border-color: #b9d6c7;
+  background: #f6fbf8;
+}
+
+.bp-table-row {
+  transition: background-color 140ms ease;
+}
+
+.bp-table-row:hover {
+  background: #fafcfb;
+}
+
+.bp-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+@media (max-width: 640px) {
+  .bp-panel-header {
+    padding: 16px;
+  }
+}
 
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }
