@@ -7,6 +7,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   LogOut,
+  MapPinned,
   PackageCheck,
   Settings,
   ShieldCheck,
@@ -32,6 +33,11 @@ export function SaasShell({
       label: "Rates & Plans",
       href: "/saas/plans",
       icon: Settings,
+    },
+    {
+      label: "Service Zones",
+      href: "/saas/zones",
+      icon: MapPinned,
     },
     {
       label: "Add Courier Company",
