@@ -24,19 +24,14 @@ export function SaasShell({
 
   const items = [
     {
-      label: "SaaS Dashboard",
+      label: "SaaS Control Center",
       href: "/saas",
       icon: LayoutDashboard,
     },
     {
-      label: "Courier Companies",
-      href: "/saas",
-      icon: Building2,
-    },
-    {
-      label: "Add Company",
+      label: "Add Courier Company",
       href: "/saas/companies/new",
-      icon: PackageCheck,
+      icon: Building2,
     },
   ];
 
