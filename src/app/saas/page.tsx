@@ -256,9 +256,19 @@ export default async function SaasDashboardPage() {
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-xl border border-[#cfe3d8] bg-white px-4 py-3 text-xs font-bold text-[#13734b]">
-            <Sparkles className="size-4" />
-            Multi-tenant SaaS active
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/saas/companies/new"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#13734b] px-5 text-xs font-bold text-white"
+            >
+              <Building2 className="size-4" />
+              Add Courier Company
+            </Link>
+
+            <div className="inline-flex items-center gap-2 rounded-xl border border-[#cfe3d8] bg-white px-4 py-3 text-xs font-bold text-[#13734b]">
+              <Sparkles className="size-4" />
+              Multi-tenant SaaS active
+            </div>
           </div>
         </div>
 
