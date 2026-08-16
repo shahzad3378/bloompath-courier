@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   BadgeDollarSign,
   ChevronDown,
@@ -574,9 +575,18 @@ export default async function ShippersPage({
                           Reattempt fee: AED 0.00
                         </p>
 
-                        <button className="mt-4 h-10 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white">
-                          Save new rate
-                        </button>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button className="h-10 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white">
+                            Save new rate
+                          </button>
+
+                          <Link
+                            href={`/shippers/${shipper.id}/zone-rates`}
+                            className="inline-flex h-10 items-center rounded-xl border border-[#d7e3dd] bg-white px-4 text-sm font-bold text-[#315244]"
+                          >
+                            Manage Zone Rates
+                          </Link>
+                        </div>
                       </form>
                     ) : null}
                   </div>

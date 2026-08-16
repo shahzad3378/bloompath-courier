@@ -1,0 +1,480 @@
+import Link from "next/link";
+import {
+  ArrowLeft,
+  BadgeDollarSign,
+  MapPinned,
+  Power,
+} from "lucide-react";
+import { notFound } from "next/navigation";
+import { requireProfile } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import {
+  disableZoneRateAction,
+  saveZoneRateAction,
+} from "./actions";
+
+export const metadata = {
+  title: "Zone Rates",
+};
+
+const rateRoles = [
+  "super_admin",
+  "operations_admin",
+  "finance_staff",
+] as const;
+
+function money(value: unknown, currency: string) {
+  return `${currency} ${Number(value || 0).toFixed(2)}`;
+}
+
+export default async function ZoneRatesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    disabled?: string;
+    error?: string;
+  }>;
+}) {
+  const profile = await requireProfile(rateRoles);
+  const { id } = await params;
+  const notices = await searchParams;
+
+  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+
+  const supabase = await createClient();
+
+  const [
+    { data: shipper },
+    { data: zones },
+    { data: currencies },
+    { data: rates },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("id", id)
+      .eq("organization_id", profile.organization_id)
+      .eq("role", "shipper")
+      .maybeSingle(),
+
+    supabase
+      .from("service_zones")
+      .select(`
+        id,
+        country_code,
+        name,
+        zone_type,
+        postal_prefix,
+        postal_from,
+        postal_to,
+        city,
+        district,
+        area
+      `)
+      .eq("organization_id", profile.organization_id)
+      .eq("is_active", true)
+      .order("country_code")
+      .order("name"),
+
+    supabase
+      .from("organization_currencies")
+      .select("currency_code, is_base")
+      .eq("organization_id", profile.organization_id)
+      .eq("is_active", true)
+      .order("is_base", { ascending: false }),
+
+    supabase
+      .from("shipper_zone_rates")
+      .select(`
+        id,
+        service_zone_id,
+        service_type,
+        delivery_rate,
+        return_charge_enabled,
+        return_rate,
+        currency,
+        weight_from_kg,
+        weight_to_kg,
+        additional_kg_rate,
+        cod_fee,
+        is_active,
+        effective_from,
+        service_zones(
+          country_code,
+          name
+        )
+      `)
+      .eq("organization_id", profile.organization_id)
+      .eq("shipper_id", id)
+      .order("effective_from", { ascending: false }),
+  ]);
+
+  if (!shipper) notFound();
+
+  const zoneRows = zones ?? [];
+  const currencyRows = currencies ?? [];
+  const rateRows = rates ?? [];
+
+  const baseCurrency =
+    currencyRows.find((row) => row.is_base)?.currency_code ||
+    currencyRows[0]?.currency_code ||
+    "AED";
+
+  return (
+    <div className="bp-page">
+      <Link
+        href="/shippers"
+        className="inline-flex items-center gap-2 text-xs font-bold text-[#13734b]"
+      >
+        <ArrowLeft className="size-4" />
+        Back to Shippers
+      </Link>
+
+      <div className="mt-5">
+        <p className="bp-section-label">
+          Commercial Rates
+        </p>
+
+        <h1 className="bp-heading mt-1 text-3xl font-black">
+          Zone Rates
+        </h1>
+
+        <p className="mt-2 text-sm text-[#74827b]">
+          {shipper.full_name || shipper.email}
+        </p>
+      </div>
+
+      {notices.saved === "1" ? (
+        <div className="mt-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
+          Zone rate saved successfully.
+        </div>
+      ) : null}
+
+      {notices.disabled === "1" ? (
+        <div className="mt-5 rounded-xl border border-[#d7e3dd] bg-white px-4 py-3 text-sm font-semibold text-[#53645c]">
+          Zone rate disabled.
+        </div>
+      ) : null}
+
+      {notices.error ? (
+        <div className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
+          Zone rate could not be saved. Check the selected zone and values.
+        </div>
+      ) : null}
+
+      <section className="bp-panel mt-6 p-5 sm:p-6">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-xl bg-[#edf8f2] text-[#13734b]">
+            <BadgeDollarSign className="size-5" />
+          </span>
+
+          <div>
+            <h2 className="font-black text-[#26372f]">
+              Add Zone Rate
+            </h2>
+            <p className="mt-1 text-xs text-[#87938d]">
+              Zone-specific pricing overrides the shipper default rate.
+            </p>
+          </div>
+        </div>
+
+        <form
+          action={saveZoneRateAction}
+          className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        >
+          <input
+            type="hidden"
+            name="shipper_id"
+            value={shipper.id}
+          />
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Service Zone *
+            <select
+              name="service_zone_id"
+              required
+              defaultValue=""
+              className="bp-input mt-2"
+            >
+              <option value="" disabled>
+                Select zone
+              </option>
+
+              {zoneRows.map((zone) => {
+                const mapping =
+                  zone.postal_prefix ||
+                  (zone.postal_from && zone.postal_to
+                    ? `${zone.postal_from}-${zone.postal_to}`
+                    : zone.area ||
+                      zone.district ||
+                      zone.city ||
+                      "");
+
+                return (
+                  <option key={zone.id} value={zone.id}>
+                    {zone.country_code} · {zone.name}
+                    {mapping ? ` · ${mapping}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Service Type *
+            <select
+              name="service_type"
+              defaultValue="next_day"
+              className="bp-input mt-2"
+            >
+              <option value="same_day">Same Day</option>
+              <option value="next_day">Next Day</option>
+              <option value="standard">Standard</option>
+            </select>
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Currency *
+            <select
+              name="currency"
+              defaultValue={baseCurrency}
+              className="bp-input mt-2"
+            >
+              {currencyRows.map((row) => (
+                <option
+                  key={row.currency_code}
+                  value={row.currency_code}
+                >
+                  {row.currency_code}
+                  {row.is_base ? " · Base" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Delivery Rate *
+            <input
+              name="delivery_rate"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              defaultValue="0.00"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Return Charge
+            <select
+              name="return_charge_enabled"
+              defaultValue="false"
+              className="bp-input mt-2"
+            >
+              <option value="false">
+                Free Return
+              </option>
+              <option value="true">
+                Charge Return
+              </option>
+            </select>
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Return Rate
+            <input
+              name="return_rate"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue="0.00"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Weight From (kg)
+            <input
+              name="weight_from_kg"
+              type="number"
+              min="0"
+              step="0.001"
+              defaultValue="0"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Weight To (kg)
+            <input
+              name="weight_to_kg"
+              type="number"
+              min="0"
+              step="0.001"
+              placeholder="Unlimited"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            Additional KG Rate
+            <input
+              name="additional_kg_rate"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue="0.00"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <label className="text-xs font-bold text-[#53645c]">
+            COD Fee
+            <input
+              name="cod_fee"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue="0.00"
+              className="bp-input mt-2"
+            />
+          </label>
+
+          <div className="md:col-span-2 xl:col-span-4">
+            <button className="bp-button-primary">
+              <BadgeDollarSign className="size-4" />
+              Save Zone Rate
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="bp-panel mt-6 overflow-hidden">
+        <div className="bp-panel-header">
+          <h2 className="font-black text-[#26372f]">
+            Active & Historical Zone Rates
+          </h2>
+          <p className="mt-1 text-xs text-[#87938d]">
+            {rateRows.length} rate record
+            {rateRows.length === 1 ? "" : "s"}.
+          </p>
+        </div>
+
+        {rateRows.length === 0 ? (
+          <div className="p-10 text-center">
+            <MapPinned className="mx-auto size-9 text-[#a5b0aa]" />
+            <p className="mt-4 text-sm font-bold text-[#53645c]">
+              No zone rates configured
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1150px] text-left text-sm">
+              <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
+                <tr>
+                  <th className="px-4 py-3">Zone</th>
+                  <th className="px-4 py-3">Service</th>
+                  <th className="px-4 py-3">Delivery</th>
+                  <th className="px-4 py-3">Return</th>
+                  <th className="px-4 py-3">Weight</th>
+                  <th className="px-4 py-3">Extra KG</th>
+                  <th className="px-4 py-3">COD Fee</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-[#edf1ef]">
+                {rateRows.map((rate: any) => (
+                  <tr key={rate.id}>
+                    <td className="px-4 py-4">
+                      <p className="font-bold text-[#34453c]">
+                        {rate.service_zones?.name || "Zone"}
+                      </p>
+                      <p className="mt-1 font-mono text-[10px] text-[#87938d]">
+                        {rate.service_zones?.country_code || "—"}
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-4 text-xs font-semibold capitalize">
+                      {rate.service_type.replaceAll("_", " ")}
+                    </td>
+
+                    <td className="px-4 py-4 font-black text-[#13734b]">
+                      {money(rate.delivery_rate, rate.currency)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {rate.return_charge_enabled
+                        ? money(rate.return_rate, rate.currency)
+                        : "Free"}
+                    </td>
+
+                    <td className="px-4 py-4 text-xs">
+                      {Number(rate.weight_from_kg || 0).toFixed(3)}
+                      {" → "}
+                      {rate.weight_to_kg === null
+                        ? "Unlimited"
+                        : Number(rate.weight_to_kg).toFixed(3)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {money(rate.additional_kg_rate, rate.currency)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {money(rate.cod_fee, rate.currency)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
+                          rate.is_active
+                            ? "bg-[#e8f7ef] text-[#13734b]"
+                            : "bg-[#f1f3f2] text-[#87938d]"
+                        }`}
+                      >
+                        {rate.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 text-right">
+                      {rate.is_active ? (
+                        <form action={disableZoneRateAction}>
+                          <input
+                            type="hidden"
+                            name="shipper_id"
+                            value={shipper.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="rate_id"
+                            value={rate.id}
+                          />
+                          <button
+                            title="Disable rate"
+                            className="inline-grid size-9 place-items-center rounded-lg border border-[#dbe5e0] text-[#53645c]"
+                          >
+                            <Power className="size-4" />
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="text-xs text-[#9aa39f]">
+                          Closed
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
