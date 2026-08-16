@@ -3,159 +3,724 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
-import { canDeleteShipments, internalRoles } from "@/lib/roles";
-import { paymentTypes, serviceTypes } from "@/lib/shipments";
+import {
+  canDeleteShipments,
+  internalRoles,
+} from "@/lib/roles";
+import {
+  paymentTypes,
+  serviceTypes,
+} from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
-export type CreateShipmentState = { message: string };
-export type ArchiveShipmentState = { message: string };
+export type CreateShipmentState = {
+  message: string;
+};
 
-function requiredText(formData: FormData, key: string, min: number, max: number) {
-  const value = String(formData.get(key) ?? "").trim();
-  return value.length >= min && value.length <= max ? value : null;
+export type ArchiveShipmentState = {
+  message: string;
+};
+
+type ServiceZone = {
+  id: number;
+  name: string;
+  zone_type: string;
+  postal_prefix: string | null;
+  postal_from: string | null;
+  postal_to: string | null;
+  city: string | null;
+  district: string | null;
+  area: string | null;
+};
+
+function requiredText(
+  formData: FormData,
+  key: string,
+  min: number,
+  max: number,
+) {
+  const value = String(
+    formData.get(key) ?? "",
+  ).trim();
+
+  return value.length >= min &&
+    value.length <= max
+    ? value
+    : null;
 }
 
-function optionalText(formData: FormData, key: string, max: number) {
-  const value = String(formData.get(key) ?? "").trim();
-  return value && value.length <= max ? value : null;
+function optionalText(
+  formData: FormData,
+  key: string,
+  max: number,
+) {
+  const value = String(
+    formData.get(key) ?? "",
+  ).trim();
+
+  return value && value.length <= max
+    ? value
+    : null;
+}
+
+function normalizePostal(value: string | null) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function normalizeLocation(value: string | null) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function postalInRange(
+  postal: string,
+  from: string,
+  to: string,
+) {
+  const p = normalizePostal(postal);
+  const f = normalizePostal(from);
+  const t = normalizePostal(to);
+
+  if (!p || !f || !t) return false;
+
+  if (
+    /^\d+$/.test(p) &&
+    /^\d+$/.test(f) &&
+    /^\d+$/.test(t)
+  ) {
+    const pn = Number(p);
+    return pn >= Number(f) && pn <= Number(t);
+  }
+
+  return p >= f && p <= t;
+}
+
+function resolveServiceZone(
+  zones: ServiceZone[],
+  postalCode: string | null,
+  city: string,
+  area: string | null,
+) {
+  const postal = normalizePostal(postalCode);
+  const normalizedCity = normalizeLocation(city);
+  const normalizedArea = normalizeLocation(area);
+
+  const matches: Array<{
+    zone: ServiceZone;
+    score: number;
+  }> = [];
+
+  for (const zone of zones) {
+    if (
+      zone.zone_type === "postal_prefix" &&
+      zone.postal_prefix &&
+      postal &&
+      postal.startsWith(
+        normalizePostal(zone.postal_prefix),
+      )
+    ) {
+      matches.push({
+        zone,
+        score:
+          500 +
+          normalizePostal(
+            zone.postal_prefix,
+          ).length,
+      });
+      continue;
+    }
+
+    if (
+      zone.zone_type === "postal_range" &&
+      zone.postal_from &&
+      zone.postal_to &&
+      postal &&
+      postalInRange(
+        postal,
+        zone.postal_from,
+        zone.postal_to,
+      )
+    ) {
+      matches.push({
+        zone,
+        score: 450,
+      });
+      continue;
+    }
+
+    if (
+      zone.zone_type === "area" &&
+      zone.area &&
+      normalizedArea &&
+      normalizeLocation(zone.area) ===
+        normalizedArea
+    ) {
+      matches.push({
+        zone,
+        score: 350,
+      });
+      continue;
+    }
+
+    if (
+      zone.zone_type === "district" &&
+      zone.district &&
+      normalizedArea &&
+      normalizeLocation(zone.district) ===
+        normalizedArea
+    ) {
+      matches.push({
+        zone,
+        score: 300,
+      });
+      continue;
+    }
+
+    if (
+      zone.zone_type === "city" &&
+      zone.city &&
+      normalizeLocation(zone.city) ===
+        normalizedCity
+    ) {
+      matches.push({
+        zone,
+        score: 200,
+      });
+    }
+  }
+
+  matches.sort(
+    (a, b) => b.score - a.score,
+  );
+
+  return matches[0]?.zone ?? null;
 }
 
 export async function createShipmentAction(
   _previousState: CreateShipmentState,
   formData: FormData,
 ): Promise<CreateShipmentState> {
-  const profile = await requireProfile([...internalRoles, "shipper"]);
-  if (!profile.organization_id) return { message: "Your account is not linked to an organization." };
+  const profile = await requireProfile([
+    ...internalRoles,
+    "shipper",
+  ]);
 
-  const senderName = requiredText(formData, "sender_name", 2, 120);
-  const senderPhone = requiredText(formData, "sender_phone", 7, 20);
-  const senderAddress = requiredText(formData, "sender_address", 5, 500);
-  const senderCity = requiredText(formData, "sender_city", 2, 80);
-  const consigneeName = requiredText(formData, "consignee_name", 2, 120);
-  const consigneePhone = requiredText(formData, "consignee_phone", 7, 20);
-  const consigneeAddress = requiredText(formData, "consignee_address", 5, 500);
-  const consigneeCity = requiredText(formData, "consignee_city", 2, 80);
-  const parcelDescription = requiredText(formData, "parcel_description", 2, 500);
-  const serviceType = String(formData.get("service_type") ?? "");
-  const paymentType = String(formData.get("payment_type") ?? "");
-  const pieces = Number(formData.get("pieces"));
-  const weightKg = Number(formData.get("weight_kg"));
-  const submittedCod = Number(formData.get("cod_amount"));
+  if (!profile.organization_id) {
+    return {
+      message:
+        "Your account is not linked to an organization.",
+    };
+  }
+
+  const senderName = requiredText(
+    formData,
+    "sender_name",
+    2,
+    120,
+  );
+
+  const senderPhone = requiredText(
+    formData,
+    "sender_phone",
+    7,
+    20,
+  );
+
+  const senderAddress = requiredText(
+    formData,
+    "sender_address",
+    5,
+    500,
+  );
+
+  const senderCity = requiredText(
+    formData,
+    "sender_city",
+    2,
+    80,
+  );
+
+  const consigneeName = requiredText(
+    formData,
+    "consignee_name",
+    2,
+    120,
+  );
+
+  const consigneePhone = requiredText(
+    formData,
+    "consignee_phone",
+    7,
+    20,
+  );
+
+  const consigneeAddress = requiredText(
+    formData,
+    "consignee_address",
+    5,
+    500,
+  );
+
+  const consigneeCity = requiredText(
+    formData,
+    "consignee_city",
+    2,
+    80,
+  );
+
+  const parcelDescription = requiredText(
+    formData,
+    "parcel_description",
+    2,
+    500,
+  );
+
+  const senderCountryCode = String(
+    formData.get("sender_country_code") ?? "",
+  )
+    .trim()
+    .toUpperCase();
+
+  const consigneeCountryCode = String(
+    formData.get("consignee_country_code") ?? "",
+  )
+    .trim()
+    .toUpperCase();
+
+  const senderPostalCode = optionalText(
+    formData,
+    "sender_postal_code",
+    30,
+  );
+
+  const consigneePostalCode = optionalText(
+    formData,
+    "consignee_postal_code",
+    30,
+  );
+
+  const consigneeArea = optionalText(
+    formData,
+    "consignee_area",
+    120,
+  );
+
+  const serviceType = String(
+    formData.get("service_type") ?? "",
+  );
+
+  const paymentType = String(
+    formData.get("payment_type") ?? "",
+  );
+
+  const pieces = Number(
+    formData.get("pieces"),
+  );
+
+  const weightKg = Number(
+    formData.get("weight_kg"),
+  );
+
+  const submittedCod = Number(
+    formData.get("cod_amount"),
+  );
 
   if (
-    !senderName || !senderPhone || !senderAddress || !senderCity ||
-    !consigneeName || !consigneePhone || !consigneeAddress || !consigneeCity ||
+    !senderName ||
+    !senderPhone ||
+    !senderAddress ||
+    !senderCity ||
+    !consigneeName ||
+    !consigneePhone ||
+    !consigneeAddress ||
+    !consigneeCity ||
     !parcelDescription ||
-    !serviceTypes.includes(serviceType as (typeof serviceTypes)[number]) ||
-    !paymentTypes.includes(paymentType as (typeof paymentTypes)[number]) ||
-    !Number.isInteger(pieces) || pieces < 1 || pieces > 999 ||
-    !Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 1000 ||
-    !Number.isFinite(submittedCod) || submittedCod < 0 || submittedCod > 9999999999
+    !/^[A-Z]{2}$/.test(senderCountryCode) ||
+    !/^[A-Z]{2}$/.test(consigneeCountryCode) ||
+    !serviceTypes.includes(
+      serviceType as (typeof serviceTypes)[number],
+    ) ||
+    !paymentTypes.includes(
+      paymentType as (typeof paymentTypes)[number],
+    ) ||
+    !Number.isInteger(pieces) ||
+    pieces < 1 ||
+    pieces > 999 ||
+    !Number.isFinite(weightKg) ||
+    weightKg <= 0 ||
+    weightKg > 1000 ||
+    !Number.isFinite(submittedCod) ||
+    submittedCod < 0 ||
+    submittedCod > 9999999999
   ) {
-    return { message: "Please check the required shipment details and try again." };
+    return {
+      message:
+        "Please check the required shipment details and try again.",
+    };
   }
 
   const supabase = await createClient();
 
+  /*
+   * Validate tenant markets.
+   * Existing pre-global tenants may have no mapping yet,
+   * therefore UAE remains a temporary backward-compatible fallback.
+   */
+  const { data: configuredCountries } =
+    await supabase
+      .from("organization_countries")
+      .select("country_code")
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
+      .eq("is_active", true);
+
+  const allowedCountries =
+    configuredCountries &&
+    configuredCountries.length > 0
+      ? configuredCountries.map(
+          (row) => row.country_code,
+        )
+      : ["AE"];
+
+  if (
+    !allowedCountries.includes(senderCountryCode) ||
+    !allowedCountries.includes(consigneeCountryCode)
+  ) {
+    return {
+      message:
+        "This country is not enabled for your courier company.",
+    };
+  }
+
+  const { data: countryRows } =
+    await supabase
+      .from("countries")
+      .select(`
+        code,
+        name,
+        location_strategy,
+        postal_code_label
+      `)
+      .in("code", [
+        senderCountryCode,
+        consigneeCountryCode,
+      ])
+      .eq("is_active", true);
+
+  const destinationCountry =
+    (countryRows ?? []).find(
+      (country) =>
+        country.code ===
+        consigneeCountryCode,
+    );
+
+  if (!destinationCountry) {
+    return {
+      message:
+        "The delivery country is not available.",
+    };
+  }
+
+  if (
+    [
+      "postal_code",
+      "zip_code",
+      "postcode",
+    ].includes(
+      destinationCountry.location_strategy,
+    ) &&
+    !consigneePostalCode
+  ) {
+    return {
+      message:
+        `${destinationCountry.postal_code_label || "Postal Code"} is required for ${destinationCountry.name}.`,
+    };
+  }
+
+  /*
+   * Resolve destination service zone.
+   */
+  const { data: zoneData } =
+    await supabase
+      .from("service_zones")
+      .select(`
+        id,
+        name,
+        zone_type,
+        postal_prefix,
+        postal_from,
+        postal_to,
+        city,
+        district,
+        area
+      `)
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
+      .eq(
+        "country_code",
+        consigneeCountryCode,
+      )
+      .eq("is_active", true);
+
+  const zones =
+    (zoneData ?? []) as ServiceZone[];
+
+  const matchedZone =
+    resolveServiceZone(
+      zones,
+      consigneePostalCode,
+      consigneeCity,
+      consigneeArea,
+    );
+
+  /*
+   * If zones exist, destination must match one.
+   * If no zones are configured yet, booking remains
+   * possible for backward compatibility.
+   */
+  if (
+    zones.length > 0 &&
+    !matchedZone
+  ) {
+    return {
+      message:
+        "This delivery location is outside your configured service zones.",
+    };
+  }
+
   let shipperId = profile.id;
 
   if (profile.role !== "shipper") {
-    const selectedShipperId = String(formData.get("shipper_id") ?? "");
+    const selectedShipperId = String(
+      formData.get("shipper_id") ?? "",
+    );
 
-    if (!/^[0-9a-f-]{36}$/i.test(selectedShipperId)) {
-      return { message: "Select an active shipper before booking the shipment." };
+    if (
+      !/^[0-9a-f-]{36}$/i.test(
+        selectedShipperId,
+      )
+    ) {
+      return {
+        message:
+          "Select an active shipper before booking the shipment.",
+      };
     }
 
-    const { data: selectedShipper, error: shipperError } = await supabase
+    const {
+      data: selectedShipper,
+      error: shipperError,
+    } = await supabase
       .from("profiles")
       .select("id")
       .eq("id", selectedShipperId)
-      .eq("organization_id", profile.organization_id)
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
       .eq("role", "shipper")
       .eq("status", "active")
       .maybeSingle();
 
-    if (shipperError || !selectedShipper) {
-      return { message: "The selected shipper is not active or does not belong to your organization." };
+    if (
+      shipperError ||
+      !selectedShipper
+    ) {
+      return {
+        message:
+          "The selected shipper is not active or does not belong to your organization.",
+      };
     }
 
     shipperId = selectedShipper.id;
   }
 
-  const { data, error } = await supabase
-    .from("shipments")
-    .insert({
-      organization_id: profile.organization_id,
-      shipper_id: shipperId,
-      created_by: profile.id,
-      reference_number: optionalText(formData, "reference_number", 80),
-      service_type: serviceType,
-      payment_type: paymentType,
-      sender_name: senderName,
-      sender_phone: senderPhone,
-      sender_address: senderAddress,
-      sender_city: senderCity,
-      consignee_name: consigneeName,
-      consignee_phone: consigneePhone,
-      consignee_alt_phone: optionalText(formData, "consignee_alt_phone", 20),
-      consignee_address: consigneeAddress,
-      consignee_city: consigneeCity,
-      consignee_area: optionalText(formData, "consignee_area", 120),
-      consignee_landmark: optionalText(formData, "consignee_landmark", 200),
-      pieces,
-      weight_kg: weightKg,
-      parcel_description: parcelDescription,
-      cod_amount: paymentType === "cod" ? submittedCod : 0,
-      delivery_instructions: optionalText(formData, "delivery_instructions", 500),
-    })
-    .select("id, tracking_number")
-    .single();
+  const { data, error } =
+    await supabase
+      .from("shipments")
+      .insert({
+        organization_id:
+          profile.organization_id,
+
+        shipper_id: shipperId,
+        created_by: profile.id,
+
+        reference_number: optionalText(
+          formData,
+          "reference_number",
+          80,
+        ),
+
+        service_type: serviceType,
+        payment_type: paymentType,
+
+        sender_name: senderName,
+        sender_phone: senderPhone,
+        sender_address: senderAddress,
+        sender_city: senderCity,
+        sender_country_code:
+          senderCountryCode,
+        sender_postal_code:
+          senderPostalCode,
+
+        consignee_name: consigneeName,
+        consignee_phone: consigneePhone,
+
+        consignee_alt_phone:
+          optionalText(
+            formData,
+            "consignee_alt_phone",
+            20,
+          ),
+
+        consignee_address:
+          consigneeAddress,
+
+        consignee_city:
+          consigneeCity,
+
+        consignee_area:
+          consigneeArea,
+
+        consignee_landmark:
+          optionalText(
+            formData,
+            "consignee_landmark",
+            200,
+          ),
+
+        consignee_country_code:
+          consigneeCountryCode,
+
+        consignee_postal_code:
+          consigneePostalCode,
+
+        service_zone_id:
+          matchedZone?.id ?? null,
+
+        service_zone_name:
+          matchedZone?.name ?? null,
+
+        pieces,
+        weight_kg: weightKg,
+
+        parcel_description:
+          parcelDescription,
+
+        cod_amount:
+          paymentType === "cod"
+            ? submittedCod
+            : 0,
+
+        delivery_instructions:
+          optionalText(
+            formData,
+            "delivery_instructions",
+            500,
+          ),
+      })
+      .select(
+        "id, tracking_number",
+      )
+      .single();
 
   if (error || !data) {
     if (error?.code === "23505") {
-      return { message: "This reference number is already used for another shipment." };
+      return {
+        message:
+          "This reference number is already used for another shipment.",
+      };
     }
-    return { message: "Shipment could not be booked. Please review the details and retry." };
+
+    return {
+      message:
+        "Shipment could not be booked. Please review the details and retry.",
+    };
   }
 
-  redirect(`/shipments/${data.id}?created=1`);
+  redirect(
+    `/shipments/${data.id}?created=1`,
+  );
 }
 
 export async function archiveShipmentAction(
   _previousState: ArchiveShipmentState,
   formData: FormData,
 ): Promise<ArchiveShipmentState> {
-  const profile = await requireProfile(internalRoles);
-  if (!profile.organization_id || !canDeleteShipments(profile)) {
-    return { message: "You do not have permission to archive AWBs." };
+  const profile =
+    await requireProfile(internalRoles);
+
+  if (
+    !profile.organization_id ||
+    !canDeleteShipments(profile)
+  ) {
+    return {
+      message:
+        "You do not have permission to archive AWBs.",
+    };
   }
 
-  const shipmentId = String(formData.get("shipment_id") ?? "");
-  const reason = requiredText(formData, "delete_reason", 3, 500);
-  if (!/^\d+$/.test(shipmentId) || !reason) {
-    return { message: "Enter an archive reason between 3 and 500 characters." };
+  const shipmentId = String(
+    formData.get("shipment_id") ?? "",
+  );
+
+  const reason = requiredText(
+    formData,
+    "delete_reason",
+    3,
+    500,
+  );
+
+  if (
+    !/^\d+$/.test(shipmentId) ||
+    !reason
+  ) {
+    return {
+      message:
+        "Enter an archive reason between 3 and 500 characters.",
+    };
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("shipments")
-    .update({
-      deleted_at: new Date().toISOString(),
-      deleted_by: profile.id,
-      delete_reason: reason,
-    })
-    .eq("id", shipmentId)
-    .eq("organization_id", profile.organization_id)
-    .eq("status", "booked")
-    .is("deleted_at", null)
-    .select("id")
-    .maybeSingle();
+
+  const { data, error } =
+    await supabase
+      .from("shipments")
+      .update({
+        deleted_at:
+          new Date().toISOString(),
+        deleted_by: profile.id,
+        delete_reason: reason,
+      })
+      .eq("id", shipmentId)
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
+      .eq("status", "booked")
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
 
   if (error || !data) {
-    return { message: error?.message || "Only an active booked AWB can be archived." };
+    return {
+      message:
+        error?.message ||
+        "Only an active booked AWB can be archived.",
+    };
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/shipments");
-  redirect("/shipments?archived=1");
+
+  redirect(
+    "/shipments?archived=1",
+  );
 }
