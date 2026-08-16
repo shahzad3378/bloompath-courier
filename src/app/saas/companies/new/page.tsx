@@ -1,6 +1,4 @@
-import Link from "next/link";
 import {
-  ArrowLeft,
   Building2,
   CreditCard,
   ShieldCheck,
@@ -60,28 +58,8 @@ export default async function NewCourierCompanyPage({
     .order("display_order");
 
   return (
-    <div className="min-h-screen bg-[#f3f6f5]">
-      <header className="border-b border-[#dfe7e3] bg-[#10291f] text-white">
-        <div className="mx-auto flex min-h-20 max-w-[1500px] items-center justify-between px-5 lg:px-8">
-          <div>
-            <p className="font-bold">BloomPath Courier SaaS</p>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">
-              Platform Control Center
-            </p>
-          </div>
-
-          <Link
-            href="/saas"
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 text-xs font-bold"
-          >
-            <ArrowLeft className="size-4" />
-            Back to SaaS
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[1300px] px-5 py-8 lg:px-8">
-        <div>
+    <div className="bp-page">
+      <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-[#188459]">
             <Building2 className="size-4" />
             Tenant onboarding
@@ -373,7 +351,6 @@ export default async function NewCourierCompanyPage({
             </button>
           </div>
         </form>
-      </main>
     </div>
   );
 }
