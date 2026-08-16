@@ -366,6 +366,45 @@ export async function createShipmentAction(
   const supabase = await createClient();
 
   /*
+   * Resolve shipment currency on the server.
+   * Never trust a browser-submitted currency value.
+   */
+  const [
+    { data: baseCurrencyRow },
+    { data: organizationSettings },
+  ] = await Promise.all([
+    supabase
+      .from("organization_currencies")
+      .select("currency_code")
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
+      .eq("is_base", true)
+      .eq("is_active", true)
+      .maybeSingle(),
+
+    supabase
+      .from("organization_settings")
+      .select("currency")
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      )
+      .maybeSingle(),
+  ]);
+
+  /*
+   * Final shipment currency is resolved after destination
+   * country validation. Organization base currency remains
+   * a safe fallback.
+   */
+  const organizationBaseCurrency =
+    baseCurrencyRow?.currency_code ||
+    organizationSettings?.currency ||
+    "AED";
+
+  /*
    * Validate tenant markets.
    * Existing pre-global tenants may have no mapping yet,
    * therefore UAE remains a temporary backward-compatible fallback.
@@ -426,6 +465,17 @@ export async function createShipmentAction(
         "The delivery country is not available.",
     };
   }
+
+  const { data: destinationCurrency } =
+    await supabase
+      .from("countries")
+      .select("default_currency_code")
+      .eq("code", consigneeCountryCode)
+      .maybeSingle();
+
+  const shipmentCurrency =
+    destinationCurrency?.default_currency_code ||
+    organizationBaseCurrency;
 
   if (
     [
@@ -548,6 +598,8 @@ export async function createShipmentAction(
       .insert({
         organization_id:
           profile.organization_id,
+
+        currency: shipmentCurrency,
 
         shipper_id: shipperId,
         created_by: profile.id,
