@@ -200,7 +200,6 @@ const driverNav: SimpleNavItem[] = [
     label: "History",
     href: "/driver/history",
     icon: ClipboardList,
-    disabled: true,
   },
 ];
 
