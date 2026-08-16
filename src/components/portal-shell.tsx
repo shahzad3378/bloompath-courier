@@ -371,9 +371,14 @@ function ExpandableNavigationGroup({
 
 export function PortalShell({
   profile,
+  branding,
   children,
 }: {
   profile: Profile;
+  branding: {
+    displayName: string;
+    logoUrl: string | null;
+  };
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -429,13 +434,23 @@ export function PortalShell({
             href={homeForRole(profile.role)}
             className="flex items-center gap-3"
           >
-            <span className="grid size-10 place-items-center rounded-xl bg-[#e9f7ef] text-sm font-black text-[#138253]">
-              BP
-            </span>
+            {branding.logoUrl ? (
+              <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-[#e3ebe7] bg-white p-1">
+                <img
+                  src={branding.logoUrl}
+                  alt={`${branding.displayName} logo`}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </span>
+            ) : (
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e9f7ef] text-sm font-black text-[#138253]">
+                BP
+              </span>
+            )}
 
-            <span>
-              <span className="block text-[15px] font-black tracking-[-0.02em] text-[#17231e]">
-                BloomPath
+            <span className="min-w-0">
+              <span className="block max-w-[155px] truncate text-[15px] font-black tracking-[-0.02em] text-[#17231e]">
+                {branding.displayName}
               </span>
 
               <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#15905c]">
