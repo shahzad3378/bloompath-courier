@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   Check,
-  MapPin,
   PackageCheck,
+  Printer,
   Trash2,
   Truck,
 } from "lucide-react";
@@ -13,12 +13,13 @@ import {
   removeReturnAwbAction,
 } from "@/app/(portal)/returns/actions";
 import { ReturnAwbScanForm } from "@/components/return-forms";
+import { ReturnHandoverCompletionForm } from "@/components/return-handover-completion-form";
 import { requireProfile } from "@/lib/auth";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "RTS Route",
+  title: "Return Handover",
 };
 
 const returnRoles = [
@@ -47,12 +48,25 @@ type ReturnRun = {
   id: number;
   run_number: string;
   route_name: string;
+  shipper_id: string | null;
   status: string;
   created_at: string;
+  handed_over_at: string | null;
   completed_at: string | null;
-  profiles: {
+  signed_manifest_path: string | null;
+  received_by_name: string | null;
+  manifest_notes: string | null;
+  manifest_uploaded_at: string | null;
+
+  driver: {
     full_name: string;
     employee_code: string | null;
+    phone: string | null;
+  } | null;
+
+  shipper: {
+    full_name: string;
+    email: string | null;
     phone: string | null;
   } | null;
 };
@@ -80,9 +94,30 @@ export default async function ReturnRunPage({
     await Promise.all([
       supabase
         .from("return_runs")
-        .select(
-          "*, profiles!return_runs_driver_id_fkey(full_name, employee_code, phone)",
-        )
+        .select(`
+          id,
+          run_number,
+          route_name,
+          shipper_id,
+          status,
+          created_at,
+          handed_over_at,
+          completed_at,
+          signed_manifest_path,
+          received_by_name,
+          manifest_notes,
+          manifest_uploaded_at,
+          driver:profiles!return_runs_driver_id_fkey(
+            full_name,
+            employee_code,
+            phone
+          ),
+          shipper:profiles!return_runs_shipper_id_fkey(
+            full_name,
+            email,
+            phone
+          )
+        `)
         .eq("id", id)
         .maybeSingle(),
 
@@ -99,6 +134,16 @@ export default async function ReturnRunPage({
   const items = (itemData ?? []) as unknown as ReturnItem[];
   const completed = items.filter((item) => item.completed_at).length;
 
+  let signedManifestUrl: string | null = null;
+
+  if (run.signed_manifest_path) {
+    const { data: signedManifest } = await supabase.storage
+      .from("return-manifests")
+      .createSignedUrl(run.signed_manifest_path, 3600);
+
+    signedManifestUrl = signedManifest?.signedUrl ?? null;
+  }
+
   return (
     <div className="mx-auto max-w-[1350px]">
       <Link
@@ -111,36 +156,49 @@ export default async function ReturnRunPage({
 
       {notices.handed_over === "1" ? (
         <div className="mb-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
-          RTS route handed over. Seller-return stops are now visible to the driver.
+          Return handover confirmed. These AWBs are now assigned to the selected driver.
         </div>
       ) : null}
 
       {notices.error ? (
         <div className="mb-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
-          RTS handover failed. Confirm the route has eligible AWBs and an active driver.
+          Return handover failed. Confirm that all AWBs belong to the selected shipper and are warehouse-ready.
         </div>
       ) : null}
 
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold text-[#b76223]">
-            Return to Seller route
+            Return to Seller handover
           </p>
           <h1 className="mt-1 font-mono text-3xl font-black tracking-[-0.035em] text-[#17231e]">
             {run.run_number}
           </h1>
           <p className="mt-2 text-sm text-[#74827b]">
-            {run.route_name} · Created {formatDubaiDate(run.created_at)}
+            {run.shipper?.full_name || run.route_name} · Created {formatDubaiDate(run.created_at)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-[#dde7e2] bg-white px-4 py-3 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Return progress
-          </p>
-          <p className="mt-1 text-lg font-black text-[#26372f]">
-            {completed} / {items.length}
-          </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="rounded-xl border border-[#dde7e2] bg-white px-4 py-3 text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+              Return progress
+            </p>
+            <p className="mt-1 text-lg font-black text-[#26372f]">
+              {completed} / {items.length}
+            </p>
+          </div>
+
+          {items.length > 0 ? (
+            <Link
+              href={`/returns/${run.id}/manifest`}
+              target="_blank"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d7e3dd] bg-white px-4 text-sm font-bold text-[#13734b]"
+            >
+              <Printer className="size-4" />
+              Print Manifest
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -161,7 +219,7 @@ export default async function ReturnRunPage({
             <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
               <div>
                 <h2 className="font-bold text-[#26372f]">
-                  RTS AWBs
+                  Return AWBs
                 </h2>
                 <p className="mt-1 text-xs text-[#87938d]">
                   {items.length} shipment{items.length === 1 ? "" : "s"}
@@ -173,7 +231,7 @@ export default async function ReturnRunPage({
             {items.length === 0 ? (
               <div className="grid min-h-52 place-items-center p-8 text-center">
                 <p className="text-sm font-semibold text-[#596861]">
-                  No RTS AWBs scanned yet.
+                  No return AWBs scanned yet.
                 </p>
               </div>
             ) : (
@@ -182,8 +240,8 @@ export default async function ReturnRunPage({
                   <thead className="border-b border-[#e8eeeb] bg-[#f8faf9] text-[11px] uppercase tracking-[0.08em] text-[#77847e]">
                     <tr>
                       <th className="px-5 py-3.5">AWB</th>
-                      <th className="px-5 py-3.5">Seller</th>
-                      <th className="px-5 py-3.5">Return address</th>
+                      <th className="px-5 py-3.5">Original consignee</th>
+                      <th className="px-5 py-3.5">Seller city</th>
                       <th className="px-5 py-3.5">Reason</th>
                       <th className="px-5 py-3.5">Status</th>
                       <th className="px-5 py-3.5 text-right">
@@ -270,6 +328,28 @@ export default async function ReturnRunPage({
         </div>
 
         <aside className="space-y-5">
+          <section className="rounded-2xl border border-[#eadac9] bg-[#fffaf5] p-5">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#9b7455]">
+              Selected Shipper
+            </p>
+
+            <h2 className="mt-2 text-lg font-black text-[#493627]">
+              {run.shipper?.full_name || run.route_name}
+            </h2>
+
+            <p className="mt-2 text-xs text-[#806d5d]">
+              {run.shipper?.email || "No email recorded"}
+            </p>
+
+            <p className="mt-1 text-xs text-[#806d5d]">
+              {run.shipper?.phone || "No phone recorded"}
+            </p>
+
+            <p className="mt-3 text-[11px] font-semibold text-[#9b7455]">
+              Every AWB in this handover must belong to this shipper.
+            </p>
+          </section>
+
           <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
             <div className="flex items-center gap-3">
               <span className="grid size-10 place-items-center rounded-xl bg-[#e8f0fb] text-[#376eb1]">
@@ -280,22 +360,70 @@ export default async function ReturnRunPage({
                   Assigned driver
                 </p>
                 <h2 className="font-bold text-[#26372f]">
-                  {run.profiles?.full_name ?? "Driver"}
+                  {run.driver?.full_name ?? "Driver"}
                 </h2>
               </div>
             </div>
 
             <div className="mt-4 space-y-2 text-sm text-[#62716a]">
               <p>
-                {run.profiles?.employee_code || "No employee code"}
+                {run.driver?.employee_code || "No employee code"}
               </p>
-              <p>{run.profiles?.phone || "No phone recorded"}</p>
-              <p className="flex items-center gap-2 pt-2 text-xs font-semibold">
-                <MapPin className="size-4" />
-                {run.route_name}
-              </p>
+              <p>{run.driver?.phone || "No phone recorded"}</p>
             </div>
           </section>
+
+          {run.status === "handed_over" ? (
+            <ReturnHandoverCompletionForm
+              runId={run.id}
+              awbCount={items.length}
+            />
+          ) : null}
+
+          {run.status === "completed" ? (
+            <section className="rounded-2xl border border-[#bfe3cf] bg-[#f3fbf6] p-5">
+              <div className="flex items-center gap-3">
+                <Check className="size-5 text-[#176a47]" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#5d8c75]">
+                    Return completed
+                  </p>
+                  <h2 className="mt-1 font-black text-[#176a47]">
+                    Seller Handover Confirmed
+                  </h2>
+                </div>
+              </div>
+
+              {run.received_by_name ? (
+                <p className="mt-4 text-xs text-[#61756b]">
+                  Received by: <strong>{run.received_by_name}</strong>
+                </p>
+              ) : null}
+
+              {run.manifest_uploaded_at ? (
+                <p className="mt-2 text-xs text-[#61756b]">
+                  Manifest received {formatDubaiDate(run.manifest_uploaded_at)}
+                </p>
+              ) : null}
+
+              {run.manifest_notes ? (
+                <p className="mt-3 rounded-xl bg-white/70 p-3 text-xs leading-5 text-[#61756b]">
+                  {run.manifest_notes}
+                </p>
+              ) : null}
+
+              {signedManifestUrl ? (
+                <a
+                  href={signedManifestUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#b8d9c7] bg-white px-4 text-xs font-black text-[#13734b]"
+                >
+                  View Signed Manifest
+                </a>
+              ) : null}
+            </section>
+          ) : null}
 
           {run.status === "draft" ? (
             <form
@@ -309,11 +437,11 @@ export default async function ReturnRunPage({
               />
 
               <h2 className="font-bold text-[#26372f]">
-                Handover RTS route
+                Handover to Driver
               </h2>
 
               <p className="mt-2 text-xs leading-5 text-[#7a8881]">
-                The driver will receive these shipments for seller return.
+                Confirm that the driver physically received all scanned shipments for return to this shipper.
               </p>
 
               <button
@@ -321,7 +449,7 @@ export default async function ReturnRunPage({
                 className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#b76223] px-4 text-sm font-bold text-white disabled:opacity-40"
               >
                 <Truck className="size-4" />
-                Confirm RTS handover
+                Confirm Driver Handover
               </button>
             </form>
           ) : null}

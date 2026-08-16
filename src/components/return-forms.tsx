@@ -36,11 +36,17 @@ function Message({ state }: { state: ReturnActionState }) {
 
 export function CreateReturnRunForm({
   drivers,
+  shippers,
 }: {
   drivers: Array<{
     id: string;
     full_name: string;
     employee_code: string | null;
+  }>;
+  shippers: Array<{
+    id: string;
+    full_name: string;
+    email: string | null;
   }>;
 }) {
   const [state, action, pending] = useActionState(
@@ -57,26 +63,37 @@ export function CreateReturnRunForm({
         <span className="grid size-10 place-items-center rounded-xl bg-[#fff0e5] text-[#b76223]">
           <RotateCcw className="size-5" />
         </span>
+
         <div>
           <h2 className="font-bold text-[#26372f]">
-            New RTS route
+            New Return Handover
           </h2>
+
           <p className="mt-0.5 text-xs text-[#7c8982]">
-            Assign a driver, then scan seller-return AWBs.
+            Select the shipper and driver, then scan only that seller&apos;s return AWBs.
           </p>
         </div>
       </div>
 
       <label className="mt-4 block text-xs font-bold text-[#526159]">
-        Route name
-        <input
-          name="route_name"
+        Shipper / Seller
+        <select
+          name="shipper_id"
           required
-          minLength={2}
-          maxLength={120}
-          placeholder="e.g. Dubai Sellers Return Route"
-          className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm font-normal outline-none focus:border-[#2b9466]"
-        />
+          defaultValue=""
+          className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal outline-none focus:border-[#2b9466]"
+        >
+          <option value="" disabled>
+            Select shipper
+          </option>
+
+          {shippers.map((shipper) => (
+            <option key={shipper.id} value={shipper.id}>
+              {shipper.full_name}
+              {shipper.email ? ` · ${shipper.email}` : ""}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="mt-3 block text-xs font-bold text-[#526159]">
@@ -90,6 +107,7 @@ export function CreateReturnRunForm({
           <option value="" disabled>
             Select active driver
           </option>
+
           {drivers.map((driver) => (
             <option key={driver.id} value={driver.id}>
               {driver.full_name}
@@ -101,10 +119,20 @@ export function CreateReturnRunForm({
         </select>
       </label>
 
+      <div className="mt-4 rounded-xl border border-[#eadac9] bg-[#fffaf5] p-3">
+        <p className="text-xs font-semibold leading-5 text-[#7b674f]">
+          Only warehouse-ready Return to Seller AWBs belonging to the selected shipper can be scanned into this handover.
+        </p>
+      </div>
+
       <Message state={state} />
 
       <button
-        disabled={pending || drivers.length === 0}
+        disabled={
+          pending ||
+          drivers.length === 0 ||
+          shippers.length === 0
+        }
         className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white disabled:opacity-50"
       >
         {pending ? (
@@ -112,7 +140,8 @@ export function CreateReturnRunForm({
         ) : (
           <Truck className="size-4" />
         )}
-        Create RTS route
+
+        Create Return Handover
       </button>
     </form>
   );
@@ -152,10 +181,10 @@ export function ReturnAwbScanForm({
         </span>
         <div>
           <h2 className="font-bold text-[#26372f]">
-            Scan RTS-ready AWBs
+            Scan Return AWBs
           </h2>
           <p className="mt-0.5 text-xs text-[#74827b]">
-            Shipment must first be physically returned to warehouse.
+            Only warehouse-ready AWBs for this selected shipper will be accepted.
           </p>
         </div>
       </div>

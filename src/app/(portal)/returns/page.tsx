@@ -45,6 +45,7 @@ export default async function ReturnsPage() {
 
   const [
     { data: driverData },
+    { data: shipperData },
     { data: runData, error },
     { count: readyCount },
   ] = await Promise.all([
@@ -52,6 +53,13 @@ export default async function ReturnsPage() {
       .from("profiles")
       .select("id, full_name, employee_code")
       .eq("role", "driver")
+      .eq("status", "active")
+      .order("full_name"),
+
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("role", "shipper")
       .eq("status", "active")
       .order("full_name"),
 
@@ -73,6 +81,7 @@ export default async function ReturnsPage() {
   ]);
 
   const drivers = driverData ?? [];
+  const shippers = shipperData ?? [];
   const runs = (runData ?? []) as unknown as ReturnRun[];
 
   return (
@@ -101,16 +110,19 @@ export default async function ReturnsPage() {
       </div>
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">
-        <CreateReturnRunForm drivers={drivers} />
+        <CreateReturnRunForm
+          drivers={drivers}
+          shippers={shippers}
+        />
 
         <section className="overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
           <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
             <div>
               <h2 className="font-bold text-[#26372f]">
-                Recent RTS routes
+                Recent Return Handovers
               </h2>
               <p className="mt-1 text-xs text-[#87938d]">
-                Latest seller-return routes
+                Latest shipper return handovers
               </p>
             </div>
             <RotateCcw className="size-5 text-[#b76223]" />
@@ -118,17 +130,17 @@ export default async function ReturnsPage() {
 
           {error ? (
             <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
-              RTS routes could not be loaded.
+              Return handovers could not be loaded.
             </p>
           ) : runs.length === 0 ? (
             <div className="grid min-h-72 place-items-center p-8 text-center">
               <div>
                 <Truck className="mx-auto size-10 text-[#9aaba2]" />
                 <h2 className="mt-4 font-bold text-[#405048]">
-                  No RTS routes yet
+                  No return handovers yet
                 </h2>
                 <p className="mt-1 text-sm text-[#87938d]">
-                  Create a route and scan warehouse-ready returns.
+                  Select a shipper and driver, then scan warehouse-ready return AWBs.
                 </p>
               </div>
             </div>

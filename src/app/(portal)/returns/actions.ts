@@ -24,6 +24,13 @@ const proofMimeTypes = new Map([
   ["image/webp", "webp"],
 ]);
 
+const manifestMimeTypes = new Map([
+  ["application/pdf", "pdf"],
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+]);
+
 function text(formData: FormData, key: string, min: number, max: number) {
   const value = String(formData.get(key) ?? "").trim();
   return value.length >= min && value.length <= max ? value : null;
@@ -40,29 +47,49 @@ export async function createReturnRunAction(
 ): Promise<ReturnActionState> {
   const profile = await requireProfile(returnRoles);
 
-  const routeName = text(formData, "route_name", 2, 120);
+  const shipperId = String(formData.get("shipper_id") ?? "");
   const driverId = String(formData.get("driver_id") ?? "");
 
   if (
     !profile.organization_id ||
-    !routeName ||
+    !/^[0-9a-f-]{36}$/i.test(shipperId) ||
     !/^[0-9a-f-]{36}$/i.test(driverId)
   ) {
     return {
       status: "error",
-      message: "Select a driver and enter a route name.",
+      message: "Select a shipper and driver.",
     };
   }
 
   const supabase = await createClient();
 
-  const { data: driver } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", driverId)
-    .eq("role", "driver")
-    .eq("status", "active")
-    .maybeSingle();
+  const [{ data: shipper }, { data: driver }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("id", shipperId)
+        .eq("organization_id", profile.organization_id)
+        .eq("role", "shipper")
+        .eq("status", "active")
+        .maybeSingle(),
+
+      supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", driverId)
+        .eq("organization_id", profile.organization_id)
+        .eq("role", "driver")
+        .eq("status", "active")
+        .maybeSingle(),
+    ]);
+
+  if (!shipper) {
+    return {
+      status: "error",
+      message: "Selected shipper is not active.",
+    };
+  }
 
   if (!driver) {
     return {
@@ -75,7 +102,11 @@ export async function createReturnRunAction(
     .from("return_runs")
     .insert({
       organization_id: profile.organization_id,
-      route_name: routeName,
+      shipper_id: shipperId,
+      route_name:
+        shipper.full_name ||
+        shipper.email ||
+        "Shipper Return",
       driver_id: driverId,
       created_by: profile.id,
     })
@@ -85,7 +116,7 @@ export async function createReturnRunAction(
   if (error || !data) {
     return {
       status: "error",
-      message: "RTS route could not be created.",
+      message: "Return handover could not be created.",
     };
   }
 
@@ -110,19 +141,46 @@ export async function addReturnAwbAction(
 
   const supabase = await createClient();
 
-  const { data: shipment } = await supabase
-    .from("shipments")
-    .select(
-      "id, status, delivery_attempt_count, fourth_attempt_authorized, warehouse_received_at, assigned_driver_id",
-    )
-    .eq("tracking_number", tracking)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const [{ data: run }, { data: shipment }] =
+    await Promise.all([
+      supabase
+        .from("return_runs")
+        .select("id, shipper_id, status")
+        .eq("id", Number(runId))
+        .maybeSingle(),
+
+      supabase
+        .from("shipments")
+        .select(
+          "id, shipper_id, status, delivery_attempt_count, fourth_attempt_authorized, warehouse_received_at, assigned_driver_id",
+        )
+        .eq("tracking_number", tracking)
+        .eq("organization_id", profile.organization_id)
+        .is("deleted_at", null)
+        .maybeSingle(),
+    ]);
+
+  if (!run || run.status !== "draft") {
+    return {
+      status: "error",
+      message: "This return handover is no longer open for scanning.",
+    };
+  }
 
   if (!shipment) {
     return {
       status: "error",
       message: `AWB ${tracking} was not found.`,
+    };
+  }
+
+  if (
+    run.shipper_id &&
+    shipment.shipper_id !== run.shipper_id
+  ) {
+    return {
+      status: "error",
+      message: `AWB ${tracking} does not belong to the selected shipper.`,
     };
   }
 
@@ -152,14 +210,14 @@ export async function addReturnAwbAction(
   if (error?.code === "23505") {
     return {
       status: "error",
-      message: `AWB ${tracking} is already on an active RTS route.`,
+      message: `AWB ${tracking} is already on an active return handover.`,
     };
   }
 
   if (error) {
     return {
       status: "error",
-      message: `AWB ${tracking} could not be added to the RTS route.`,
+      message: `AWB ${tracking} could not be added to the return handover.`,
     };
   }
 
@@ -168,7 +226,7 @@ export async function addReturnAwbAction(
 
   return {
     status: "success",
-    message: `AWB ${tracking} added to Return to Seller route.`,
+    message: `AWB ${tracking} added to the return handover.`,
   };
 }
 
@@ -321,4 +379,164 @@ export async function completeSellerReturnAction(
   revalidatePath("/shipments");
 
   redirect("/driver?return_updated=1");
+}
+
+
+export async function completeReturnHandoverAction(
+  _state: ReturnActionState,
+  formData: FormData,
+): Promise<ReturnActionState> {
+  const profile = await requireProfile(returnRoles);
+
+  const runId = numericId(formData, "run_id");
+  const receiverName = text(
+    formData,
+    "received_by_name",
+    2,
+    150,
+  );
+  const notes = String(
+    formData.get("manifest_notes") ?? "",
+  )
+    .trim()
+    .slice(0, 500);
+
+  const proof = formData.get("signed_manifest");
+
+  if (!profile.organization_id || !runId) {
+    return {
+      status: "error",
+      message: "Invalid return handover.",
+    };
+  }
+
+  if (
+    !(proof instanceof File) ||
+    proof.size === 0 ||
+    proof.size > 10 * 1024 * 1024 ||
+    !manifestMimeTypes.has(proof.type)
+  ) {
+    return {
+      status: "error",
+      message:
+        "Attach the signed manifest as PDF, JPG, PNG or WebP up to 10 MB.",
+    };
+  }
+
+  const supabase = await createClient();
+
+  const { data: run } = await supabase
+    .from("return_runs")
+    .select(`
+      id,
+      organization_id,
+      status,
+      signed_manifest_path
+    `)
+    .eq("id", Number(runId))
+    .maybeSingle();
+
+  if (!run || run.status !== "handed_over") {
+    return {
+      status: "error",
+      message:
+        "This return handover is not ready for final completion.",
+    };
+  }
+
+  const { data: items } = await supabase
+    .from("return_run_items")
+    .select("id, completed_at")
+    .eq("run_id", Number(runId));
+
+  const pendingItems = (items ?? []).filter(
+    (item) => !item.completed_at,
+  );
+
+  if (pendingItems.length === 0) {
+    return {
+      status: "error",
+      message:
+        "There are no pending AWBs on this return handover.",
+    };
+  }
+
+  const extension = manifestMimeTypes.get(proof.type)!;
+
+  const manifestPath =
+    `${profile.organization_id}/return-handovers/` +
+    `${runId}/${randomUUID()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("return-manifests")
+    .upload(manifestPath, proof, {
+      contentType: proof.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return {
+      status: "error",
+      message:
+        "Signed return manifest could not be uploaded.",
+    };
+  }
+
+  const { error: runUpdateError } = await supabase
+    .from("return_runs")
+    .update({
+      signed_manifest_path: manifestPath,
+      received_by_name: receiverName,
+      manifest_notes: notes || null,
+    })
+    .eq("id", Number(runId))
+    .eq("status", "handed_over");
+
+  if (runUpdateError) {
+    await supabase.storage
+      .from("return-manifests")
+      .remove([manifestPath]);
+
+    return {
+      status: "error",
+      message:
+        "Signed manifest metadata could not be saved.",
+    };
+  }
+
+  for (const item of pendingItems) {
+    const { error } = await supabase
+      .from("return_run_items")
+      .update({
+        proof_path: manifestPath,
+        notes:
+          notes ||
+          "Completed against signed return handover manifest.",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", item.id)
+      .is("completed_at", null);
+
+    if (error) {
+      return {
+        status: "error",
+        message:
+          "Manifest was uploaded, but one or more AWBs could not be completed.",
+      };
+    }
+  }
+
+  revalidatePath(`/returns/${runId}`);
+  revalidatePath("/returns");
+  revalidatePath("/driver");
+  revalidatePath("/shipments");
+  revalidatePath("/reports");
+
+  return {
+    status: "success",
+    message:
+      `${pendingItems.length} AWB${
+        pendingItems.length === 1 ? "" : "s"
+      } returned to shipper successfully.`,
+  };
 }
