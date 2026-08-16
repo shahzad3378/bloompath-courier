@@ -86,10 +86,19 @@ export async function createReverseOrderAction(
       consignee_area,
       consignee_country_code,
       consignee_postal_code,
+      sender_name,
+      sender_phone,
+      sender_address,
+      sender_city,
+      sender_country_code,
+      sender_postal_code,
       service_zone_id,
       service_zone_name,
       parcel_description,
-      pieces
+      pieces,
+      weight_kg,
+      service_type,
+      currency
     `)
     .eq(
       "organization_id",
@@ -167,7 +176,15 @@ export async function createReverseOrderAction(
     );
   }
 
-  const { error } = await supabase
+  /*
+   * Step 1:
+   * Create the reverse/exchange case.
+   * REV-/EXC- is the operational case number.
+   */
+  const {
+    data: reverseOrder,
+    error: reverseOrderError,
+  } = await supabase
     .from("reverse_orders")
     .insert({
       organization_id:
@@ -227,12 +244,17 @@ export async function createReverseOrderAction(
 
       customer_notes:
         customerNotes || null,
-    });
+    })
+    .select("id, reverse_number")
+    .single();
 
-  if (error) {
+  if (
+    reverseOrderError ||
+    !reverseOrder
+  ) {
     console.error(
       "Reverse / Exchange creation failed:",
-      error,
+      reverseOrderError,
     );
 
     redirect(
@@ -240,9 +262,155 @@ export async function createReverseOrderAction(
     );
   }
 
+  /*
+   * Step 2:
+   * Create the physical reverse parcel.
+   *
+   * Reverse direction:
+   * Customer (original consignee) -> Seller (original sender)
+   *
+   * DB tracking trigger generates:
+   * tenant prefix + R + date + sequence
+   * e.g. BPR26081610000045.
+   */
+  const {
+    data: reverseShipment,
+    error: reverseShipmentError,
+  } = await supabase
+    .from("shipments")
+    .insert({
+      organization_id:
+        profile.organization_id,
+
+      shipper_id: shipperId,
+      created_by: profile.id,
+
+      shipment_flow: "reverse_pickup",
+      reverse_order_id: reverseOrder.id,
+
+      reference_number:
+        reverseOrder.reverse_number,
+
+      service_type:
+        original.service_type || "next_day",
+
+      payment_type: "prepaid",
+      cod_amount: 0,
+
+      currency:
+        original.currency || "AED",
+
+      sender_name:
+        original.consignee_name,
+
+      sender_phone:
+        original.consignee_phone,
+
+      sender_address:
+        original.consignee_address,
+
+      sender_city:
+        original.consignee_city,
+
+      sender_country_code:
+        original.consignee_country_code || null,
+
+      sender_postal_code:
+        original.consignee_postal_code || null,
+
+      consignee_name:
+        original.sender_name,
+
+      consignee_phone:
+        original.sender_phone,
+
+      consignee_address:
+        original.sender_address,
+
+      consignee_city:
+        original.sender_city,
+
+      consignee_country_code:
+        original.sender_country_code || null,
+
+      consignee_postal_code:
+        original.sender_postal_code || null,
+
+      pieces:
+        expectedPieces ||
+        original.pieces ||
+        1,
+
+      weight_kg:
+        original.weight_kg || 1,
+
+      parcel_description:
+        expectedItemDescription ||
+        original.parcel_description ||
+        "Reverse pickup",
+
+      delivery_instructions:
+        [
+          `Reverse case ${reverseOrder.reverse_number}`,
+          reason ? `Reason: ${reason}` : null,
+          customerNotes || null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+    })
+    .select(
+      "id, tracking_number",
+    )
+    .single();
+
+  if (
+    reverseShipmentError ||
+    !reverseShipment
+  ) {
+    console.error(
+      "Reverse AWB creation failed:",
+      reverseShipmentError,
+    );
+
+    redirect(
+      `/reverse-exchange?error=reverse_awb&case=${reverseOrder.id}`,
+    );
+  }
+
+  /*
+   * Step 3:
+   * Link reverse case back to the generated physical AWB.
+   */
+  const { error: linkError } =
+    await supabase
+      .from("reverse_orders")
+      .update({
+        reverse_shipment_id:
+          reverseShipment.id,
+      })
+      .eq("id", reverseOrder.id)
+      .eq(
+        "organization_id",
+        profile.organization_id,
+      );
+
+  if (linkError) {
+    console.error(
+      "Reverse AWB link failed:",
+      linkError,
+    );
+
+    redirect(
+      `/reverse-exchange?error=reverse_link&case=${reverseOrder.id}`,
+    );
+  }
+
   revalidatePath("/reverse-exchange");
+  revalidatePath("/shipments");
 
   redirect(
-    "/reverse-exchange?created=1",
+    `/reverse-exchange?created=1&reverse_awb=${encodeURIComponent(
+      reverseShipment.tracking_number,
+    )}`,
   );
 }

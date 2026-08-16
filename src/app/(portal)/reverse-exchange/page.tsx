@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowLeftRight,
   PackagePlus,
+  Printer,
   RotateCcw,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
@@ -15,7 +16,11 @@ export const metadata = {
 export default async function ReverseExchangePage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{
+    created?: string;
+    error?: string;
+    reverse_awb?: string;
+  }>;
 }) {
   const profile = await requireProfile([
     ...internalRoles,
@@ -43,6 +48,10 @@ export default async function ReverseExchangePage({
       ),
       replacement:shipments!reverse_orders_replacement_shipment_id_fkey(
         tracking_number
+      ),
+      reverse_shipment:shipments!reverse_orders_reverse_shipment_id_fkey(
+        id,
+        tracking_number
       )
     `)
     .eq(
@@ -69,6 +78,15 @@ export default async function ReverseExchangePage({
       {notices.created === "1" ? (
         <div className="mb-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">
           Reverse / Exchange request created successfully.
+          {notices.reverse_awb
+            ? ` Reverse AWB ${notices.reverse_awb} is ready to print.`
+            : ""}
+        </div>
+      ) : null}
+
+      {notices.error ? (
+        <div className="mb-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
+          Reverse request was created, but its physical AWB could not be completed. Review this request before continuing.
         </div>
       ) : null}
 
@@ -178,6 +196,38 @@ export default async function ReverseExchangePage({
                         {row.replacement.tracking_number}
                       </p>
                     </>
+                  ) : null}
+
+                  {row.reverse_shipment?.tracking_number ? (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold uppercase text-[#87938d]">
+                        Reverse AWB
+                      </p>
+
+                      <p className="mt-1 font-mono text-sm font-black text-[#b76223]">
+                        {row.reverse_shipment.tracking_number}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Link
+                          href={`/print/shipments/${row.reverse_shipment.id}?format=4x6`}
+                          target="_blank"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#13734b] px-3 text-[11px] font-bold text-white"
+                        >
+                          <Printer className="size-3.5" />
+                          4×6
+                        </Link>
+
+                        <Link
+                          href={`/print/shipments/${row.reverse_shipment.id}?format=a4`}
+                          target="_blank"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#d7e3dd] bg-white px-3 text-[11px] font-bold text-[#405048]"
+                        >
+                          <Printer className="size-3.5" />
+                          A4
+                        </Link>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
 
