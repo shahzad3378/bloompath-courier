@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BadgeDollarSign,
   Bell,
@@ -16,6 +16,7 @@ import {
   LogOut,
   MapPinned,
   Menu,
+  Search,
   PackageCheck,
   RotateCcw,
   ScanLine,
@@ -26,7 +27,7 @@ import {
   Warehouse,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/login/actions";
 import {
   homeForRole,
@@ -389,7 +390,12 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const visibleInternalSections = isPlatformAdmin
     ? [
@@ -430,13 +436,35 @@ export function PortalShell({
     : activeInternalLabel(pathname);
 
   function toggleGroup(key: string) {
+    if (sidebarCollapsed) {
+      setSidebarCollapsed(false);
+      setExpandedGroup(key);
+      return;
+    }
+
     setExpandedGroup((current) =>
       current === key ? null : key,
     );
   }
 
+  function submitGlobalSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const value = searchText.trim();
+    if (!value) return;
+
+    router.push(`/shipments?q=${encodeURIComponent(value)}`);
+    setSearchText("");
+  }
+
   return (
-    <div className="min-h-screen bg-[#f6f8f7] lg:grid lg:grid-cols-[245px_1fr]">
+    <div
+      className={`min-h-screen bg-[#f6f8f7] lg:grid ${
+        sidebarCollapsed
+          ? "lg:grid-cols-[76px_1fr]"
+          : "lg:grid-cols-[245px_1fr]"
+      }`}
+    >
       {mobileOpen ? (
         <button
           aria-label="Close navigation"
@@ -446,13 +474,21 @@ export function PortalShell({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[245px] flex-col border-r border-[#e7ece9] bg-white text-[#25352d] shadow-[4px_0_24px_rgba(23,35,30,0.025)] transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[245px] flex-col border-r border-[#e7ece9] bg-white text-[#25352d] shadow-[4px_0_24px_rgba(23,35,30,0.025)] transition-all duration-300 lg:sticky lg:top-0 lg:h-screen ${
+          sidebarCollapsed ? "lg:w-[76px]" : "lg:w-[245px]"
+        } ${
           mobileOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="flex h-20 items-center justify-between px-4">
+        <div
+          className={`flex h-20 items-center ${
+            sidebarCollapsed
+              ? "justify-center px-2"
+              : "justify-between px-4"
+          }`}
+        >
           <Link
             href={homeForRole(profile.role)}
             className="flex items-center gap-3"
@@ -471,15 +507,17 @@ export function PortalShell({
               </span>
             )}
 
-            <span className="min-w-0">
-              <span className="block max-w-[155px] truncate text-[15px] font-black tracking-[-0.02em] text-[#17231e]">
-                {branding.displayName}
-              </span>
+            {!sidebarCollapsed ? (
+              <span className="min-w-0">
+                <span className="block max-w-[155px] truncate text-[15px] font-black tracking-[-0.02em] text-[#17231e]">
+                  {branding.displayName}
+                </span>
 
-              <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#15905c]">
-                Courier
+                <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#15905c]">
+                  Courier
+                </span>
               </span>
-            </span>
+            ) : null}
           </Link>
 
           <button
@@ -491,23 +529,34 @@ export function PortalShell({
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-5 pt-2">
+        <nav
+          className={`flex-1 overflow-y-auto pb-5 pt-2 ${
+            sidebarCollapsed ? "px-2" : "px-3"
+          }`}
+        >
           {simpleNav ? (
             <div>
-              <p className="mb-2 px-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">
-                Workspace
-              </p>
+              {!sidebarCollapsed ? (
+                <p className="mb-2 px-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">
+                  Workspace
+                </p>
+              ) : null}
 
               <div className="space-y-0.5">
                 {simpleNav.map((item) => (
-                  <SimpleNavigationItem
+                  <div
                     key={item.label}
-                    item={item}
-                    pathname={pathname}
-                    closeNavigation={() =>
-                      setMobileOpen(false)
-                    }
-                  />
+                    title={sidebarCollapsed ? item.label : undefined}
+                    className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-0" : ""}
+                  >
+                    <SimpleNavigationItem
+                      item={item}
+                      pathname={pathname}
+                      closeNavigation={() =>
+                        setMobileOpen(false)
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -515,40 +564,57 @@ export function PortalShell({
             <div className="space-y-5">
               {visibleInternalSections.map((section) => (
                 <section key={section.label}>
-                  <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">
-                    {section.label}
-                  </p>
+                  {!sidebarCollapsed ? (
+                    <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">
+                      {section.label}
+                    </p>
+                  ) : null}
 
                   <div className="space-y-0.5">
                     {(section.direct ?? []).map(
                       (item) => (
-                        <SimpleNavigationItem
+                        <div
                           key={item.label}
-                          item={item}
-                          pathname={pathname}
-                          closeNavigation={() =>
-                            setMobileOpen(false)
-                          }
-                        />
+                          title={sidebarCollapsed ? item.label : undefined}
+                          className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-0" : ""}
+                        >
+                          <SimpleNavigationItem
+                            item={item}
+                            pathname={pathname}
+                            closeNavigation={() =>
+                              setMobileOpen(false)
+                            }
+                          />
+                        </div>
                       ),
                     )}
 
                     {(section.groups ?? []).map(
                       (group) => (
-                        <ExpandableNavigationGroup
+                        <div
                           key={group.key}
-                          group={group}
-                          pathname={pathname}
-                          expanded={
-                            expandedGroup === group.key
+                          title={sidebarCollapsed ? group.label : undefined}
+                          className={
+                            sidebarCollapsed
+                              ? "[&>div>button]:justify-center [&>div>button]:px-0 [&>div>button>span]:hidden [&>div>button>svg:last-child]:hidden"
+                              : ""
                           }
-                          onToggle={() =>
-                            toggleGroup(group.key)
-                          }
-                          closeNavigation={() =>
-                            setMobileOpen(false)
-                          }
-                        />
+                        >
+                          <ExpandableNavigationGroup
+                            group={group}
+                            pathname={pathname}
+                            expanded={
+                              !sidebarCollapsed &&
+                              expandedGroup === group.key
+                            }
+                            onToggle={() =>
+                              toggleGroup(group.key)
+                            }
+                            closeNavigation={() =>
+                              setMobileOpen(false)
+                            }
+                          />
+                        </div>
                       ),
                     )}
                   </div>
@@ -558,7 +624,12 @@ export function PortalShell({
           )}
         </nav>
 
-        <div className="border-t border-[#edf1ef] bg-white p-3">
+        <div
+          className={`border-t border-[#edf1ef] bg-white ${
+            sidebarCollapsed ? "p-2" : "p-3"
+          }`}
+        >
+          {!sidebarCollapsed ? (
           <div className="rounded-xl bg-[#f0faf5] p-2">
             <Link
               href="/help"
@@ -580,6 +651,7 @@ export function PortalShell({
               </span>
             </Link>
           </div>
+          ) : null}
 
           <div className="mt-2 space-y-0.5">
             {profile.role !== "shipper" &&
@@ -594,14 +666,21 @@ export function PortalShell({
                 }`}
               >
                 <Settings className="size-[16px]" />
-                Settings
+                {!sidebarCollapsed ? "Settings" : null}
               </Link>
             ) : null}
 
             <form action={logoutAction}>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[12px] font-medium text-[#66756e] transition hover:bg-[#fff3f3] hover:text-[#a84444]">
+              <button
+                title={sidebarCollapsed ? "Sign out" : undefined}
+                className={`flex w-full items-center gap-3 rounded-lg py-2 text-[12px] font-medium text-[#66756e] transition hover:bg-[#fff3f3] hover:text-[#a84444] ${
+                  sidebarCollapsed
+                    ? "justify-center px-0"
+                    : "px-3"
+                }`}
+              >
                 <LogOut className="size-[16px]" />
-                Sign out
+                {!sidebarCollapsed ? "Sign out" : null}
               </button>
             </form>
           </div>
@@ -610,37 +689,99 @@ export function PortalShell({
 
       <div className="min-w-0">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#e8eeeb] bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-7">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               aria-label="Open navigation"
-              className="grid size-10 place-items-center rounded-xl border border-[#dfe7e3] text-[#46554e] lg:hidden"
+              className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#dfe7e3] text-[#46554e] lg:hidden"
               onClick={() => setMobileOpen(true)}
             >
               <Menu className="size-5" />
             </button>
 
-            <div>
+            <button
+              aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+              className="hidden size-10 shrink-0 place-items-center rounded-xl border border-[#dfe7e3] text-[#46554e] transition hover:bg-[#f5f8f6] lg:grid"
+              onClick={() =>
+                setSidebarCollapsed((current) => !current)
+              }
+            >
+              <Menu className="size-5" />
+            </button>
+
+            <div className="hidden xl:block">
               <p className="text-[17px] font-black tracking-[-0.025em] text-[#17231e]">
                 {activeLabel}
               </p>
 
-              <p className="hidden text-[11px] text-[#8a9690] sm:block">
+              <p className="text-[11px] text-[#8a9690]">
                 Courier operations workspace
               </p>
             </div>
           </div>
 
+          <form
+            onSubmit={submitGlobalSearch}
+            className="mx-4 hidden w-full max-w-[560px] lg:block"
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#829089]" />
+              <input
+                value={searchText}
+                onChange={(event) =>
+                  setSearchText(event.target.value)
+                }
+                placeholder="Track AWB, reference, customer or phone..."
+                className="h-11 w-full rounded-xl border border-[#dfe7e3] bg-[#f9fbfa] pl-11 pr-4 text-sm font-medium text-[#25352d] outline-none transition placeholder:text-[#9aa69f] focus:border-[#72b995] focus:bg-white focus:ring-4 focus:ring-[#15905c]/10"
+              />
+            </div>
+          </form>
+
           <div className="flex items-center gap-2 sm:gap-3">
+            <div className="relative">
+              <button
+                aria-label="Notifications"
+                onClick={() => {
+                  setNotificationsOpen((current) => !current);
+                  setProfileOpen(false);
+                }}
+                className="relative grid size-10 place-items-center rounded-xl border border-[#e1e8e4] text-[#506058] transition hover:bg-[#f5f8f6]"
+              >
+                <Bell className="size-5" />
+                <span className="absolute right-2.5 top-2.5 size-2 rounded-full border-2 border-white bg-[#e1962f]" />
+              </button>
+
+              {notificationsOpen ? (
+                <div className="absolute right-0 top-12 z-50 w-[340px] overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_20px_50px_rgba(23,35,30,0.14)]">
+                  <div className="border-b border-[#edf1ef] px-4 py-3">
+                    <p className="text-sm font-black text-[#1d2d25]">
+                      Notifications
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[#84918b]">
+                      Operational alerts will appear here
+                    </p>
+                  </div>
+
+                  <div className="px-4 py-8 text-center">
+                    <Bell className="mx-auto size-6 text-[#a4b0aa]" />
+                    <p className="mt-2 text-xs font-semibold text-[#64726b]">
+                      Notification feed is ready
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#98a39e]">
+                      We will connect live shipment events next.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <button
-              aria-label="Notifications"
-              className="relative grid size-10 place-items-center rounded-xl border border-[#e1e8e4] text-[#506058]"
+              type="button"
+              onClick={() => {
+                setProfileOpen((current) => !current);
+                setNotificationsOpen(false);
+              }}
+              className="relative flex items-center gap-2 rounded-xl border border-[#e1e8e4] bg-white p-1.5 pr-2 sm:gap-3 sm:pr-3"
             >
-              <Bell className="size-5" />
-
-              <span className="absolute right-2.5 top-2.5 size-2 rounded-full border-2 border-white bg-[#e1962f]" />
-            </button>
-
-            <div className="flex items-center gap-2 rounded-xl border border-[#e1e8e4] bg-white p-1.5 pr-2 sm:gap-3 sm:pr-3">
               <span className="grid size-8 place-items-center rounded-lg bg-[#e7f4ed] text-[#13734b]">
                 <CircleUserRound className="size-5" />
               </span>
@@ -655,8 +796,35 @@ export function PortalShell({
                 </span>
               </span>
 
-              <ChevronDown className="hidden size-4 text-[#7a8881] sm:block" />
-            </div>
+              <ChevronDown
+                className={`hidden size-4 text-[#7a8881] transition-transform sm:block ${
+                  profileOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {profileOpen ? (
+              <div className="absolute right-4 top-[66px] z-50 w-56 rounded-2xl border border-[#e0e8e4] bg-white p-2 shadow-[0_20px_50px_rgba(23,35,30,0.14)] sm:right-6 lg:right-7">
+                {profile.role !== "shipper" &&
+                profile.role !== "driver" ? (
+                  <Link
+                    href="/settings"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#526159] transition hover:bg-[#f5f8f6]"
+                  >
+                    <Settings className="size-4" />
+                    Settings
+                  </Link>
+                ) : null}
+
+                <form action={logoutAction}>
+                  <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#a84444] transition hover:bg-[#fff3f3]">
+                    <LogOut className="size-4" />
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            ) : null}
           </div>
         </header>
 
