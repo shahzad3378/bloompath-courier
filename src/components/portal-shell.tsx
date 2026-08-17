@@ -547,7 +547,7 @@ export function PortalShell({
                   <div
                     key={item.label}
                     title={sidebarCollapsed ? item.label : undefined}
-                    className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-0" : ""}
+                    className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}
                   >
                     <SimpleNavigationItem
                       item={item}
@@ -576,7 +576,7 @@ export function PortalShell({
                         <div
                           key={item.label}
                           title={sidebarCollapsed ? item.label : undefined}
-                          className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-0" : ""}
+                          className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}
                         >
                           <SimpleNavigationItem
                             item={item}
@@ -708,15 +708,6 @@ export function PortalShell({
               <Menu className="size-5" />
             </button>
 
-            <div className="hidden xl:block">
-              <p className="text-[17px] font-black tracking-[-0.025em] text-[#17231e]">
-                {activeLabel}
-              </p>
-
-              <p className="text-[11px] text-[#8a9690]">
-                Courier operations workspace
-              </p>
-            </div>
           </div>
 
           <form
