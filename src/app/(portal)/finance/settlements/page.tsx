@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   CheckCircle2,
   Clock3,
@@ -44,6 +45,11 @@ export default async function SettlementsPage() {
       profiles!settlements_shipper_id_fkey(
         full_name,
         email
+      ),
+      invoice:invoices(
+        id,
+        invoice_number,
+        status
       )
     `)
     .order("created_at", { ascending: false });
@@ -209,7 +215,14 @@ export default async function SettlementsPage() {
                     </td>
 
                     <td className="px-5 py-4">
-                      {row.status === "approved" ? (
+                      {row.invoice?.id ? (
+                        <Link
+                          href={`/finance/invoices/${row.invoice.id}`}
+                          className="font-mono text-xs font-black text-[#13734b]"
+                        >
+                          {row.invoice.invoice_number}
+                        </Link>
+                      ) : ["approved", "paid"].includes(row.status) ? (
                         <form
                           action={createInvoiceFromSettlementAction}
                           className="flex min-w-[330px] items-center gap-2"
