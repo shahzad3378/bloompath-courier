@@ -576,6 +576,64 @@ export default async function ShippersPage({
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="mt-5 rounded-xl border border-[#e2e9e5] bg-[#fafcfb] p-4">
+                          <p className="text-xs font-black uppercase tracking-wide text-[#53645c]">
+                            Tax & VAT
+                          </p>
+
+                          <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <label className="flex items-center gap-3 text-xs font-bold text-[#53645c]">
+                              <input
+                                type="checkbox"
+                                name="vat_applicable"
+                                value="true"
+                                defaultChecked={false}
+                                className="size-4 rounded border-[#cfdad4]"
+                              />
+                              VAT Applicable
+                            </label>
+
+                            <label className="text-xs font-bold text-[#53645c]">
+                              VAT Rate %
+                              <input
+                                name="vat_rate"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.001"
+                                defaultValue={0}
+                                className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm"
+                              />
+                            </label>
+
+                            <label className="text-xs font-bold text-[#53645c]">
+                              Rate Type
+                              <select
+                                name="vat_inclusive"
+                                defaultValue="false"
+                                className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-semibold"
+                              >
+                                <option value="false">VAT Exclusive</option>
+                                <option value="true">VAT Inclusive</option>
+                              </select>
+                            </label>
+
+                            <label className="text-xs font-bold text-[#53645c]">
+                              TRN / Tax Registration Number
+                              <input
+                                name="tax_registration_number"
+                                defaultValue=""
+                                placeholder="e.g. 100123456700003"
+                                className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm"
+                              />
+                            </label>
+                          </div>
+
+                          <p className="mt-3 text-[11px] leading-5 text-[#87938d]">
+                            VAT off = no VAT charged. VAT Inclusive = configured courier rates already include VAT. VAT Exclusive = VAT is added separately on the invoice.
+                          </p>
+                        </div>
+
                           <button className="h-10 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white">
                             Save new rate
                           </button>
