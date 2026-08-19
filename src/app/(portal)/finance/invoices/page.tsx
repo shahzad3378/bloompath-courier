@@ -54,8 +54,6 @@ export default async function FinanceInvoicesPage() {
       tax_amount,
       total_amount,
       cod_collected,
-      total_delivery_charges,
-      total_return_charges,
       net_settlement_payable,
       invoice_date,
       due_date,
@@ -69,7 +67,9 @@ export default async function FinanceInvoicesPage() {
         email
       ),
       invoice_items(
-        id
+        id,
+        delivery_charge,
+        return_charge
       )
     `)
     .order("invoice_date", {
@@ -292,14 +292,21 @@ export default async function FinanceInvoicesPage() {
 
                       <td className="px-4 py-4">
                         {money(
-                          Number(
-                            row.total_delivery_charges ||
-                              0,
-                          ) +
-                            Number(
-                              row.total_return_charges ||
+                          (Array.isArray(row.invoice_items)
+                            ? row.invoice_items.reduce(
+                                (
+                                  sum: number,
+                                  item: {
+                                    delivery_charge?: number | string | null;
+                                    return_charge?: number | string | null;
+                                  },
+                                ) =>
+                                  sum +
+                                  Number(item.delivery_charge || 0) +
+                                  Number(item.return_charge || 0),
                                 0,
-                            ),
+                              )
+                            : 0),
                           row.currency,
                         )}
                       </td>
