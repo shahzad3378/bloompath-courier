@@ -16,6 +16,31 @@ function money(formData: FormData, key: string) {
     : null;
 }
 
+function percentage(formData: FormData, key: string) {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!/^\d+(\.\d{1,3})?$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
+}
+
+function vatSettings(formData: FormData) {
+  const vatApplicable = String(formData.get("vat_applicable") ?? "") === "true";
+  const vatRate = vatApplicable ? percentage(formData, "vat_rate") : 0;
+  const vatInclusive = vatApplicable
+    && String(formData.get("vat_inclusive") ?? "") === "true";
+  const taxRegistrationNumber = vatApplicable
+    ? String(formData.get("tax_registration_number") ?? "").trim().slice(0, 100)
+    : "";
+
+  return {
+    valid: vatRate !== null,
+    vatApplicable,
+    vatRate,
+    vatInclusive,
+    taxRegistrationNumber: taxRegistrationNumber || null,
+  };
+}
+
 export async function saveShipperRateAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(rateRoles);
 
@@ -26,12 +51,14 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
   const returnRate = returnChargeEnabled
     ? money(formData, "return_rate")
     : 0;
+  const vat = vatSettings(formData);
 
   if (
     !profile.organization_id ||
     !/^[0-9a-f-]{36}$/i.test(shipperId) ||
     deliveryRate === null ||
-    returnRate === null
+    returnRate === null ||
+    !vat.valid
   ) {
     redirect("/shippers?error=invalid");
   }
@@ -69,6 +96,10 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
     delivery_rate: deliveryRate,
     return_charge_enabled: returnChargeEnabled,
     return_rate: returnChargeEnabled ? returnRate : 0,
+    vat_applicable: vat.vatApplicable,
+    vat_rate: vat.vatRate,
+    vat_inclusive: vat.vatInclusive,
+    tax_registration_number: vat.taxRegistrationNumber,
     currency: "AED",
     effective_from: now,
     created_by: profile.id,
@@ -110,6 +141,7 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   const returnRate = returnChargeEnabled
     ? money(formData, "return_rate")
     : 0;
+  const vat = vatSettings(formData);
 
   const codCycleDays = Number(
     String(formData.get("cod_cycle_days") ?? "7"),
@@ -121,6 +153,7 @@ export async function createShipperAction(formData: FormData): Promise<void> {
     password.length < 8 ||
     deliveryRate === null ||
     returnRate === null ||
+    !vat.valid ||
     !Number.isInteger(codCycleDays) ||
     codCycleDays < 1 ||
     codCycleDays > 90
@@ -191,6 +224,10 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       delivery_rate: deliveryRate,
       return_charge_enabled: returnChargeEnabled,
       return_rate: returnChargeEnabled ? returnRate : 0,
+      vat_applicable: vat.vatApplicable,
+      vat_rate: vat.vatRate,
+      vat_inclusive: vat.vatInclusive,
+      tax_registration_number: vat.taxRegistrationNumber,
       currency: "AED",
       effective_from: new Date().toISOString(),
       created_by: profile.id,

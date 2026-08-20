@@ -46,9 +46,19 @@ export default async function DispatchPage() {
           <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">Dispatch routes</h1>
           <p className="mt-2 text-sm text-[#74827b]">Assign warehouse AWBs to drivers and monitor every delivery result.</p>
         </div>
-        <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dispatch/3pl"
+            className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#bcd9ca] bg-[#edf7f2] px-4 text-sm font-bold text-[#13734b] transition hover:bg-[#e2f2e9]"
+          >
+            <Truck className="size-4" />
+            3PL Dispatch
+          </Link>
+
+          <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
           <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Active routes</p>
           <p className="mt-1 text-2xl font-black text-[#13734b]">{runs.filter((run) => run.status !== "completed").length}</p>
+          </div>
         </div>
       </div>
 

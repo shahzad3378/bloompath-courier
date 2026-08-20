@@ -42,6 +42,10 @@ type RateRow = {
   return_charge_enabled: boolean;
   return_rate: number;
   currency: string;
+  vat_applicable: boolean;
+  vat_rate: number | string;
+  vat_inclusive: boolean;
+  tax_registration_number: string | null;
   effective_from: string;
 };
 
@@ -109,7 +113,7 @@ export default async function ShippersPage({
     supabase
       .from("shipper_rates")
       .select(
-        "id, shipper_id, delivery_rate, return_charge_enabled, return_rate, currency, effective_from",
+        "id, shipper_id, delivery_rate, return_charge_enabled, return_rate, currency, vat_applicable, vat_rate, vat_inclusive, tax_registration_number, effective_from",
       )
       .eq("organization_id", profile.organization_id)
       .is("effective_to", null)
@@ -324,6 +328,51 @@ export default async function ShippersPage({
                 step="0.01"
                 min="0"
                 defaultValue="0.00"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-[#e4ebe7] bg-white p-4 text-xs font-bold text-[#526159]">
+              <input
+                type="checkbox"
+                name="vat_applicable"
+                value="true"
+                className="size-4 rounded border-[#cfdad4]"
+              />
+              VAT applicable to courier rates
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              VAT rate %
+              <input
+                name="vat_rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.001"
+                defaultValue="5"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              />
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              VAT rate type
+              <select
+                name="vat_inclusive"
+                defaultValue="false"
+                className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
+              >
+                <option value="false">VAT exclusive</option>
+                <option value="true">VAT inclusive</option>
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-[#526159]">
+              TRN / Tax Registration Number
+              <input
+                name="tax_registration_number"
+                maxLength={100}
+                placeholder="e.g. 100123456700003"
                 className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"
               />
             </label>
@@ -587,7 +636,7 @@ export default async function ShippersPage({
                                 type="checkbox"
                                 name="vat_applicable"
                                 value="true"
-                                defaultChecked={false}
+                                defaultChecked={Boolean(rate?.vat_applicable)}
                                 className="size-4 rounded border-[#cfdad4]"
                               />
                               VAT Applicable
@@ -601,7 +650,7 @@ export default async function ShippersPage({
                                 min="0"
                                 max="100"
                                 step="0.001"
-                                defaultValue={0}
+                                defaultValue={Number(rate?.vat_rate ?? 0)}
                                 className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm"
                               />
                             </label>
@@ -610,7 +659,7 @@ export default async function ShippersPage({
                               Rate Type
                               <select
                                 name="vat_inclusive"
-                                defaultValue="false"
+                                defaultValue={String(rate?.vat_inclusive ?? false)}
                                 className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-semibold"
                               >
                                 <option value="false">VAT Exclusive</option>
@@ -622,7 +671,8 @@ export default async function ShippersPage({
                               TRN / Tax Registration Number
                               <input
                                 name="tax_registration_number"
-                                defaultValue=""
+                                maxLength={100}
+                                defaultValue={rate?.tax_registration_number ?? ""}
                                 placeholder="e.g. 100123456700003"
                                 className="mt-2 h-10 w-full rounded-xl border border-[#dbe5e0] px-3 text-sm"
                               />
