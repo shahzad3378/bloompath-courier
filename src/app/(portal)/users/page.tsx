@@ -1,8 +1,8 @@
 import {
-  Car,
   Plus,
   ShieldCheck,
   ShieldOff,
+  Truck,
   UserRoundCog,
   UsersRound,
 } from "lucide-react";
@@ -96,6 +96,15 @@ export default async function UsersPage({
     (row) => row.status === "active",
   ).length;
 
+  const errorMessages: Record<string, string> = {
+    organization: "Your admin account is not linked to a company.",
+    invalid: "Review the required fields, role and account status.",
+    account: "The login account could not be created. The email may already be in use.",
+    create: "The account was not completed. Check the driver details and retry.",
+    status: "The account status could not be updated.",
+    update: "The requested permission could not be updated.",
+  };
+
   return (
     <div className="mx-auto max-w-[1450px]">
       <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -161,13 +170,14 @@ export default async function UsersPage({
 
       {params.error ? (
         <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
-          User operation could not be completed. Please review the
-          details and retry.
+          {errorMessages[params.error] ??
+            "User operation could not be completed. Please review the details and retry."}
         </div>
       ) : null}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[390px_1fr]">
         <form
+          id="add-driver"
           action={createInternalUserAction}
           className="self-start rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]"
         >
@@ -177,10 +187,10 @@ export default async function UsersPage({
             </span>
             <div>
               <h2 className="font-bold text-[#26372f]">
-                Add user
+                Add staff or driver
               </h2>
               <p className="mt-1 text-xs text-[#87938d]">
-                Internal staff or delivery driver
+                Driver is selected by default for quick setup
               </p>
             </div>
           </div>
@@ -285,7 +295,7 @@ export default async function UsersPage({
 
             <div className="rounded-xl border border-[#dce8e2] bg-[#f7fbf9] p-4">
               <div className="flex items-center gap-2">
-                <Car className="size-4 text-[#13734b]" />
+                <Truck className="size-4 text-[#13734b]" />
                 <p className="text-xs font-black text-[#405048]">
                   Driver details
                 </p>
@@ -321,7 +331,7 @@ export default async function UsersPage({
 
             <button className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#13734b] text-sm font-bold text-white">
               <Plus className="size-4" />
-              Create user
+              Create Driver / User
             </button>
           </div>
         </form>

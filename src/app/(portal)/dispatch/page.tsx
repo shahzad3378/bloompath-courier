@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Route, Truck } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Route,
+  Truck,
+  UserPlus,
+} from "lucide-react";
 import { CreateDispatchRunForm } from "@/components/dispatch-forms";
 import { requireProfile } from "@/lib/auth";
 import {
@@ -20,12 +26,16 @@ type DispatchListRow = DispatchRun & {
 };
 
 export default async function DispatchPage() {
-  await requireProfile(dispatchRoles);
+  const profile = await requireProfile(dispatchRoles);
   const supabase = await createClient();
-  const [{ data: driverData }, { data: runData, error }] = await Promise.all([
+  const [
+    { data: driverData, error: driverError },
+    { data: runData, error },
+  ] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, employee_code")
+      .eq("organization_id", profile.organization_id)
       .eq("role", "driver")
       .eq("status", "active")
       .order("full_name"),
@@ -47,6 +57,16 @@ export default async function DispatchPage() {
           <p className="mt-2 text-sm text-[#74827b]">Assign warehouse AWBs to drivers and monitor every delivery result.</p>
         </div>
         <div className="flex items-center gap-3">
+          {profile.role === "super_admin" ? (
+            <Link
+              href="/users#add-driver"
+              className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d9e7df] bg-white px-4 text-sm font-bold text-[#405048] transition hover:border-[#9ccbb4] hover:text-[#13734b]"
+            >
+              <UserPlus className="size-4" />
+              Add Driver
+            </Link>
+          ) : null}
+
           <Link
             href="/dispatch/3pl"
             className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#bcd9ca] bg-[#edf7f2] px-4 text-sm font-bold text-[#13734b] transition hover:bg-[#e2f2e9]"
@@ -61,6 +81,44 @@ export default async function DispatchPage() {
           </div>
         </div>
       </div>
+
+      {driverError ? (
+        <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm text-[#a13f3f]">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+          <div>
+            <p className="font-bold">Active drivers could not be loaded.</p>
+            <p className="mt-1 text-xs">
+              Refresh the page. If the issue continues, confirm the driver belongs to this company and has Active status.
+            </p>
+          </div>
+        </div>
+      ) : drivers.length === 0 ? (
+        <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#efd8aa] bg-[#fff9ed] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#a36b16]" />
+            <div>
+              <p className="font-bold text-[#704b13]">Add an active driver before creating a route.</p>
+              <p className="mt-1 text-xs leading-5 text-[#896c3f]">
+                Own Fleet Dispatch needs a driver account. For outsourced deliveries, use 3PL Dispatch instead.
+              </p>
+            </div>
+          </div>
+
+          {profile.role === "super_admin" ? (
+            <Link
+              href="/users#add-driver"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white"
+            >
+              <UserPlus className="size-4" />
+              Add Driver Now
+            </Link>
+          ) : (
+            <p className="shrink-0 text-xs font-bold text-[#704b13]">
+              Ask the Super Admin to add a driver.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">
         <CreateDispatchRunForm drivers={drivers} />
