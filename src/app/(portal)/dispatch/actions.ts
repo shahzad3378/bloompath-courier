@@ -23,12 +23,13 @@ function numericId(formData: FormData, key: string) {
 
 export async function createDispatchRunAction(_state: DispatchActionState, formData: FormData): Promise<DispatchActionState> {
   const profile = await requireProfile(dispatchRoles);
-  const routeName = text(formData, "route_name", 2, 100);
   const driverId = String(formData.get("driver_id") ?? "");
-  if (!profile.organization_id || !routeName || !/^[0-9a-f-]{36}$/i.test(driverId)) return { status: "error", message: "Select a driver and enter a route name." };
+  if (!profile.organization_id || !/^[0-9a-f-]{36}$/i.test(driverId)) return { status: "error", message: "Select an active driver." };
   const supabase = await createClient();
-  const { data: driver } = await supabase.from("profiles").select("id").eq("id", driverId).eq("role", "driver").eq("status", "active").maybeSingle();
+  const { data: driver } = await supabase.from("profiles").select("id, full_name").eq("id", driverId).eq("role", "driver").eq("status", "active").maybeSingle();
   if (!driver) return { status: "error", message: "Selected driver is not active." };
+  const routeDate = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date());
+  const routeName = `${driver.full_name || "Driver"} · ${routeDate}`.slice(0, 100);
   const { data, error } = await supabase.from("dispatch_runs").insert({ organization_id: profile.organization_id, route_name: routeName, driver_id: driverId, created_by: profile.id }).select("id").single();
   if (error || !data) return { status: "error", message: "Dispatch route could not be created." };
   redirect(`/dispatch/${data.id}`);
