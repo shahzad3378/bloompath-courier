@@ -199,7 +199,12 @@ export default async function ServiceZonesPage({
           </div>
         </div>
 
-        <ServiceZoneForm markets={markets} />
+        <ServiceZoneForm
+          markets={markets}
+          googleLookupEnabled={Boolean(
+            process.env.GOOGLE_MAPS_API_KEY,
+          )}
+        />
       </section>
 
       <section className="bp-panel mt-6 overflow-hidden">
