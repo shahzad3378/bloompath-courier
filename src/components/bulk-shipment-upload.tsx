@@ -50,18 +50,22 @@ export function BulkShipmentUpload({ shippers, requiresShipperSelection }: { shi
   const [state, formAction, pending] = useActionState(importShipmentsAction, initialBulkUploadState);
   const [fileName, setFileName] = useState("");
   const [page, setPage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
+  const [pageSize, setPageSize] = useState(100);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const pageSize = 100;
   const pageCount = Math.max(1, Math.ceil(state.imported.length / pageSize));
-  const visible = useMemo(() => showAll ? state.imported : state.imported.slice((page - 1) * pageSize, page * pageSize), [state.imported, page, showAll]);
+  const visible = useMemo(() => state.imported.slice((page - 1) * pageSize, page * pageSize), [state.imported, page, pageSize]);
   const selectedShipments = useMemo(() => state.imported.filter((shipment) => selected.has(shipment.id)), [state.imported, selected]);
+  const visibleIds = useMemo(() => visible.map((shipment) => shipment.id), [visible]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
   useEffect(() => {
     setPage(1);
-    setShowAll(false);
     setSelected(new Set());
   }, [state.imported]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
 
   function toggle(id: number) {
     setSelected((current) => {
@@ -71,8 +75,17 @@ export function BulkShipmentUpload({ shippers, requiresShipperSelection }: { shi
     });
   }
 
-  function selectAll() {
+  function selectAllImported() {
     setSelected(new Set(state.imported.map((shipment) => shipment.id)));
+  }
+
+  function toggleVisible() {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
   }
 
   function clearSelection() {
@@ -103,7 +116,7 @@ export function BulkShipmentUpload({ shippers, requiresShipperSelection }: { shi
           <button disabled={pending || !fileName} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#13734b] px-6 text-sm font-bold text-white disabled:opacity-55">{pending ? <LoaderCircle className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}{pending ? "Validating and booking…" : "Validate file & generate AWBs"}</button>
         </form>
 
-        <aside className="rounded-2xl bg-[#10291f] p-6 text-white"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#65d79c]">Large batch workflow</p><div className="mt-5 space-y-4 text-xs leading-5 text-white/65"><p><strong className="text-white">1.</strong> Upload up to 5,000 shipments.</p><p><strong className="text-white">2.</strong> View AWBs 1–100, Next, Previous or All.</p><p><strong className="text-white">3.</strong> Select all and download Excel / manifest AWB file.</p><p><strong className="text-white">4.</strong> Bulk-load that AWB file into Pickup Manifest and bulk receive at warehouse.</p></div></aside>
+        <aside className="rounded-2xl bg-[#10291f] p-6 text-white"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#65d79c]">Large batch workflow</p><div className="mt-5 space-y-4 text-xs leading-5 text-white/65"><p><strong className="text-white">1.</strong> Upload up to 5,000 shipments.</p><p><strong className="text-white">2.</strong> Choose 100, 500, 1,000 or 5,000 AWBs per page.</p><p><strong className="text-white">3.</strong> Select current page or all imported AWBs.</p><p><strong className="text-white">4.</strong> Download Excel / manifest AWB file for pickup and warehouse receiving.</p></div></aside>
       </div>
 
       {state.status !== "idle" ? <section className={`mt-5 overflow-hidden rounded-2xl border bg-white ${state.status === "success" ? "border-[#b9dfca]" : "border-[#efcccc]"}`}>
@@ -112,12 +125,29 @@ export function BulkShipmentUpload({ shippers, requiresShipperSelection }: { shi
 
         {state.imported.length > 0 ? <>
           <div className="border-b px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-[#26372f]">Generated AWBs: {state.imported.length}</p><p className="mt-1 text-xs text-[#87938d]">Selected: {selected.size}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={selectAll} className="h-9 rounded-lg border px-3 text-xs font-bold">Select all</button><button type="button" onClick={clearSelection} className="h-9 rounded-lg border px-3 text-xs font-bold">Clear</button><button type="button" onClick={() => void downloadExcel(selectedShipments.length ? selectedShipments : state.imported)} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Excel report</button><button type="button" onClick={() => downloadCsv(selectedShipments.length ? selectedShipments : state.imported, true)} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Manifest AWBs</button></div></div>
-            <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" disabled={page <= 1 || showAll} onClick={() => setPage((p) => Math.max(1, p - 1))} className="h-9 rounded-lg border px-3 text-xs font-bold disabled:opacity-40">Previous</button><span className="text-xs font-bold text-[#68766f]">{showAll ? `All ${state.imported.length}` : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, state.imported.length)} of ${state.imported.length}`}</span><button type="button" disabled={page >= pageCount || showAll} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="h-9 rounded-lg border px-3 text-xs font-bold disabled:opacity-40">Next</button><button type="button" onClick={() => setShowAll((value) => !value)} className="h-9 rounded-lg border px-3 text-xs font-bold">{showAll ? "Show 100" : "All"}</button>{printableIds ? <><Link href={`/print/shipments/bulk?ids=${encodeURIComponent(printableIds)}&format=4x6`} target="_blank" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#13734b] px-3 text-xs font-bold text-white"><Printer className="size-3.5" /> Print {printable.length} 4×6</Link><Link href={`/print/shipments/bulk?ids=${encodeURIComponent(printableIds)}&format=a4`} target="_blank" className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold"><Printer className="size-3.5" /> A4</Link></> : null}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><p className="font-bold text-[#26372f]">Generated AWBs: {state.imported.length}</p><p className="mt-1 text-xs text-[#87938d]">Selected: {selected.size}</p></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-xs font-bold text-[#526159]">Show
+                  <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="ml-2 h-9 rounded-lg border border-[#dbe5e0] bg-white px-2 text-xs font-bold">
+                    <option value={100}>100</option>
+                    <option value={500}>500</option>
+                    <option value={1000}>1,000</option>
+                    <option value={5000}>5,000</option>
+                  </select>
+                </label>
+                <button type="button" onClick={toggleVisible} className="h-9 rounded-lg border px-3 text-xs font-bold">{allVisibleSelected ? "Unselect page" : `Select page (${visible.length})`}</button>
+                <button type="button" onClick={selectAllImported} className="h-9 rounded-lg border px-3 text-xs font-bold">Select all {state.imported.length}</button>
+                <button type="button" onClick={clearSelection} className="h-9 rounded-lg border px-3 text-xs font-bold">Clear</button>
+                <button type="button" onClick={() => void downloadExcel(selectedShipments.length ? selectedShipments : state.imported)} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Excel report</button>
+                <button type="button" onClick={() => downloadCsv(selectedShipments.length ? selectedShipments : state.imported, true)} className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold text-[#13734b]"><Download className="size-3.5" /> Manifest AWBs</button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="h-9 rounded-lg border px-3 text-xs font-bold disabled:opacity-40">Previous</button><span className="text-xs font-bold text-[#68766f]">{`${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, state.imported.length)} of ${state.imported.length}`}</span><button type="button" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} className="h-9 rounded-lg border px-3 text-xs font-bold disabled:opacity-40">Next</button>{printableIds ? <><Link href={`/print/shipments/bulk?ids=${encodeURIComponent(printableIds)}&format=4x6`} target="_blank" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#13734b] px-3 text-xs font-bold text-white"><Printer className="size-3.5" /> Print {printable.length} 4×6</Link><Link href={`/print/shipments/bulk?ids=${encodeURIComponent(printableIds)}&format=a4`} target="_blank" className="inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-bold"><Printer className="size-3.5" /> A4</Link></> : null}</div>
             {printRows.length > 500 ? <p className="mt-2 text-xs font-semibold text-[#a56b19]">Printing is limited to 500 AWBs per print request. Excel and manifest exports can include all {state.imported.length}.</p> : null}
           </div>
 
-          <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="sticky top-0 bg-[#f8faf9] text-[11px] uppercase text-[#77847e]"><tr><th className="px-4 py-3">Select</th><th className="px-4 py-3">#</th><th className="px-4 py-3">AWB</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody>{visible.map((shipment) => { const index = state.imported.findIndex((row) => row.id === shipment.id) + 1; return <tr key={shipment.id} className="border-t"><td className="px-4 py-3"><input type="checkbox" checked={selected.has(shipment.id)} onChange={() => toggle(shipment.id)} /></td><td className="px-4 py-3 text-xs text-[#87938d]">{index}</td><td className="px-4 py-3 font-mono font-black">{shipment.trackingNumber}</td><td className="px-4 py-3">{shipment.referenceNumber || "—"}</td><td className="px-4 py-3 text-right"><Link href={`/shipments/${shipment.id}`} className="inline-flex items-center gap-1 text-xs font-bold text-[#13734b]">Open <ExternalLink className="size-3" /></Link></td></tr>; })}</tbody></table></div>
+          <div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="sticky top-0 bg-[#f8faf9] text-[11px] uppercase text-[#77847e]"><tr><th className="px-4 py-3"><input type="checkbox" aria-label="Select current page" checked={allVisibleSelected} onChange={toggleVisible} /></th><th className="px-4 py-3">#</th><th className="px-4 py-3">AWB</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody>{visible.map((shipment) => { const index = state.imported.findIndex((row) => row.id === shipment.id) + 1; return <tr key={shipment.id} className="border-t"><td className="px-4 py-3"><input type="checkbox" checked={selected.has(shipment.id)} onChange={() => toggle(shipment.id)} /></td><td className="px-4 py-3 text-xs text-[#87938d]">{index}</td><td className="px-4 py-3 font-mono font-black">{shipment.trackingNumber}</td><td className="px-4 py-3">{shipment.referenceNumber || "—"}</td><td className="px-4 py-3 text-right"><Link href={`/shipments/${shipment.id}`} className="inline-flex items-center gap-1 text-xs font-bold text-[#13734b]">Open <ExternalLink className="size-3" /></Link></td></tr>; })}</tbody></table></div>
         </> : null}
       </section> : null}
     </div>
