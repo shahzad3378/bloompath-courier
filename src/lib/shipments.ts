@@ -32,19 +32,34 @@ export type Shipment = {
   sender_name: string;
   sender_phone: string;
   sender_address: string;
+  sender_address_2?: string | null;
   sender_city: string;
+  sender_state_province?: string | null;
+  sender_postal_code?: string | null;
+  sender_country_code?: string | null;
   consignee_name: string;
   consignee_phone: string;
   consignee_alt_phone: string | null;
   consignee_address: string;
+  consignee_address_2?: string | null;
   consignee_city: string;
+  consignee_state_province?: string | null;
+  consignee_postal_code?: string | null;
+  consignee_country_code?: string | null;
   consignee_area: string | null;
   consignee_landmark: string | null;
   pieces: number;
   weight_kg: number;
   parcel_description: string;
   cod_amount: number;
+  currency?: string | null;
   delivery_instructions: string | null;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
+  service_zone_id?: number | null;
+  service_zone_name?: string | null;
   booked_at: string;
   delivered_at: string | null;
   warehouse_location: string | null;
@@ -100,12 +115,17 @@ export const uaeCities = [
   "Umm Al Quwain",
 ] as const;
 
-export function formatAed(value: number | string) {
-  return new Intl.NumberFormat("en-AE", {
+export function formatMoney(value: number | string, currency = "AED") {
+  const code = /^[A-Z]{3}$/.test(currency.toUpperCase()) ? currency.toUpperCase() : "AED";
+  return new Intl.NumberFormat("en", {
     style: "currency",
-    currency: "AED",
+    currency: code,
     minimumFractionDigits: 2,
   }).format(Number(value));
+}
+
+export function formatAed(value: number | string) {
+  return formatMoney(value, "AED");
 }
 
 export function formatDubaiDate(value: string, includeTime = true) {
