@@ -217,8 +217,8 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     if (!paymentTypes.includes(paymentType as PaymentType)) errors.push({ row, field: "payment_type", message: "Use cod or prepaid." });
 
     requiredText(errors, row, "sender_name", value("sender_name"), 2, 120);
-    requiredText(errors, row, "sender_phone", value("sender_phone"), 7, 30);
-    requiredText(errors, row, "sender_address", value("sender_address"), 3, 500);
+    requiredText(errors, row, "sender_phone", value("sender_phone"), 7, 20);
+    requiredText(errors, row, "sender_address", value("sender_address"), 5, 500);
     optionalText(errors, row, "sender_address_2", value("sender_address_2"), 200);
     requiredText(errors, row, "sender_city", value("sender_city"), 2, 120);
     optionalText(errors, row, "sender_state_province", value("sender_state_province"), 120);
@@ -226,9 +226,9 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     if (!senderCountry) errors.push({ row, field: "sender_country_code", message: "Use a 2-letter country code such as CA, US or AE." });
 
     requiredText(errors, row, "consignee_name", value("consignee_name"), 2, 120);
-    requiredText(errors, row, "consignee_phone", value("consignee_phone"), 7, 30);
-    optionalText(errors, row, "consignee_alt_phone", value("consignee_alt_phone"), 30, 7);
-    requiredText(errors, row, "consignee_address", value("consignee_address"), 3, 500);
+    requiredText(errors, row, "consignee_phone", value("consignee_phone"), 7, 20);
+    optionalText(errors, row, "consignee_alt_phone", value("consignee_alt_phone"), 20, 7);
+    requiredText(errors, row, "consignee_address", value("consignee_address"), 5, 500);
     optionalText(errors, row, "consignee_address_2", value("consignee_address_2"), 200);
     requiredText(errors, row, "consignee_city", value("consignee_city"), 2, 120);
     optionalText(errors, row, "consignee_state_province", value("consignee_state_province"), 120);
