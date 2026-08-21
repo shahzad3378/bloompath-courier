@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const rateRoles = ["super_admin", "operations_admin", "finance_staff"] as const;
@@ -11,9 +12,7 @@ function money(formData: FormData, key: string) {
   const raw = String(formData.get(key) ?? "").trim();
   if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
   const value = Number(raw);
-  return Number.isFinite(value) && value >= 0 && value <= 999999.99
-    ? value
-    : null;
+  return Number.isFinite(value) && value >= 0 && value <= 999999.99 ? value : null;
 }
 
 function percentage(formData: FormData, key: string) {
@@ -26,8 +25,7 @@ function percentage(formData: FormData, key: string) {
 function vatSettings(formData: FormData) {
   const vatApplicable = String(formData.get("vat_applicable") ?? "") === "true";
   const vatRate = vatApplicable ? percentage(formData, "vat_rate") : 0;
-  const vatInclusive = vatApplicable
-    && String(formData.get("vat_inclusive") ?? "") === "true";
+  const vatInclusive = vatApplicable && String(formData.get("vat_inclusive") ?? "") === "true";
   const taxRegistrationNumber = vatApplicable
     ? String(formData.get("tax_registration_number") ?? "").trim().slice(0, 100)
     : "";
@@ -41,16 +39,27 @@ function vatSettings(formData: FormData) {
   };
 }
 
+async function getOrganizationCurrency(
+  client: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+) {
+  const { data: settings } = await client
+    .from("organization_settings")
+    .select("currency")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  const configured = String(settings?.currency ?? "").trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(configured) ? configured : "AED";
+}
+
 export async function saveShipperRateAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(rateRoles);
 
   const shipperId = String(formData.get("shipper_id") ?? "");
   const deliveryRate = money(formData, "delivery_rate");
-  const returnChargeEnabled =
-    String(formData.get("return_charge_enabled") ?? "") === "true";
-  const returnRate = returnChargeEnabled
-    ? money(formData, "return_rate")
-    : 0;
+  const returnChargeEnabled = String(formData.get("return_charge_enabled") ?? "") === "true";
+  const returnRate = returnChargeEnabled ? money(formData, "return_rate") : 0;
   const vat = vatSettings(formData);
 
   if (
@@ -64,6 +73,7 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
   }
 
   const supabase = await createClient();
+  const organizationCurrency = await getOrganizationCurrency(supabase, profile.organization_id);
 
   const { data: shipper } = await supabase
     .from("profiles")
@@ -73,9 +83,7 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
     .eq("role", "shipper")
     .maybeSingle();
 
-  if (!shipper) {
-    redirect("/shippers?error=shipper");
-  }
+  if (!shipper) redirect("/shippers?error=shipper");
 
   const now = new Date().toISOString();
 
@@ -86,9 +94,7 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
     .eq("shipper_id", shipperId)
     .is("effective_to", null);
 
-  if (closeError) {
-    redirect(`/shippers?error=rate&shipper=${shipperId}`);
-  }
+  if (closeError) redirect(`/shippers?error=rate&shipper=${shipperId}`);
 
   const { error } = await supabase.from("shipper_rates").insert({
     organization_id: profile.organization_id,
@@ -100,21 +106,17 @@ export async function saveShipperRateAction(formData: FormData): Promise<void> {
     vat_rate: vat.vatRate,
     vat_inclusive: vat.vatInclusive,
     tax_registration_number: vat.taxRegistrationNumber,
-    currency: "AED",
+    currency: organizationCurrency,
     effective_from: now,
     created_by: profile.id,
   });
 
-  if (error) {
-    redirect(`/shippers?error=rate&shipper=${shipperId}`);
-  }
+  if (error) redirect(`/shippers?error=rate&shipper=${shipperId}`);
 
   revalidatePath("/shippers");
   revalidatePath("/finance");
   redirect(`/shippers?saved=1&shipper=${shipperId}`);
 }
-
-import { createAdminClient } from "@/lib/supabase/admin";
 
 function cleanText(formData: FormData, key: string, max = 200) {
   return String(formData.get(key) ?? "").trim().slice(0, max);
@@ -123,9 +125,7 @@ function cleanText(formData: FormData, key: string, max = 200) {
 export async function createShipperAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(["super_admin", "operations_admin"]);
 
-  if (!profile.organization_id) {
-    redirect("/shippers?error=organization");
-  }
+  if (!profile.organization_id) redirect("/shippers?error=organization");
 
   const companyName = cleanText(formData, "company_name", 150);
   const contactPerson = cleanText(formData, "contact_person", 150);
@@ -136,16 +136,10 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   const password = String(formData.get("password") ?? "");
 
   const deliveryRate = money(formData, "delivery_rate");
-  const returnChargeEnabled =
-    String(formData.get("return_charge_enabled") ?? "") === "true";
-  const returnRate = returnChargeEnabled
-    ? money(formData, "return_rate")
-    : 0;
+  const returnChargeEnabled = String(formData.get("return_charge_enabled") ?? "") === "true";
+  const returnRate = returnChargeEnabled ? money(formData, "return_rate") : 0;
   const vat = vatSettings(formData);
-
-  const codCycleDays = Number(
-    String(formData.get("cod_cycle_days") ?? "7"),
-  );
+  const codCycleDays = Number(String(formData.get("cod_cycle_days") ?? "7"));
 
   if (
     companyName.length < 2 ||
@@ -162,17 +156,20 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   }
 
   const admin = createAdminClient();
+  const { data: orgSettings } = await admin
+    .from("organization_settings")
+    .select("currency")
+    .eq("organization_id", profile.organization_id)
+    .maybeSingle();
+  const configuredCurrency = String(orgSettings?.currency ?? "").trim().toUpperCase();
+  const organizationCurrency = /^[A-Z]{3}$/.test(configuredCurrency) ? configuredCurrency : "AED";
 
-  const { data: authData, error: authError } =
-    await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: companyName,
-        role: "shipper",
-      },
-    });
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: companyName, role: "shipper" },
+  });
 
   if (authError || !authData.user) {
     console.error("CREATE_SHIPPER_AUTH_ERROR", authError);
@@ -201,22 +198,16 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       throw profileError ?? new Error("Auto-created shipper profile was not found.");
     }
 
-    const { error: businessError } = await admin
-      .from("shipper_business_profiles")
-      .insert({
-        shipper_id: userId,
-        organization_id: profile.organization_id,
-        company_name: companyName,
-        contact_person: contactPerson || null,
-        address: address || null,
-        city: city || null,
-        cod_cycle_days: codCycleDays,
-      });
-
-    if (businessError) {
-      console.error("CREATE_SHIPPER_BUSINESS_ERROR", businessError);
-      throw businessError;
-    }
+    const { error: businessError } = await admin.from("shipper_business_profiles").insert({
+      shipper_id: userId,
+      organization_id: profile.organization_id,
+      company_name: companyName,
+      contact_person: contactPerson || null,
+      address: address || null,
+      city: city || null,
+      cod_cycle_days: codCycleDays,
+    });
+    if (businessError) throw businessError;
 
     const { error: rateError } = await admin.from("shipper_rates").insert({
       organization_id: profile.organization_id,
@@ -228,15 +219,11 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       vat_rate: vat.vatRate,
       vat_inclusive: vat.vatInclusive,
       tax_registration_number: vat.taxRegistrationNumber,
-      currency: "AED",
+      currency: organizationCurrency,
       effective_from: new Date().toISOString(),
       created_by: profile.id,
     });
-
-    if (rateError) {
-      console.error("CREATE_SHIPPER_RATE_ERROR", rateError);
-      throw rateError;
-    }
+    if (rateError) throw rateError;
   } catch (error) {
     console.error("CREATE_SHIPPER_FAILED", error);
     await admin.auth.admin.deleteUser(userId);
@@ -245,12 +232,12 @@ export async function createShipperAction(formData: FormData): Promise<void> {
 
   revalidatePath("/shippers");
   revalidatePath("/users");
-  redirect(`/shippers?created=1&shipper=${userId}`);
+  revalidatePath(`/shippers/${userId}/zone-rates`);
+  redirect(`/shippers/${userId}/zone-rates?new=1`);
 }
 
 export async function setShipperStatusAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(["super_admin", "operations_admin"]);
-
   const shipperId = String(formData.get("shipper_id") ?? "");
   const status = String(formData.get("status") ?? "");
 
@@ -263,7 +250,6 @@ export async function setShipperStatusAction(formData: FormData): Promise<void> 
   }
 
   const supabase = await createClient();
-
   const { data, error } = await supabase
     .from("profiles")
     .update({ status })
@@ -273,12 +259,9 @@ export async function setShipperStatusAction(formData: FormData): Promise<void> 
     .select("id")
     .maybeSingle();
 
-  if (error || !data) {
-    redirect("/shippers?error=status");
-  }
+  if (error || !data) redirect("/shippers?error=status");
 
   revalidatePath("/shippers");
   revalidatePath("/shipments");
-
   redirect(`/shippers?status_saved=1&shipper=${shipperId}`);
 }
