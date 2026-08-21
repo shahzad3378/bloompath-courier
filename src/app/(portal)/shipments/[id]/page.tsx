@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Archive, ArrowLeft, Box, Camera, CircleDollarSign, MapPin, PackageCheck, Printer, ReceiptText, ShieldCheck, UserRound } from "lucide-react";
+import { Archive, ArrowLeft, Box, Camera, MapPin, PackageCheck, Printer, ShieldCheck, UserRound } from "lucide-react";
 import { authorizeFourthAttemptAction } from "@/app/(portal)/dispatch/actions";
 import { ArchiveShipmentForm } from "@/components/archive-shipment-form";
 import { ShipmentCodes } from "@/components/shipment-codes";
@@ -29,7 +29,6 @@ export default async function ShipmentDetailsPage({
     { data },
     { data: eventData },
     { data: attemptData },
-    { data: financeTraceData },
   ] = await Promise.all([
     supabase.from("shipments").select("*").eq("id", id).maybeSingle(),
 
@@ -44,36 +43,11 @@ export default async function ShipmentDetailsPage({
       .select("id, shipment_id, attempt_number, outcome, undelivered_reason, notes, proof_path, performed_by, created_at")
       .eq("shipment_id", id)
       .order("attempt_number", { ascending: true }),
-
-    (supabase as any)
-      .from("awb_finance_trace")
-      .select(`
-        shipment_id,
-        tracking_number,
-        settlement_id,
-        settlement_number,
-        settlement_status,
-        invoice_id,
-        invoice_number,
-        invoice_status,
-        invoice_date,
-        due_date,
-        paid_at,
-        payment_reference,
-        cod_amount,
-        delivery_charge,
-        return_charge,
-        total_charges,
-        net_payable
-      `)
-      .eq("shipment_id", Number(id))
-      .limit(1),
   ]);
   if (!data) notFound();
   const shipment = data as Shipment;
   const events = (eventData ?? []) as ShipmentEvent[];
   const attempts = (attemptData ?? []) as DeliveryAttempt[];
-  const financeTrace = (financeTraceData ?? [])[0] ?? null;
   const attemptsWithProof = await Promise.all(attempts.map(async (attempt) => {
     const { data: signed } = await supabase.storage.from("delivery-proofs").createSignedUrl(attempt.proof_path, 3600);
     return { ...attempt, proofUrl: signed?.signedUrl ?? null };
@@ -102,7 +76,7 @@ export default async function ShipmentDetailsPage({
             <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e8f0fb] text-[#376eb1]"><MapPin className="size-5" /></span><div><p className="text-xs text-[#819088]">Deliver to</p><h2 className="font-bold text-[#26372f]">{shipment.consignee_name}</h2></div></div><div className="mt-4 space-y-2 text-sm leading-6 text-[#5d6c65]"><p>{shipment.consignee_phone}{shipment.consignee_alt_phone ? ` · ${shipment.consignee_alt_phone}` : ""}</p><p>{shipment.consignee_address}</p><p>{[shipment.consignee_area, shipment.consignee_city].filter(Boolean).join(", ")}</p>{shipment.consignee_landmark ? <p className="text-xs">Landmark: {shipment.consignee_landmark}</p> : null}</div></section>
           </div>
           <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 sm:p-6"><h2 className="font-bold text-[#26372f]">Shipment details</h2><dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-xs text-[#87938d]">Reference</dt><dd className="mt-1 text-sm font-semibold">{shipment.reference_number || "—"}</dd></div><div><dt className="text-xs text-[#87938d]">Pieces</dt><dd className="mt-1 text-sm font-semibold">{shipment.pieces}</dd></div><div><dt className="text-xs text-[#87938d]">Weight</dt><dd className="mt-1 text-sm font-semibold">{shipment.weight_kg} kg</dd></div><div><dt className="text-xs text-[#87938d]">COD</dt><dd className="mt-1 text-sm font-bold text-[#13734b]">{formatAed(shipment.cod_amount)}</dd></div><div><dt className="text-xs text-[#87938d]">Delivery attempts</dt><dd className="mt-1 text-sm font-semibold">{shipment.delivery_attempt_count} / {shipment.fourth_attempt_authorized ? 4 : 3}</dd></div><div className="sm:col-span-2"><dt className="text-xs text-[#87938d]">Contents</dt><dd className="mt-1 text-sm font-semibold">{shipment.parcel_description}</dd></div><div className="sm:col-span-2"><dt className="text-xs text-[#87938d]">Instructions</dt><dd className="mt-1 text-sm font-semibold">{shipment.delivery_instructions || "—"}</dd></div></dl></section>
-          {attemptsWithProof.length > 0 ? <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e8f0fb] text-[#376eb1]"><Camera className="size-5" /></span><div><p className="text-xs text-[#819088]">Proof of delivery</p><h2 className="font-bold text-[#26372f]">Delivery attempts</h2></div></div><div className="mt-5 space-y-3">{attemptsWithProof.map((attempt) => <div key={attempt.id} className="rounded-xl border border-[#e5ebe8] bg-[#fafcfb] p-4 sm:flex sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#34453c]">Attempt #{attempt.attempt_number}</p><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${attempt.outcome === "delivered" ? "bg-[#e4f3ea] text-[#166b47]" : "bg-[#fff0d8] text-[#976019]"}`}>{attempt.outcome === "delivered" ? "Delivered" : "Undelivered"}</span></div>{attempt.undelivered_reason ? <p className="mt-2 text-xs font-semibold capitalize text-[#68766f]">{attempt.undelivered_reason.replaceAll("_", " ")}</p> : null}{attempt.notes ? <p className="mt-1 text-xs text-[#87938d]">{attempt.notes}</p> : null}<p className="mt-2 text-[11px] text-[#96a09b]">{formatDubaiDate(attempt.created_at)}</p></div>{attempt.proofUrl ? <a href={attempt.proofUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-[#cdded5] bg-white px-3 text-xs font-bold text-[#13734b] sm:mt-0"><Camera className="size-4" /> View proof</a> : <span className="mt-3 text-xs text-[#9a5b5b] sm:mt-0">Proof unavailable</span>}</div>)}</div></section> : null}
+          {attemptsWithProof.length > 0 ? <section id="delivery-proofs" className="scroll-mt-24 rounded-2xl border border-[#e0e8e4] bg-white p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e8f0fb] text-[#376eb1]"><Camera className="size-5" /></span><div><p className="text-xs text-[#819088]">Secure POA / POD archive</p><h2 className="font-bold text-[#26372f]">Delivery attempt proofs</h2></div></div><div className="mt-5 space-y-3">{attemptsWithProof.map((attempt) => <div key={attempt.id} className="rounded-xl border border-[#e5ebe8] bg-[#fafcfb] p-4 sm:flex sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#34453c]">Attempt #{attempt.attempt_number}</p><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${attempt.outcome === "delivered" ? "bg-[#e4f3ea] text-[#166b47]" : "bg-[#fff0d8] text-[#976019]"}`}>{attempt.outcome === "delivered" ? "POD · Delivered" : "POA · Undelivered"}</span></div>{attempt.undelivered_reason ? <p className="mt-2 text-xs font-semibold capitalize text-[#68766f]">{attempt.undelivered_reason.replaceAll("_", " ")}</p> : null}{attempt.notes ? <p className="mt-1 text-xs text-[#87938d]">{attempt.notes}</p> : null}<p className="mt-2 text-[11px] text-[#96a09b]">{formatDubaiDate(attempt.created_at)}</p></div>{attempt.proofUrl ? <a href={attempt.proofUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-[#cdded5] bg-white px-3 text-xs font-bold text-[#13734b] sm:mt-0"><Camera className="size-4" /> View {attempt.outcome === "delivered" ? "POD" : "POA"}</a> : <span className="mt-3 text-xs text-[#9a5b5b] sm:mt-0">Proof unavailable</span>}</div>)}</div></section> : null}
           {mayAuthorizeFourth ? <form action={authorizeFourthAttemptAction} className="rounded-2xl border border-[#e4d5b8] bg-[#fffaf1] p-5"><input type="hidden" name="shipment_id" value={shipment.id} /><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-6 shrink-0 text-[#9a651c]" /><div><h2 className="font-bold text-[#5f4928]">Authorize one final delivery attempt?</h2><p className="mt-2 text-sm leading-6 text-[#796a50]">Three attempts have failed. Approval allows dispatch to send this AWB once more; a failed fourth attempt returns it to the return queue.</p><button className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-[#9a651c] px-4 text-sm font-bold text-white"><ShieldCheck className="size-4" /> Authorize attempt #4</button></div></div></form> : shipment.fourth_attempt_authorized ? <div className="flex items-center gap-3 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-4 text-sm font-semibold text-[#176a47]"><ShieldCheck className="size-5" /> Fourth delivery attempt authorized and ready for dispatch.</div> : null}
         </div>
 
