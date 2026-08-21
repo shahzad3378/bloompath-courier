@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PortalShell } from "@/components/portal-shell";
+import { DriverLocationTracker } from "@/components/driver-location-tracker";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -51,6 +52,12 @@ export default async function PortalLayout({
       branding={branding}
       isPlatformAdmin={isPlatformAdmin}
     >
+      {profile.role === "driver" && profile.organization_id ? (
+        <DriverLocationTracker
+          driverId={profile.id}
+          organizationId={profile.organization_id}
+        />
+      ) : null}
       {children}
     </PortalShell>
   );
