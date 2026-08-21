@@ -7,7 +7,10 @@ import {
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
-  createServiceZoneAction,
+  ServiceZoneForm,
+  type ZoneMarket,
+} from "@/components/service-zone-form";
+import {
   deleteServiceZoneAction,
   toggleServiceZoneAction,
 } from "./actions";
@@ -21,17 +24,39 @@ const zoneRoles = [
   "operations_admin",
 ] as const;
 
-function zoneRule(row: any) {
+type ZoneRow = {
+  id: number;
+  country_code: string;
+  name: string;
+  zone_type: string;
+  postal_prefix: string | null;
+  postal_from: string | null;
+  postal_to: string | null;
+  city: string | null;
+  district: string | null;
+  area: string | null;
+  is_active: boolean;
+};
+
+type OrganizationCountryRow = {
+  country_code: string;
+  countries:
+    | { name: string }
+    | Array<{ name: string }>
+    | null;
+};
+
+function zoneRule(row: ZoneRow) {
   if (
     row.zone_type === "postal_prefix"
   ) {
-    return `Prefix: ${row.postal_prefix || "—"}`;
+    return `Prefix ${row.postal_prefix || "—"} → ${row.city || "—"}`;
   }
 
   if (
     row.zone_type === "postal_range"
   ) {
-    return `${row.postal_from || "—"} → ${row.postal_to || "—"}`;
+    return `${row.postal_from || "—"}–${row.postal_to || "—"} → ${row.city || "—"}`;
   }
 
   if (row.zone_type === "city") {
@@ -46,7 +71,7 @@ function zoneRule(row: any) {
     return `Area: ${row.area || "—"}`;
   }
 
-  return "Custom mapping";
+  return row.city || "—";
 }
 
 export default async function ServiceZonesPage({
@@ -109,10 +134,22 @@ export default async function ServiceZonesPage({
       .order("name"),
   ]);
 
-  const markets =
-    organizationCountries ?? [];
+  const markets: ZoneMarket[] = (
+    (organizationCountries ?? []) as OrganizationCountryRow[]
+  ).map((row) => {
+    const country = Array.isArray(
+      row.countries,
+    )
+      ? row.countries[0]
+      : row.countries;
 
-  const zoneRows = zones ?? [];
+    return {
+      code: row.country_code,
+      name: country?.name || row.country_code,
+    };
+  });
+
+  const zoneRows = (zones ?? []) as ZoneRow[];
 
   return (
     <div className="bp-page">
@@ -162,149 +199,7 @@ export default async function ServiceZonesPage({
           </div>
         </div>
 
-        <form
-          action={createServiceZoneAction}
-          className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-        >
-          <label className="text-xs font-bold text-[#53645c]">
-            Country *
-            <select
-              name="country_code"
-              required
-              className="bp-input mt-2"
-              defaultValue=""
-            >
-              <option
-                value=""
-                disabled
-              >
-                Select market
-              </option>
-
-              {markets.map((row: any) => (
-                <option
-                  key={row.country_code}
-                  value={row.country_code}
-                >
-                  {row.countries?.name ||
-                    row.country_code}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Zone Name *
-            <input
-              name="name"
-              required
-              maxLength={120}
-              placeholder="Toronto Central"
-              className="bp-input mt-2"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Mapping Type *
-            <select
-              name="zone_type"
-              required
-              defaultValue="postal_prefix"
-              className="bp-input mt-2"
-            >
-              <option value="postal_prefix">
-                Postal / ZIP Prefix
-              </option>
-
-              <option value="postal_range">
-                Postal / ZIP Range
-              </option>
-
-              <option value="city">
-                City
-              </option>
-
-              <option value="district">
-                District
-              </option>
-
-              <option value="area">
-                Area / Zone
-              </option>
-
-              <option value="custom">
-                Custom
-              </option>
-            </select>
-          </label>
-
-          <div className="xl:row-span-2 xl:flex xl:items-end">
-            <button className="bp-button-primary w-full">
-              <MapPinned className="size-4" />
-              Add Zone
-            </button>
-          </div>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Postal / ZIP Prefix
-            <input
-              name="postal_prefix"
-              maxLength={30}
-              placeholder="M5V / SW1 / 100"
-              className="bp-input mt-2 uppercase"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Postal From
-            <input
-              name="postal_from"
-              maxLength={30}
-              placeholder="10001"
-              className="bp-input mt-2 uppercase"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Postal To
-            <input
-              name="postal_to"
-              maxLength={30}
-              placeholder="10292"
-              className="bp-input mt-2 uppercase"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            City
-            <input
-              name="city"
-              maxLength={120}
-              placeholder="Dubai / Toronto"
-              className="bp-input mt-2"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            District
-            <input
-              name="district"
-              maxLength={120}
-              placeholder="Manhattan"
-              className="bp-input mt-2"
-            />
-          </label>
-
-          <label className="text-xs font-bold text-[#53645c]">
-            Area
-            <input
-              name="area"
-              maxLength={120}
-              placeholder="Dubai Marina"
-              className="bp-input mt-2"
-            />
-          </label>
-        </form>
+        <ServiceZoneForm markets={markets} />
       </section>
 
       <section className="bp-panel mt-6 overflow-hidden">
@@ -364,7 +259,7 @@ export default async function ServiceZonesPage({
               </thead>
 
               <tbody className="divide-y divide-[#edf1ef]">
-                {zoneRows.map((row: any) => (
+                {zoneRows.map((row) => (
                   <tr
                     key={row.id}
                     className="bp-table-row"

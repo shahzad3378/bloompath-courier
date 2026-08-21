@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
+import { serviceZoneTypes } from "@/lib/service-zones";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const zoneRoles = [
@@ -40,26 +41,62 @@ export async function createServiceZoneAction(
     .trim()
     .toUpperCase();
 
-  const name = text(formData, "name", 120);
-
   const zoneType = String(
     formData.get("zone_type") ?? "",
   );
 
+  const postalPrefix =
+    text(
+      formData,
+      "postal_prefix",
+      30,
+    )?.toUpperCase() ?? null;
+
+  const postalFrom =
+    text(
+      formData,
+      "postal_from",
+      30,
+    )?.toUpperCase() ?? null;
+
+  const postalTo =
+    text(
+      formData,
+      "postal_to",
+      30,
+    )?.toUpperCase() ?? null;
+
+  const city = text(formData, "city", 120);
+  const district = text(
+    formData,
+    "district",
+    120,
+  );
+  const area = text(formData, "area", 120);
+
   if (
     !/^[A-Z]{2}$/.test(countryCode) ||
-    !name ||
-    ![
-      "postal_prefix",
-      "postal_range",
-      "city",
-      "district",
-      "area",
-      "custom",
-    ].includes(zoneType)
+    !serviceZoneTypes.includes(
+      zoneType as (typeof serviceZoneTypes)[number],
+    ) ||
+    !city ||
+    (zoneType === "postal_prefix" &&
+      !postalPrefix) ||
+    (zoneType === "postal_range" &&
+      (!postalFrom || !postalTo)) ||
+    (zoneType === "district" &&
+      !district) ||
+    (zoneType === "area" && !area)
   ) {
     redirect("/service-zones?error=invalid");
   }
+
+  const name =
+    zoneType === "district"
+      ? `${city} · ${district}`
+      : zoneType === "area"
+        ? `${city} · ${area}`
+        : city;
 
   const admin = createAdminClient();
 
@@ -90,48 +127,29 @@ export async function createServiceZoneAction(
 
       postal_prefix:
         zoneType === "postal_prefix"
-          ? text(
-              formData,
-              "postal_prefix",
-              30,
-            )?.toUpperCase()
+          ? postalPrefix
           : null,
 
       postal_from:
         zoneType === "postal_range"
-          ? text(
-              formData,
-              "postal_from",
-              30,
-            )?.toUpperCase()
+          ? postalFrom
           : null,
 
       postal_to:
         zoneType === "postal_range"
-          ? text(
-              formData,
-              "postal_to",
-              30,
-            )?.toUpperCase()
+          ? postalTo
           : null,
 
-      city:
-        zoneType === "city"
-          ? text(formData, "city", 120)
-          : null,
+      city,
 
       district:
         zoneType === "district"
-          ? text(
-              formData,
-              "district",
-              120,
-            )
+          ? district
           : null,
 
       area:
         zoneType === "area"
-          ? text(formData, "area", 120)
+          ? area
           : null,
 
       is_active: true,

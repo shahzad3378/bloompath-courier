@@ -3,11 +3,15 @@
 import Link from "next/link";
 import {
   useActionState,
+  useEffect,
   useState,
 } from "react";
 import {
   ArrowLeft,
+  CheckCircle2,
   Globe2,
+  LoaderCircle,
+  MapPin,
   PackagePlus,
 } from "lucide-react";
 import {
@@ -45,11 +49,41 @@ type MarketOption = {
 function CityField({
   name,
   countryCode,
+  value,
+  onChange,
 }: {
   name: string;
   countryCode: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
   if (countryCode === "AE") {
+    const cityOptions =
+      value &&
+      !uaeCities.some((city) => city === value)
+        ? [value, ...uaeCities]
+        : uaeCities;
+
+    if (onChange) {
+      return (
+        <select
+          name={name}
+          value={value || "Dubai"}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className={inputClass}
+          required
+        >
+          {cityOptions.map((city) => (
+            <option key={city} value={city}>
+              {city}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     return (
       <select
         name={name}
@@ -69,6 +103,22 @@ function CityField({
     );
   }
 
+  if (onChange) {
+    return (
+      <input
+        name={name}
+        value={value || ""}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        maxLength={80}
+        className={inputClass}
+        placeholder="City"
+        required
+      />
+    );
+  }
+
   return (
     <input
       name={name}
@@ -83,15 +133,15 @@ function CityField({
 function PostalField({
   name,
   market,
+  value,
+  onChange,
 }: {
   name: string;
   market: MarketOption | undefined;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
-  if (
-    !market ||
-    market.location_strategy ===
-      "city_zone"
-  ) {
+  if (!market) {
     return null;
   }
 
@@ -105,12 +155,21 @@ function PostalField({
 
   return (
     <label className={labelClass}>
-      {market.postal_code_label ||
-        "Postal Code"}
+      {market.location_strategy === "city_zone"
+        ? "Postal / Zone Prefix"
+        : market.postal_code_label ||
+          "Postal Code"}
       {required ? " *" : ""}
 
       <input
         name={name}
+        value={value}
+        onChange={
+          onChange
+            ? (event) =>
+                onChange(event.target.value)
+            : undefined
+        }
         maxLength={30}
         className={inputClass}
         placeholder={
@@ -121,7 +180,10 @@ function PostalField({
               ? "e.g. M5V 3A8"
               : market.code === "GB"
                 ? "e.g. SW1A 1AA"
-                : "Postal code"
+                : market.location_strategy ===
+                    "city_zone"
+                  ? "Customer postal/zone prefix"
+                  : "Postal code"
         }
         required={required}
       />
@@ -157,6 +219,27 @@ export function ShipmentForm({
     setConsigneeCountry,
   ] = useState(defaultCountry);
 
+  const [consigneePostal, setConsigneePostal] =
+    useState("");
+
+  const [consigneeCity, setConsigneeCity] =
+    useState(
+      defaultCountry === "AE" ? "Dubai" : "",
+    );
+
+  const [zoneLookup, setZoneLookup] =
+    useState<{
+      status:
+        | "idle"
+        | "checking"
+        | "matched"
+        | "unmatched"
+        | "not_configured"
+        | "error";
+      zoneName?: string;
+      city?: string;
+    }>({ status: "idle" });
+
   const senderMarket =
     markets.find(
       (market) =>
@@ -169,6 +252,96 @@ export function ShipmentForm({
         market.code ===
         consigneeCountry,
     );
+
+  useEffect(() => {
+    const postal = consigneePostal.trim();
+
+    if (postal.length < 2) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      async () => {
+        setZoneLookup({ status: "checking" });
+
+        try {
+          const response = await fetch(
+            "/api/service-zones/resolve",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                countryCode:
+                  consigneeCountry,
+                postalCode: postal,
+                city: "",
+                area: "",
+              }),
+              signal: controller.signal,
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error("Zone lookup failed");
+          }
+
+          const result = (await response.json()) as {
+            configured: boolean;
+            zone: {
+              name: string;
+              city: string | null;
+            } | null;
+          };
+
+          if (!result.configured) {
+            setZoneLookup({
+              status: "not_configured",
+            });
+            return;
+          }
+
+          if (!result.zone) {
+            setZoneLookup({
+              status: "unmatched",
+            });
+            return;
+          }
+
+          if (result.zone.city) {
+            setConsigneeCity(result.zone.city);
+          }
+
+          setZoneLookup({
+            status: "matched",
+            zoneName: result.zone.name,
+            city: result.zone.city || undefined,
+          });
+        } catch (error) {
+          if (
+            error instanceof DOMException &&
+            error.name === "AbortError"
+          ) {
+            return;
+          }
+
+          setZoneLookup({ status: "error" });
+        }
+      },
+      450,
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [
+    consigneeCountry,
+    consigneePostal,
+  ]);
 
   return (
     <form
@@ -421,9 +594,23 @@ export function ShipmentForm({
                 name="consignee_country_code"
                 value={consigneeCountry}
                 onChange={(event) =>
-                  setConsigneeCountry(
-                    event.target.value,
-                  )
+                  {
+                    const countryCode =
+                      event.target.value;
+
+                    setConsigneeCountry(
+                      countryCode,
+                    );
+                    setConsigneePostal("");
+                    setConsigneeCity(
+                      countryCode === "AE"
+                        ? "Dubai"
+                        : "",
+                    );
+                    setZoneLookup({
+                      status: "idle",
+                    });
+                  }
                 }
                 className={inputClass}
                 required
@@ -446,13 +633,62 @@ export function ShipmentForm({
                 countryCode={
                   consigneeCountry
                 }
+                value={consigneeCity}
+                onChange={setConsigneeCity}
               />
             </label>
 
             <PostalField
               name="consignee_postal_code"
               market={consigneeMarket}
+              value={consigneePostal}
+              onChange={(value) => {
+                setConsigneePostal(value);
+
+                if (value.trim().length < 2) {
+                  setZoneLookup({
+                    status: "idle",
+                  });
+                }
+              }}
             />
+
+            {zoneLookup.status !== "idle" ? (
+              <div
+                aria-live="polite"
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-3 text-xs font-semibold sm:col-span-2 ${
+                  zoneLookup.status === "matched"
+                    ? "border-[#bfe3cf] bg-[#ebf8f1] text-[#176a47]"
+                    : zoneLookup.status ===
+                        "checking"
+                      ? "border-[#dbe5e0] bg-[#f8faf9] text-[#68766f]"
+                      : "border-[#f0d8ad] bg-[#fff8eb] text-[#8a641f]"
+                }`}
+              >
+                {zoneLookup.status ===
+                "checking" ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : zoneLookup.status ===
+                  "matched" ? (
+                  <CheckCircle2 className="size-4" />
+                ) : (
+                  <MapPin className="size-4" />
+                )}
+
+                {zoneLookup.status === "checking"
+                  ? "Checking postal prefix…"
+                  : zoneLookup.status ===
+                      "matched"
+                    ? `Zone matched: ${zoneLookup.zoneName}. City selected: ${zoneLookup.city || consigneeCity}.`
+                    : zoneLookup.status ===
+                        "not_configured"
+                      ? "No service-zone prefixes are configured for this country yet."
+                      : zoneLookup.status ===
+                          "unmatched"
+                        ? "This postal prefix does not match a configured service zone."
+                        : "Zone lookup is temporarily unavailable; booking will verify again on submit."}
+              </div>
+            ) : null}
 
             <label className={labelClass}>
               Area / District

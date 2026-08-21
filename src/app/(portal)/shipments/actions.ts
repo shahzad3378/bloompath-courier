@@ -11,6 +11,10 @@ import {
   paymentTypes,
   serviceTypes,
 } from "@/lib/shipments";
+import {
+  resolveServiceZone,
+  type ServiceZone,
+} from "@/lib/service-zones";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateShipmentState = {
@@ -19,18 +23,6 @@ export type CreateShipmentState = {
 
 export type ArchiveShipmentState = {
   message: string;
-};
-
-type ServiceZone = {
-  id: number;
-  name: string;
-  zone_type: string;
-  postal_prefix: string | null;
-  postal_from: string | null;
-  postal_to: string | null;
-  city: string | null;
-  district: string | null;
-  area: string | null;
 };
 
 function requiredText(
@@ -61,143 +53,6 @@ function optionalText(
   return value && value.length <= max
     ? value
     : null;
-}
-
-function normalizePostal(value: string | null) {
-  return String(value || "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
-}
-
-function normalizeLocation(value: string | null) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function postalInRange(
-  postal: string,
-  from: string,
-  to: string,
-) {
-  const p = normalizePostal(postal);
-  const f = normalizePostal(from);
-  const t = normalizePostal(to);
-
-  if (!p || !f || !t) return false;
-
-  if (
-    /^\d+$/.test(p) &&
-    /^\d+$/.test(f) &&
-    /^\d+$/.test(t)
-  ) {
-    const pn = Number(p);
-    return pn >= Number(f) && pn <= Number(t);
-  }
-
-  return p >= f && p <= t;
-}
-
-function resolveServiceZone(
-  zones: ServiceZone[],
-  postalCode: string | null,
-  city: string,
-  area: string | null,
-) {
-  const postal = normalizePostal(postalCode);
-  const normalizedCity = normalizeLocation(city);
-  const normalizedArea = normalizeLocation(area);
-
-  const matches: Array<{
-    zone: ServiceZone;
-    score: number;
-  }> = [];
-
-  for (const zone of zones) {
-    if (
-      zone.zone_type === "postal_prefix" &&
-      zone.postal_prefix &&
-      postal &&
-      postal.startsWith(
-        normalizePostal(zone.postal_prefix),
-      )
-    ) {
-      matches.push({
-        zone,
-        score:
-          500 +
-          normalizePostal(
-            zone.postal_prefix,
-          ).length,
-      });
-      continue;
-    }
-
-    if (
-      zone.zone_type === "postal_range" &&
-      zone.postal_from &&
-      zone.postal_to &&
-      postal &&
-      postalInRange(
-        postal,
-        zone.postal_from,
-        zone.postal_to,
-      )
-    ) {
-      matches.push({
-        zone,
-        score: 450,
-      });
-      continue;
-    }
-
-    if (
-      zone.zone_type === "area" &&
-      zone.area &&
-      normalizedArea &&
-      normalizeLocation(zone.area) ===
-        normalizedArea
-    ) {
-      matches.push({
-        zone,
-        score: 350,
-      });
-      continue;
-    }
-
-    if (
-      zone.zone_type === "district" &&
-      zone.district &&
-      normalizedArea &&
-      normalizeLocation(zone.district) ===
-        normalizedArea
-    ) {
-      matches.push({
-        zone,
-        score: 300,
-      });
-      continue;
-    }
-
-    if (
-      zone.zone_type === "city" &&
-      zone.city &&
-      normalizeLocation(zone.city) ===
-        normalizedCity
-    ) {
-      matches.push({
-        zone,
-        score: 200,
-      });
-    }
-  }
-
-  matches.sort(
-    (a, b) => b.score - a.score,
-  );
-
-  return matches[0]?.zone ?? null;
 }
 
 export async function createShipmentAction(
