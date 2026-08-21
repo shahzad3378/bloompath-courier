@@ -12,6 +12,18 @@ export type BulkUploadState = { status: "idle" | "error" | "success"; message: s
 
 type Zone = { id: number; name: string; country_code: string; postal_prefix: string | null; city: string | null; is_active: boolean };
 
+type InsertedShipment = {
+  id: number;
+  tracking_number: string;
+  reference_number: string | null;
+  consignee_address: string;
+  consignee_address_2: string | null;
+  consignee_city: string;
+  consignee_state_province: string | null;
+  consignee_postal_code: string | null;
+  consignee_country_code: string | null;
+};
+
 function matchZone(zones: Zone[], country: string, postal: string | null, city: string) {
   const normalizedPostal = (postal ?? "").toUpperCase().replace(/\s+/g, "");
   const normalizedCity = city.trim().toLowerCase();
@@ -54,12 +66,14 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
   const references = parsed.rows.map(({ shipment }) => shipment.reference_number).filter((reference): reference is string => Boolean(reference));
   if (references.length) {
     const existingReferences = new Set<string>();
-    for (let index = 0; index < references.length; index += 100) {
-      const { data: existing } = await supabase.from("shipments").select("reference_number").eq("organization_id", profile.organization_id).is("deleted_at", null).in("reference_number", references.slice(index, index + 100));
+    for (let index = 0; index < references.length; index += 200) {
+      const { data: existing } = await supabase.from("shipments").select("reference_number").eq("organization_id", profile.organization_id).is("deleted_at", null).in("reference_number", references.slice(index, index + 200));
       for (const item of existing ?? []) if (item.reference_number) existingReferences.add(item.reference_number);
     }
-    const referenceErrors = parsed.rows.filter(({ shipment }) => shipment.reference_number && existingReferences.has(shipment.reference_number)).map(({ row }) => ({ row, field: "reference_number", message: "This reference number already exists." }));
-    if (referenceErrors.length) return { status: "error", message: `${referenceErrors.length} existing reference${referenceErrors.length === 1 ? "" : "s"} found. No shipments were imported.`, errors: referenceErrors, imported: [] };
+    const referenceErrors = parsed.rows
+      .filter(({ shipment }) => shipment.reference_number && existingReferences.has(shipment.reference_number))
+      .map(({ row }) => ({ row, field: "reference_number", message: "This reference number already exists." }));
+    if (referenceErrors.length) return { status: "error", message: `${referenceErrors.length} existing reference${referenceErrors.length === 1 ? "" : "s"} found. No shipments were imported.`, errors: referenceErrors.slice(0, 500), imported: [] };
   }
 
   const zones = (zoneData ?? []) as Zone[];
@@ -75,12 +89,29 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
     };
   });
 
-  const { data, error } = await supabase.from("shipments").insert(insertRows).select("id, tracking_number, reference_number, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code");
-  if (error || !data) return { status: "error", message: error?.code === "23505" ? "One or more reference numbers are already in use. No shipments were imported." : "The batch could not be booked. No shipments were imported; review the file and retry.", errors: [], imported: [] };
+  const inserted: InsertedShipment[] = [];
+  for (let index = 0; index < insertRows.length; index += 500) {
+    const { data, error } = await supabase
+      .from("shipments")
+      .insert(insertRows.slice(index, index + 500))
+      .select("id, tracking_number, reference_number, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code");
+    if (error || !data) {
+      return {
+        status: "error",
+        message: error?.code === "23505"
+          ? "One or more reference numbers are already in use. The current chunk could not be imported."
+          : `Import stopped after ${inserted.length} shipment${inserted.length === 1 ? "" : "s"}. Review the file and retry the remaining rows.`,
+        errors: [],
+        imported: inserted.map((shipment) => ({ id: Number(shipment.id), trackingNumber: shipment.tracking_number, referenceNumber: shipment.reference_number })),
+      };
+    }
+    inserted.push(...(data as InsertedShipment[]));
+  }
 
   let geocodedCount = 0;
-  if (process.env.GOOGLE_MAPS_API_KEY) {
-    await geocodeInBatches(data, async (shipment) => {
+  const geocodeNow = inserted.length <= 100 ? inserted : [];
+  if (process.env.GOOGLE_MAPS_API_KEY && geocodeNow.length) {
+    await geocodeInBatches(geocodeNow, async (shipment) => {
       const address = buildShipmentAddress({
         address1: shipment.consignee_address,
         address2: shipment.consignee_address_2,
@@ -103,10 +134,15 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
   revalidatePath("/dashboard");
   revalidatePath("/shipments");
   revalidatePath("/dispatch");
+
+  const mappingNote = inserted.length > 100
+    ? "Large batch imported without blocking on thousands of Google calls; missing coordinates will be geocoded automatically when shipments are placed on a delivery route."
+    : `${geocodedCount} address${geocodedCount === 1 ? "" : "es"} mapped for routing.`;
+
   return {
     status: "success",
-    message: `${data.length} shipment${data.length === 1 ? "" : "s"} booked. Zones matched automatically; ${geocodedCount} address${geocodedCount === 1 ? "" : "es"} mapped for routing.`,
+    message: `${inserted.length} shipment${inserted.length === 1 ? "" : "s"} booked. Zones matched automatically. ${mappingNote}`,
     errors: [],
-    imported: data.map((shipment) => ({ id: Number(shipment.id), trackingNumber: shipment.tracking_number, referenceNumber: shipment.reference_number })),
+    imported: inserted.map((shipment) => ({ id: Number(shipment.id), trackingNumber: shipment.tracking_number, referenceNumber: shipment.reference_number })),
   };
 }
