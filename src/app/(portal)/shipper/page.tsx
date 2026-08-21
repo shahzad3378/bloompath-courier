@@ -145,7 +145,37 @@ export default async function ShipperPage({
       }),
   ]);
 
-  const shipments = shipmentData ?? [];
+  const latestProofByShipment = new Map<
+    number,
+    { kind: "POA" | "POD"; attemptNumber: number }
+  >();
+  const shipmentIds = (shipmentData ?? []).map((row) => Number(row.id));
+
+  if (shipmentIds.length > 0) {
+    const { data: proofAttempts } = await supabase
+      .from("delivery_attempts")
+      .select("shipment_id, attempt_number, outcome, proof_path, created_at")
+      .in("shipment_id", shipmentIds)
+      .order("created_at", { ascending: false });
+
+    for (const attempt of proofAttempts ?? []) {
+      const shipmentId = Number(attempt.shipment_id);
+      if (
+        attempt.proof_path &&
+        !latestProofByShipment.has(shipmentId)
+      ) {
+        latestProofByShipment.set(shipmentId, {
+          kind: attempt.outcome === "delivered" ? "POD" : "POA",
+          attemptNumber: Number(attempt.attempt_number),
+        });
+      }
+    }
+  }
+
+  const shipments = (shipmentData ?? []).map((row) => ({
+    ...row,
+    latestProof: latestProofByShipment.get(Number(row.id)) ?? null,
+  }));
   const invoiceRows = invoices ?? [];
 
   const toBePickedUp = shipments.filter((row) =>
@@ -416,7 +446,7 @@ export default async function ShipperPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
+            <table className="w-full min-w-[1140px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
                   <th className="px-5 py-3">AWB</th>
@@ -426,6 +456,7 @@ export default async function ShipperPage({
                   <th className="px-5 py-3">City</th>
                   <th className="px-5 py-3">COD</th>
                   <th className="px-5 py-3">Attempts</th>
+                  <th className="px-5 py-3">Proof</th>
                   <th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
@@ -473,6 +504,23 @@ export default async function ShipperPage({
 
                       <td className="px-5 py-4 text-center font-bold">
                         {shipment.delivery_attempt_count}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {shipment.latestProof ? (
+                          <Link
+                            href={`/shipments/${shipment.id}#delivery-proofs`}
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${
+                              shipment.latestProof.kind === "POD"
+                                ? "bg-[#e4f3ea] text-[#166b47]"
+                                : "bg-[#fff0d8] text-[#976019]"
+                            }`}
+                          >
+                            View {shipment.latestProof.kind} · #{shipment.latestProof.attemptNumber}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-[#87938d]">—</span>
+                        )}
                       </td>
 
                       <td className="px-5 py-4">
