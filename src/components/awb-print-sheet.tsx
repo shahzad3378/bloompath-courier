@@ -15,27 +15,28 @@ export function AwbPrintSheet({ shipment, format, branding }: {
   branding?: { name: string; logoUrl: string | null; location: string; currency?: string };
 }) {
   const brandName = branding?.name || "BloomPath Courier";
-  const brandLocation = branding?.location || shipment.consignee_country_code || "Operations";
   const currency = shipment.currency || branding?.currency || "AED";
   const brandInitials = brandName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "BP";
 
   return (
     <article className={`awb-print-sheet awb-${format} mx-auto overflow-hidden bg-white text-black`}>
-      <header className="flex items-center justify-between border-b-2 border-black p-3">
-        <div className="flex items-center gap-2">
+      <header className="grid grid-cols-[1fr_92px] items-stretch border-b-2 border-black">
+        <div className="flex min-w-0 items-center gap-2 p-3">
           {branding?.logoUrl ? (
-            <span className="grid size-12 place-items-center overflow-hidden bg-white">
+            <span className="grid size-12 shrink-0 place-items-center overflow-hidden bg-white">
               <img src={branding.logoUrl} alt={`${brandName} logo`} className="max-h-full max-w-full object-contain" />
             </span>
           ) : (
-            <span className="grid size-10 place-items-center rounded-lg bg-black text-sm font-black text-white">{brandInitials}</span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-black text-sm font-black text-white">{brandInitials}</span>
           )}
-          <div>
-            <p className="text-base font-black leading-none">{brandName}</p>
-            <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.18em]">{brandLocation} Operations</p>
+          <div className="min-w-0">
+            <p className="text-base font-black leading-tight">{brandName}</p>
           </div>
         </div>
-        <div className="text-right"><p className="text-[9px] font-bold uppercase">Air Waybill</p><p className="mt-1 text-xs font-black">{serviceLabels[shipment.service_type]}</p></div>
+        <div className="flex flex-col items-center justify-center border-l-2 border-black px-2 py-2 text-center">
+          <p className="text-[8px] font-black uppercase tracking-[0.08em]">Air Waybill</p>
+          <p className="mt-1 text-xs font-black leading-tight">{serviceLabels[shipment.service_type]}</p>
+        </div>
       </header>
 
       <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /></section>
@@ -64,7 +65,7 @@ export function AwbPrintSheet({ shipment, format, branding }: {
         <Detail label="COD Amount" value={formatMoney(shipment.cod_amount, currency)} strong />
       </section>
       <section className="border-b-2 border-black p-3"><p className="text-[9px] font-bold uppercase text-black/55">Contents</p><p className="mt-1 text-[11px] font-bold">{shipment.parcel_description}</p>{shipment.delivery_instructions ? <><p className="mt-2 text-[9px] font-bold uppercase text-black/55">Delivery instructions</p><p className="mt-1 text-[10px]">{shipment.delivery_instructions}</p></> : null}</section>
-      <footer className="grid grid-cols-[1fr_120px] border-b border-black"><div className="p-3"><p className="text-[9px] font-bold uppercase text-black/55">Booked</p><p className="mt-1 text-[10px] font-bold">{formatDubaiDate(shipment.booked_at)} · {shipment.consignee_country_code || brandLocation}</p><p className="mt-2 text-[8px] leading-3 text-black/55">Received in good condition. This AWB is subject to {brandName} service terms.</p></div><div className="border-l border-black p-3 text-center"><div className="h-10 border-b border-black" /><p className="mt-1 text-[8px] font-bold uppercase">Receiver signature</p></div></footer>
+      <footer className="grid grid-cols-[1fr_120px] border-b border-black"><div className="p-3"><p className="text-[9px] font-bold uppercase text-black/55">Booked</p><p className="mt-1 text-[10px] font-bold">{formatDubaiDate(shipment.booked_at)} · {shipment.consignee_country_code || ""}</p><p className="mt-2 text-[8px] leading-3 text-black/55">Received in good condition. This AWB is subject to {brandName} service terms.</p></div><div className="border-l border-black p-3 text-center"><div className="h-10 border-b border-black" /><p className="mt-1 text-[8px] font-bold uppercase">Receiver signature</p></div></footer>
     </article>
   );
 }
