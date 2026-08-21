@@ -53,6 +53,45 @@ async function getOrganizationCurrency(
   return /^[A-Z]{3}$/.test(configured) ? configured : "AED";
 }
 
+function parseZoneRows(formData: FormData) {
+  const zoneIds = formData.getAll("zone_service_zone_id").map((value) => String(value).trim());
+  const deliveryRates = formData.getAll("zone_delivery_rate").map((value) => String(value).trim());
+  const returnRates = formData.getAll("zone_return_rate").map((value) => String(value).trim());
+  const rows: Array<{ serviceZoneId: number; deliveryRate: number; returnRate: number }> = [];
+
+  for (let index = 0; index < zoneIds.length; index += 1) {
+    const zoneIdRaw = zoneIds[index] ?? "";
+    const deliveryRaw = deliveryRates[index] ?? "";
+    const returnRaw = returnRates[index] ?? "";
+    if (!zoneIdRaw && !deliveryRaw) continue;
+
+    const serviceZoneId = Number(zoneIdRaw);
+    const deliveryRate = Number(deliveryRaw);
+    const returnRate = returnRaw === "" ? 0 : Number(returnRaw);
+
+    if (
+      !Number.isInteger(serviceZoneId) ||
+      serviceZoneId <= 0 ||
+      !/^\d+(\.\d{1,2})?$/.test(deliveryRaw) ||
+      !Number.isFinite(deliveryRate) ||
+      deliveryRate < 0 ||
+      (returnRaw !== "" && !/^\d+(\.\d{1,2})?$/.test(returnRaw)) ||
+      !Number.isFinite(returnRate) ||
+      returnRate < 0
+    ) {
+      return { valid: false as const, rows: [] };
+    }
+
+    rows.push({ serviceZoneId, deliveryRate, returnRate });
+  }
+
+  if (new Set(rows.map((row) => row.serviceZoneId)).size !== rows.length) {
+    return { valid: false as const, rows: [] };
+  }
+
+  return { valid: true as const, rows };
+}
+
 export async function saveShipperRateAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(rateRoles);
 
@@ -140,6 +179,7 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   const returnRate = returnChargeEnabled ? money(formData, "return_rate") : 0;
   const vat = vatSettings(formData);
   const codCycleDays = Number(String(formData.get("cod_cycle_days") ?? "7"));
+  const zoneRows = parseZoneRows(formData);
 
   if (
     companyName.length < 2 ||
@@ -148,6 +188,7 @@ export async function createShipperAction(formData: FormData): Promise<void> {
     deliveryRate === null ||
     returnRate === null ||
     !vat.valid ||
+    !zoneRows.valid ||
     !Number.isInteger(codCycleDays) ||
     codCycleDays < 1 ||
     codCycleDays > 90
@@ -156,11 +197,26 @@ export async function createShipperAction(formData: FormData): Promise<void> {
   }
 
   const admin = createAdminClient();
-  const { data: orgSettings } = await admin
-    .from("organization_settings")
-    .select("currency")
-    .eq("organization_id", profile.organization_id)
-    .maybeSingle();
+  const [{ data: orgSettings }, { data: configuredZones }] = await Promise.all([
+    admin
+      .from("organization_settings")
+      .select("currency")
+      .eq("organization_id", profile.organization_id)
+      .maybeSingle(),
+    zoneRows.rows.length > 0
+      ? admin
+          .from("service_zones")
+          .select("id")
+          .eq("organization_id", profile.organization_id)
+          .eq("is_active", true)
+          .in("id", zoneRows.rows.map((row) => row.serviceZoneId))
+      : Promise.resolve({ data: [] as Array<{ id: number }> }),
+  ]);
+
+  if ((configuredZones ?? []).length !== zoneRows.rows.length) {
+    redirect("/shippers?error=zones");
+  }
+
   const configuredCurrency = String(orgSettings?.currency ?? "").trim().toUpperCase();
   const organizationCurrency = /^[A-Z]{3}$/.test(configuredCurrency) ? configuredCurrency : "AED";
 
@@ -194,7 +250,6 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       .maybeSingle();
 
     if (profileError || !updatedProfile) {
-      console.error("CREATE_SHIPPER_PROFILE_ERROR", profileError);
       throw profileError ?? new Error("Auto-created shipper profile was not found.");
     }
 
@@ -224,6 +279,30 @@ export async function createShipperAction(formData: FormData): Promise<void> {
       created_by: profile.id,
     });
     if (rateError) throw rateError;
+
+    if (zoneRows.rows.length > 0) {
+      const effectiveFrom = new Date().toISOString();
+      const { error: zoneRateError } = await admin.from("shipper_zone_rates").insert(
+        zoneRows.rows.map((row) => ({
+          organization_id: profile.organization_id,
+          shipper_id: userId,
+          service_zone_id: row.serviceZoneId,
+          service_type: "standard",
+          delivery_rate: row.deliveryRate,
+          return_charge_enabled: row.returnRate > 0,
+          return_rate: row.returnRate,
+          currency: organizationCurrency,
+          weight_from_kg: 0,
+          weight_to_kg: null,
+          additional_kg_rate: 0,
+          cod_fee: 0,
+          is_active: true,
+          effective_from: effectiveFrom,
+          created_by: profile.id,
+        })),
+      );
+      if (zoneRateError) throw zoneRateError;
+    }
   } catch (error) {
     console.error("CREATE_SHIPPER_FAILED", error);
     await admin.auth.admin.deleteUser(userId);
@@ -232,8 +311,8 @@ export async function createShipperAction(formData: FormData): Promise<void> {
 
   revalidatePath("/shippers");
   revalidatePath("/users");
-  revalidatePath(`/shippers/${userId}/zone-rates`);
-  redirect(`/shippers/${userId}/zone-rates?new=1`);
+  revalidatePath("/finance");
+  redirect(`/shippers?created=1&shipper=${userId}&zones=${zoneRows.rows.length}`);
 }
 
 export async function setShipperStatusAction(formData: FormData): Promise<void> {
