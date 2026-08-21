@@ -2,10 +2,8 @@
 
 import { useActionState } from "react";
 import { LoaderCircle, PackagePlus } from "lucide-react";
-import {
-  createPickupManifestAction,
-  type ManifestActionState,
-} from "@/app/(portal)/pickup-manifests/actions";
+import { type ManifestActionState } from "@/app/(portal)/pickup-manifests/actions";
+import { createSellerPickupManifestAction } from "@/app/(portal)/pickup-manifests/create-action";
 
 const initialState: ManifestActionState = { status: "idle", message: "" };
 
@@ -22,7 +20,7 @@ export function PickupManifestCreateForm({
   shipperOptions: ShipperOption[];
   currentShipper?: ShipperOption | null;
 }) {
-  const [state, action, pending] = useActionState(createPickupManifestAction, initialState);
+  const [state, action, pending] = useActionState(createSellerPickupManifestAction, initialState);
 
   return (
     <form action={action} className="rounded-2xl border border-[#dfe8e3] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
