@@ -7,6 +7,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { CreateDispatchRunForm } from "@/components/dispatch-forms";
+import { FleetRoutePlanner } from "@/components/fleet-route-planner";
 import { requireProfile } from "@/lib/auth";
 import {
   dispatchStatusClass,
@@ -25,12 +26,15 @@ type DispatchListRow = DispatchRun & {
   dispatch_run_items: Array<{ id: number; completed_at: string | null }>;
 };
 
+type WarehouseZoneRow = { service_zone_name: string | null };
+
 export default async function DispatchPage() {
   const profile = await requireProfile(dispatchRoles);
   const supabase = await createClient();
   const [
     { data: driverData, error: driverError },
     { data: runData, error },
+    { data: warehouseData, error: warehouseError },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -42,11 +46,28 @@ export default async function DispatchPage() {
     supabase
       .from("dispatch_runs")
       .select("*, profiles!dispatch_runs_driver_id_fkey(full_name, employee_code), dispatch_run_items(id, completed_at)")
+      .eq("organization_id", profile.organization_id)
       .order("created_at", { ascending: false })
       .limit(100),
+    supabase
+      .from("shipments")
+      .select("service_zone_name")
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "at_warehouse")
+      .eq("fulfillment_mode", "own_fleet")
+      .is("deleted_at", null)
+      .limit(5000),
   ]);
+
   const drivers = driverData ?? [];
   const runs = (runData ?? []) as unknown as DispatchListRow[];
+  const warehouseRows = (warehouseData ?? []) as WarehouseZoneRow[];
+  const zoneMap = new Map<string, number>();
+  for (const row of warehouseRows) {
+    const name = row.service_zone_name || "Unmapped";
+    zoneMap.set(name, (zoneMap.get(name) ?? 0) + 1);
+  }
+  const zoneSummary = Array.from(zoneMap, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -54,7 +75,7 @@ export default async function DispatchPage() {
         <div>
           <p className="text-sm font-semibold text-[#188459]">Last-mile operations</p>
           <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">Dispatch routes</h1>
-          <p className="mt-2 text-sm text-[#74827b]">Assign warehouse AWBs to drivers and monitor every delivery result.</p>
+          <p className="mt-2 text-sm text-[#74827b]">Plan warehouse shipments, assign drivers and monitor every delivery result.</p>
         </div>
         <div className="flex items-center gap-3">
           {profile.role === "super_admin" ? (
@@ -76,8 +97,8 @@ export default async function DispatchPage() {
           </Link>
 
           <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Active routes</p>
-          <p className="mt-1 text-2xl font-black text-[#13734b]">{runs.filter((run) => run.status !== "completed").length}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Active routes</p>
+            <p className="mt-1 text-2xl font-black text-[#13734b]">{runs.filter((run) => run.status !== "completed").length}</p>
           </div>
         </div>
       </div>
@@ -87,9 +108,7 @@ export default async function DispatchPage() {
           <AlertTriangle className="mt-0.5 size-5 shrink-0" />
           <div>
             <p className="font-bold">Active drivers could not be loaded.</p>
-            <p className="mt-1 text-xs">
-              Refresh the page. If the issue continues, confirm the driver belongs to this company and has Active status.
-            </p>
+            <p className="mt-1 text-xs">Refresh the page. If the issue continues, confirm the driver belongs to this company and has Active status.</p>
           </div>
         </div>
       ) : drivers.length === 0 ? (
@@ -98,27 +117,22 @@ export default async function DispatchPage() {
             <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#a36b16]" />
             <div>
               <p className="font-bold text-[#704b13]">Add an active driver before creating a route.</p>
-              <p className="mt-1 text-xs leading-5 text-[#896c3f]">
-                Own Fleet Dispatch needs a driver account. For outsourced deliveries, use 3PL Dispatch instead.
-              </p>
+              <p className="mt-1 text-xs leading-5 text-[#896c3f]">Own Fleet Dispatch needs a driver account. For outsourced deliveries, use 3PL Dispatch instead.</p>
             </div>
           </div>
-
           {profile.role === "super_admin" ? (
-            <Link
-              href="/users#add-driver"
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white"
-            >
-              <UserPlus className="size-4" />
-              Add Driver Now
+            <Link href="/users#add-driver" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white">
+              <UserPlus className="size-4" /> Add Driver Now
             </Link>
-          ) : (
-            <p className="shrink-0 text-xs font-bold text-[#704b13]">
-              Ask the Super Admin to add a driver.
-            </p>
-          )}
+          ) : <p className="shrink-0 text-xs font-bold text-[#704b13]">Ask the Super Admin to add a driver.</p>}
         </div>
       ) : null}
+
+      {warehouseError ? (
+        <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Warehouse route-planning pool could not be loaded.</div>
+      ) : (
+        <FleetRoutePlanner drivers={drivers} warehouseCount={warehouseRows.length} zones={zoneSummary} />
+      )}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">
         <CreateDispatchRunForm drivers={drivers} />
@@ -130,7 +144,7 @@ export default async function DispatchPage() {
           {error ? (
             <p className="p-8 text-center text-sm font-semibold text-[#b74646]">Routes could not be loaded.</p>
           ) : runs.length === 0 ? (
-            <div className="grid min-h-72 place-items-center p-8 text-center"><div><Truck className="mx-auto size-10 text-[#9aaba2]" /><h2 className="mt-4 font-bold text-[#405048]">No routes yet</h2><p className="mt-1 text-sm text-[#87938d]">Create a route and scan warehouse AWBs into it.</p></div></div>
+            <div className="grid min-h-72 place-items-center p-8 text-center"><div><Truck className="mx-auto size-10 text-[#9aaba2]" /><h2 className="mt-4 font-bold text-[#405048]">No routes yet</h2><p className="mt-1 text-sm text-[#87938d]">Auto plan warehouse AWBs or create a manual route and scan shipments into it.</p></div></div>
           ) : (
             <div className="divide-y divide-[#edf1ef]">
               {runs.map((run) => {
