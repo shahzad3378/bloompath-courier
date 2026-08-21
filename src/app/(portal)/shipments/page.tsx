@@ -22,31 +22,14 @@ export const metadata = { title: "Shipments" };
 function agingDaysSince(value: string) {
   const start = new Date(value);
   const now = new Date();
-
   const startDubai = new Date(start.getTime() + 4 * 60 * 60 * 1000);
   const nowDubai = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-
-  const startDay = Date.UTC(
-    startDubai.getUTCFullYear(),
-    startDubai.getUTCMonth(),
-    startDubai.getUTCDate(),
-  );
-
-  const nowDay = Date.UTC(
-    nowDubai.getUTCFullYear(),
-    nowDubai.getUTCMonth(),
-    nowDubai.getUTCDate(),
-  );
-
-  return Math.max(
-    0,
-    Math.floor((nowDay - startDay) / 86400000),
-  );
+  const startDay = Date.UTC(startDubai.getUTCFullYear(), startDubai.getUTCMonth(), startDubai.getUTCDate());
+  const nowDay = Date.UTC(nowDubai.getUTCFullYear(), nowDubai.getUTCMonth(), nowDubai.getUTCDate());
+  return Math.max(0, Math.floor((nowDay - startDay) / 86400000));
 }
 
-export default async function ShipmentsPage({
-  searchParams,
-}: {
+export default async function ShipmentsPage({ searchParams }: {
   searchParams: Promise<{
     q?: string;
     status?: string;
@@ -63,167 +46,98 @@ export default async function ShipmentsPage({
   const mayArchive = canDeleteShipments(profile);
   const showArchived = mayArchive && params.view === "archived";
   const queryText = String(params.q ?? "").trim().toLowerCase().slice(0, 80);
-  const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus)
-    ? params.status as ShipmentStatus
-    : "";
+  const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus) ? params.status as ShipmentStatus : "";
   const supabase = await createClient();
-
   const isShipper = profile.role === "shipper";
 
-  const [{ data: shippers }, { data: drivers }] = await Promise.all([
+  const [{ data: shippers }, { data: drivers }, { data: orgSettings }] = await Promise.all([
     isShipper
       ? Promise.resolve({ data: [] })
-      : supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .eq("organization_id", profile.organization_id)
-          .eq("role", "shipper")
-          .eq("status", "active")
-          .order("full_name"),
-
-    supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .eq("organization_id", profile.organization_id)
-      .eq("role", "driver")
-      .eq("status", "active")
-      .order("full_name"),
+      : supabase.from("profiles").select("id, full_name, email").eq("organization_id", profile.organization_id).eq("role", "shipper").eq("status", "active").order("full_name"),
+    supabase.from("profiles").select("id, full_name, email").eq("organization_id", profile.organization_id).eq("role", "driver").eq("status", "active").order("full_name"),
+    supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),
   ]);
 
-  // Dashboard counts are calculated from active AWBs independently
-  // from the table status filter.
-  let dashboardQuery = supabase
-    .from("shipments")
-    .select("status")
-    .is("deleted_at", null);
+  const tenantCurrency = /^[A-Z]{3}$/.test(String(orgSettings?.currency ?? "").toUpperCase())
+    ? String(orgSettings?.currency).toUpperCase()
+    : "AED";
 
-  if (isShipper) {
-    dashboardQuery = dashboardQuery.eq("shipper_id", profile.id);
-  } else if (params.shipper) {
-    dashboardQuery = dashboardQuery.eq("shipper_id", params.shipper);
+  const applyCommonFilters = <T,>(query: T): T => {
+    let q = query as any;
+    q = q.eq("organization_id", profile.organization_id).is("deleted_at", null);
+    if (isShipper) q = q.eq("shipper_id", profile.id);
+    else if (params.shipper) q = q.eq("shipper_id", params.shipper);
+    if (params.driver) q = q.eq("assigned_driver_id", params.driver);
+    if (params.from) q = q.gte("created_at", `${params.from}T00:00:00+04:00`);
+    if (params.to) q = q.lte("created_at", `${params.to}T23:59:59.999+04:00`);
+    return q as T;
+  };
+
+  async function exactCount(statuses?: ShipmentStatus[]) {
+    let countQuery = supabase.from("shipments").select("id", { count: "exact", head: true });
+    countQuery = applyCommonFilters(countQuery);
+    if (statuses?.length === 1) countQuery = countQuery.eq("status", statuses[0]);
+    else if (statuses && statuses.length > 1) countQuery = countQuery.in("status", statuses);
+    const { count } = await countQuery;
+    return count ?? 0;
   }
 
-  if (params.driver) {
-    dashboardQuery = dashboardQuery.eq(
-      "assigned_driver_id",
-      params.driver,
-    );
-  }
-
-  if (params.from) {
-    dashboardQuery = dashboardQuery.gte(
-      "created_at",
-      `${params.from}T00:00:00+04:00`,
-    );
-  }
-
-  if (params.to) {
-    dashboardQuery = dashboardQuery.lte(
-      "created_at",
-      `${params.to}T23:59:59.999+04:00`,
-    );
-  }
-
-  const { data: dashboardData } = await dashboardQuery;
-
-  const dashboardShipments = dashboardData ?? [];
-
-  const statusCount = (status: string) =>
-    dashboardShipments.filter((shipment) => shipment.status === status).length;
-
-  const allCount = dashboardShipments.length;
-  const bookedCount = statusCount("booked");
-  const pickupCount =
-    statusCount("ready_for_pickup") + statusCount("picked_up");
-  const warehouseCount = statusCount("at_warehouse");
-  const ofdCount = statusCount("out_for_delivery");
-  const deliveredCount = statusCount("delivered");
-  const undeliveredCount = statusCount("undelivered");
-  const rtoCount =
-    statusCount("return_initiated") + statusCount("returned_to_shipper");
+  const [allCount, bookedCount, pickupCount, warehouseCount, ofdCount, deliveredCount, undeliveredCount, rtoCount] = await Promise.all([
+    exactCount(),
+    exactCount(["booked"]),
+    exactCount(["ready_for_pickup", "picked_up"]),
+    exactCount(["at_warehouse"]),
+    exactCount(["out_for_delivery"]),
+    exactCount(["delivered"]),
+    exactCount(["undelivered"]),
+    exactCount(["return_initiated", "returned_to_shipper"]),
+  ]);
 
   let query = supabase
     .from("shipments")
     .select("*")
+    .eq("organization_id", profile.organization_id)
     .order(showArchived ? "deleted_at" : "created_at", { ascending: false })
-    .limit(100);
+    .limit(5000);
 
-  query = showArchived
-    ? query.not("deleted_at", "is", null)
-    : query.is("deleted_at", null);
-
-  if (isShipper) {
-    query = query.eq("shipper_id", profile.id);
-  } else if (params.shipper) {
-    query = query.eq("shipper_id", params.shipper);
-  }
-
-  if (params.driver) {
-    query = query.eq("assigned_driver_id", params.driver);
-  }
-
-  if (requestedStatus) {
-    query = query.eq("status", requestedStatus);
-  }
-
-  if (params.from) {
-    query = query.gte("created_at", `${params.from}T00:00:00+04:00`);
-  }
-
-  if (params.to) {
-    query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
-  }
+  query = showArchived ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
+  if (isShipper) query = query.eq("shipper_id", profile.id);
+  else if (params.shipper) query = query.eq("shipper_id", params.shipper);
+  if (params.driver) query = query.eq("assigned_driver_id", params.driver);
+  if (requestedStatus) query = query.eq("status", requestedStatus);
+  if (params.from) query = query.gte("created_at", `${params.from}T00:00:00+04:00`);
+  if (params.to) query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
 
   const { data, error } = await query;
+  const filteredShipments = ((data ?? []) as Shipment[]).filter((shipment) => {
+    if (!queryText) return true;
+    return (
+      shipment.tracking_number.toLowerCase().includes(queryText) ||
+      shipment.reference_number?.toLowerCase().includes(queryText) ||
+      shipment.consignee_name.toLowerCase().includes(queryText) ||
+      shipment.consignee_phone.toLowerCase().includes(queryText)
+    );
+  });
 
-  const filteredShipments = ((data ?? []) as Shipment[]).filter(
-    (shipment) => {
-      if (!queryText) return true;
-
-      return (
-        shipment.tracking_number.toLowerCase().includes(queryText) ||
-        shipment.reference_number?.toLowerCase().includes(queryText) ||
-        shipment.consignee_name.toLowerCase().includes(queryText) ||
-        shipment.consignee_phone.toLowerCase().includes(queryText)
-      );
-    },
-  );
-
-  const visibleShipmentIds = filteredShipments.map(
-    (shipment) => shipment.id,
-  );
-
+  const visibleShipmentIds = filteredShipments.map((shipment) => shipment.id);
   const latestUndeliveredByShipment = new Map<number, string>();
-  const latestProofByShipment = new Map<
-    number,
-    { kind: "POA" | "POD"; attemptNumber: number }
-  >();
+  const latestProofByShipment = new Map<number, { kind: "POA" | "POD"; attemptNumber: number }>();
 
-  if (visibleShipmentIds.length > 0) {
+  for (let index = 0; index < visibleShipmentIds.length; index += 500) {
+    const ids = visibleShipmentIds.slice(index, index + 500);
+    if (!ids.length) continue;
     const { data: visibleAttempts } = await supabase
       .from("delivery_attempts")
       .select("shipment_id, attempt_number, outcome, proof_path, created_at")
-      .in("shipment_id", visibleShipmentIds)
+      .in("shipment_id", ids)
       .order("created_at", { ascending: false });
 
     for (const attempt of visibleAttempts ?? []) {
       const shipmentId = Number(attempt.shipment_id);
-
-      if (
-        attempt.outcome === "undelivered" &&
-        !latestUndeliveredByShipment.has(shipmentId) &&
-        attempt.created_at
-      ) {
-        latestUndeliveredByShipment.set(
-          shipmentId,
-          attempt.created_at,
-        );
+      if (attempt.outcome === "undelivered" && !latestUndeliveredByShipment.has(shipmentId) && attempt.created_at) {
+        latestUndeliveredByShipment.set(shipmentId, attempt.created_at);
       }
-
-      if (
-        attempt.proof_path &&
-        !latestProofByShipment.has(shipmentId)
-      ) {
+      if (attempt.proof_path && !latestProofByShipment.has(shipmentId)) {
         latestProofByShipment.set(shipmentId, {
           kind: attempt.outcome === "delivered" ? "POD" : "POA",
           attemptNumber: Number(attempt.attempt_number),
@@ -233,46 +147,27 @@ export default async function ShipmentsPage({
   }
 
   const shipments = filteredShipments.map((shipment) => {
-    const lastUndeliveredAt =
-      latestUndeliveredByShipment.get(shipment.id) ?? null;
-
-    const agingClosed =
-      shipment.status === "delivered" ||
-      shipment.status === "returned_to_shipper" ||
-      shipment.status === "cancelled";
-
+    const lastUndeliveredAt = latestUndeliveredByShipment.get(shipment.id) ?? null;
+    const agingClosed = shipment.status === "delivered" || shipment.status === "returned_to_shipper" || shipment.status === "cancelled";
     return {
       ...shipment,
+      currency: shipment.currency || tenantCurrency,
       last_undelivered_at: lastUndeliveredAt,
-      latest_proof_kind:
-        latestProofByShipment.get(shipment.id)?.kind ?? null,
-      latest_proof_attempt:
-        latestProofByShipment.get(shipment.id)?.attemptNumber ?? null,
-      undelivered_aging_days:
-        lastUndeliveredAt && !agingClosed
-          ? agingDaysSince(lastUndeliveredAt)
-          : null,
+      latest_proof_kind: latestProofByShipment.get(shipment.id)?.kind ?? null,
+      latest_proof_attempt: latestProofByShipment.get(shipment.id)?.attemptNumber ?? null,
+      undelivered_aging_days: lastUndeliveredAt && !agingClosed ? agingDaysSince(lastUndeliveredAt) : null,
     };
   });
 
   const exportParams = new URLSearchParams();
-
   if (params.q) exportParams.set("q", params.q);
   if (requestedStatus) exportParams.set("status", requestedStatus);
   if (params.from) exportParams.set("from", params.from);
   if (params.to) exportParams.set("to", params.to);
-
-  if (!isShipper && params.shipper) {
-    exportParams.set("shipper", params.shipper);
-  }
-
-  if (params.driver) {
-    exportParams.set("driver", params.driver);
-  }
-
+  if (!isShipper && params.shipper) exportParams.set("shipper", params.shipper);
+  if (params.driver) exportParams.set("driver", params.driver);
   const exportHref = `/shipments/export?${exportParams.toString()}`;
-  const excelExportHref =
-    `/shipments/export-xlsx?${exportParams.toString()}`;
+  const excelExportHref = `/shipments/export-xlsx?${exportParams.toString()}`;
 
   const dashboardCards = [
     ["", "All Shipments", allCount, PackageCheck],
@@ -288,7 +183,7 @@ export default async function ShipmentsPage({
   return (
     <div className="mx-auto max-w-[1500px]">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div><p className="text-sm font-semibold text-[#188459]">Order management</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">{showArchived ? "Archived AWBs" : "Shipments"}</h1><p className="mt-2 text-sm text-[#74827b]">{showArchived ? "Read-only audit records removed from active operations." : "Book, search and print UAE courier AWBs."}</p></div>
+        <div><p className="text-sm font-semibold text-[#188459]">Order management</p><h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">{showArchived ? "Archived AWBs" : "Shipments"}</h1><p className="mt-2 text-sm text-[#74827b]">{showArchived ? "Read-only audit records removed from active operations." : "Book, search and print courier AWBs."}</p></div>
         <div className="flex flex-col gap-2 sm:flex-row">
           {mayArchive ? <Link href={showArchived ? "/shipments" : "/shipments?view=archived"} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#e3caca] bg-white px-5 text-sm font-bold text-[#9b4444] shadow-sm"><Archive className="size-4" /> {showArchived ? "Active AWBs" : "Archived AWBs"}</Link> : null}
           {!showArchived ? <><Link href="/shipments/import" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-5 text-sm font-bold text-[#13734b] shadow-sm"><UploadCloud className="size-4" /> Bulk upload</Link><Link href="/shipments/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white shadow-lg shadow-[#13734b]/15"><PackagePlus className="size-4" /> New shipment</Link></> : null}
@@ -300,78 +195,26 @@ export default async function ShipmentsPage({
       {!showArchived ? (
         <section className="mt-7">
           <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">
-                Live operations
-              </p>
-              <h2 className="mt-1 text-lg font-bold text-[#26372f]">
-                Shipment dashboard
-              </h2>
-            </div>
-
+            <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">Live operations</p><h2 className="mt-1 text-lg font-bold text-[#26372f]">Shipment dashboard</h2></div>
             <div className="flex flex-wrap gap-2">
-              <Link
-                href={exportHref}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"
-              >
-                <Download className="size-4" />
-                CSV
-              </Link>
-
-              <Link
-                href={excelExportHref}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#13734b] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d5e3d]"
-              >
-                <Download className="size-4" />
-                Excel
-              </Link>
+              <Link href={exportHref} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"><Download className="size-4" />CSV</Link>
+              <Link href={excelExportHref} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#13734b] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#0d5e3d]"><Download className="size-4" />Excel</Link>
             </div>
           </div>
-
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
             {dashboardCards.map(([status, label, count, Icon]) => {
               const href = new URLSearchParams();
-
               if (status) href.set("status", status);
               if (params.from) href.set("from", params.from);
               if (params.to) href.set("to", params.to);
-
-              if (!isShipper && params.shipper) {
-                href.set("shipper", params.shipper);
-              }
-
-              if (params.driver) {
-                href.set("driver", params.driver);
-              }
-
-              const active =
-                status === ""
-                  ? !requestedStatus
-                  : requestedStatus === status;
-
+              if (!isShipper && params.shipper) href.set("shipper", params.shipper);
+              if (params.driver) href.set("driver", params.driver);
+              const active = status === "" ? !requestedStatus : requestedStatus === status;
               return (
-                <Link
-                  key={label}
-                  href={`/shipments?${href.toString()}`}
-                  className={`rounded-2xl border p-4 transition ${
-                    active
-                      ? "border-[#13734b] bg-[#13734b] text-white shadow-lg shadow-[#13734b]/10"
-                      : "border-[#e0e8e4] bg-white text-[#26372f] hover:border-[#9fc8b4]"
-                  }`}
-                >
-                  <Icon
-                    className={`size-4 ${
-                      active ? "text-white/80" : "text-[#13734b]"
-                    }`}
-                  />
+                <Link key={label} href={`/shipments?${href.toString()}`} className={`rounded-2xl border p-4 transition ${active ? "border-[#13734b] bg-[#13734b] text-white shadow-lg shadow-[#13734b]/10" : "border-[#e0e8e4] bg-white text-[#26372f] hover:border-[#9fc8b4]"}`}>
+                  <Icon className={`size-4 ${active ? "text-white/80" : "text-[#13734b]"}`} />
                   <p className="mt-3 text-2xl font-black">{count}</p>
-                  <p
-                    className={`mt-1 text-[9px] font-bold uppercase tracking-wide ${
-                      active ? "text-white/65" : "text-[#87938d]"
-                    }`}
-                  >
-                    {label}
-                  </p>
+                  <p className={`mt-1 text-[9px] font-bold uppercase tracking-wide ${active ? "text-white/65" : "text-[#87938d]"}`}>{label}</p>
                 </Link>
               );
             })}
@@ -382,72 +225,22 @@ export default async function ShipmentsPage({
       <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-[1fr_180px_190px_190px_150px_150px_auto]">
         {showArchived ? <input type="hidden" name="view" value="archived" /> : null}
         <label className="relative"><Search className="absolute left-3.5 top-3.5 size-4 text-[#819088]" /><input name="q" defaultValue={params.q} className="h-11 w-full rounded-xl border border-[#dbe5e0] pl-10 pr-3 text-sm outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10" placeholder="AWB, reference, customer or phone" /></label>
-        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]">
-          <option value="">All statuses</option>
-          {shipmentStatuses.map((status) => (
-            <option key={status} value={status}>
-              {statusLabels[status]}
-            </option>
-          ))}
-        </select>
-
+        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{shipmentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select>
         {!isShipper ? (
-          <select
-            name="shipper"
-            defaultValue={params.shipper ?? ""}
-            className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
-          >
-            <option value="">All shippers</option>
-            {(shippers ?? []).map((shipper) => (
-              <option key={shipper.id} value={shipper.id}>
-                {shipper.full_name || shipper.email}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input type="hidden" name="shipper" value="" />
-        )}
-
-        <select
-          name="driver"
-          defaultValue={params.driver ?? ""}
-          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
-        >
-          <option value="">All drivers</option>
-          {(drivers ?? []).map((driver) => (
-            <option key={driver.id} value={driver.id}>
-              {driver.full_name || driver.email}
-            </option>
-          ))}
-        </select>
-
-        <input
-          name="from"
-          type="date"
-          defaultValue={params.from ?? ""}
-          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
-          aria-label="From date"
-        />
-
-        <input
-          name="to"
-          type="date"
-          defaultValue={params.to ?? ""}
-          className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"
-          aria-label="To date"
-        />
-
+          <select name="shipper" defaultValue={params.shipper ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All shippers</option>{(shippers ?? []).map((shipper) => <option key={shipper.id} value={shipper.id}>{shipper.full_name || shipper.email}</option>)}</select>
+        ) : <input type="hidden" name="shipper" value="" />}
+        <select name="driver" defaultValue={params.driver ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All drivers</option>{(drivers ?? []).map((driver) => <option key={driver.id} value={driver.id}>{driver.full_name || driver.email}</option>)}</select>
+        <input name="from" type="date" defaultValue={params.from ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]" aria-label="From date" />
+        <input name="to" type="date" defaultValue={params.to ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]" aria-label="To date" />
         <button className="h-11 rounded-xl bg-[#e7f4ed] px-5 text-sm font-bold text-[#13734b]">Apply filters</button>
       </form>
 
       <section className="mt-5 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
         {error ? <div className="p-8 text-center text-sm font-semibold text-[#b74646]">Shipments could not be loaded.</div> : shipments.length === 0 ? (
           <div className="grid min-h-72 place-items-center p-8 text-center"><div><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#e7f4ed] text-[#188459]"><PackagePlus className="size-7" /></div><h2 className="mt-4 text-lg font-bold text-[#26372f]">No shipments found</h2><p className="mt-1 text-sm text-[#7a8881]">Create your first shipment to generate a printable AWB.</p><Link href="/shipments/new" className="mt-5 inline-flex rounded-xl bg-[#13734b] px-5 py-2.5 text-sm font-bold text-white">Create shipment</Link></div></div>
-        ) : (
-          <ShipmentSelectionTable shipments={shipments} archived={showArchived} />
-        )}
+        ) : <ShipmentSelectionTable shipments={shipments} archived={showArchived} currency={tenantCurrency} />}
       </section>
-      <p className="mt-3 text-right text-xs text-[#8a9690]">Showing {shipments.length} of the latest 100 shipments</p>
+      <p className="mt-3 text-right text-xs text-[#8a9690]">Loaded {shipments.length} shipment{shipments.length === 1 ? "" : "s"} · maximum 5,000 per view</p>
     </div>
   );
 }
