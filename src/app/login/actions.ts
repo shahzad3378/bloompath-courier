@@ -48,9 +48,15 @@ export async function loginAction(
 }
 
 export async function logoutAction() {
-  if (hasSupabaseEnv()) {
-    const supabase = await createClient();
-    await supabase.auth.signOut();
+  try {
+    if (hasSupabaseEnv()) {
+      const supabase = await createClient();
+      const { error } = await supabase.auth.signOut();
+      if (error) console.error("LOGOUT_SIGNOUT_ERROR", error);
+    }
+  } catch (error) {
+    console.error("LOGOUT_ACTION_ERROR", error);
   }
+
   redirect("/login");
 }
