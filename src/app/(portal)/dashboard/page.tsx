@@ -14,6 +14,16 @@ type RangeKey =
   | "month"
   | "custom";
 
+type DashboardDriverLocation = {
+  driver_id: string;
+  is_online: boolean;
+  recorded_at: string;
+  driver: {
+    full_name: string;
+    email: string;
+  } | null;
+};
+
 function dubaiDayStartUtc(date: Date) {
   const dubai = new Date(date.getTime() + 4 * 60 * 60 * 1000);
 
@@ -125,10 +135,15 @@ export default async function DashboardPage({
 
   const [
     booked,
-    outForDelivery,
+    inProgress,
+    warehouse,
     delivered,
     undelivered,
     returns,
+    liveOutForDelivery,
+    liveWarehouse,
+    liveUndelivered,
+    liveReturns,
     cod,
     recent,
     movement,
@@ -145,15 +160,63 @@ export default async function DashboardPage({
       .from("shipments")
       .select("id", { count: "exact", head: true })
       .is("deleted_at", null)
-      .eq("status", "out_for_delivery"),
+      .in("status", [
+        "booked",
+        "ready_for_pickup",
+        "picked_up",
+        "at_warehouse",
+        "out_for_delivery",
+      ])
+      .gte("booked_at", startIso)
+      .lt("booked_at", endIso),
+
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "at_warehouse")
+      .gte("booked_at", startIso)
+      .lt("booked_at", endIso),
 
     supabase
       .from("shipments")
       .select("id", { count: "exact", head: true })
       .is("deleted_at", null)
       .eq("status", "delivered")
-      .gte("delivered_at", startIso)
-      .lt("delivered_at", endIso),
+      .gte("booked_at", startIso)
+      .lt("booked_at", endIso),
+
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "undelivered")
+      .gte("booked_at", startIso)
+      .lt("booked_at", endIso),
+
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .in("status", [
+        "return_initiated",
+        "returned_to_shipper",
+        "cancelled",
+      ])
+      .gte("booked_at", startIso)
+      .lt("booked_at", endIso),
+
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "out_for_delivery"),
+
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "at_warehouse"),
 
     supabase
       .from("shipments")
@@ -218,6 +281,8 @@ export default async function DashboardPage({
   );
 
   const movementRows = movement.data ?? [];
+  const dashboardDrivers = (driverLocations.data ??
+    []) as unknown as DashboardDriverLocation[];
 
   const movementBuckets = Array.from(
     { length: dayCount },
@@ -247,10 +312,15 @@ export default async function DashboardPage({
       name={profile.full_name}
       stats={{
         booked: booked.count ?? 0,
-        outForDelivery: outForDelivery.count ?? 0,
+        inProgress: inProgress.count ?? 0,
+        warehouse: warehouse.count ?? 0,
         delivered: delivered.count ?? 0,
         undelivered: undelivered.count ?? 0,
         returns: returns.count ?? 0,
+        liveOutForDelivery: liveOutForDelivery.count ?? 0,
+        liveWarehouse: liveWarehouse.count ?? 0,
+        liveUndelivered: liveUndelivered.count ?? 0,
+        liveReturns: liveReturns.count ?? 0,
         codCollected: (cod.data ?? []).reduce(
           (sum, row) => sum + Number(row.cod_amount),
           0,
@@ -275,7 +345,7 @@ export default async function DashboardPage({
         to: params.to ?? "",
       }}
       movement={movementBuckets}
-      drivers={(driverLocations.data ?? []).map((row: any) => ({
+      drivers={dashboardDrivers.map((row) => ({
         driverId: row.driver_id,
         name:
           row.driver?.full_name ||

@@ -20,10 +20,15 @@ import {
 
 type DashboardStats = {
   booked: number;
-  outForDelivery: number;
+  inProgress: number;
+  warehouse: number;
   delivered: number;
   undelivered: number;
   returns: number;
+  liveOutForDelivery: number;
+  liveWarehouse: number;
+  liveUndelivered: number;
+  liveReturns: number;
   codCollected: number;
 };
 
@@ -109,16 +114,16 @@ export function DashboardUI({
 }) {
   const totalStatus =
     stats.delivered +
-    stats.outForDelivery +
+    stats.inProgress +
     stats.undelivered +
     stats.returns;
 
   const deliveredPct =
     totalStatus > 0 ? (stats.delivered / totalStatus) * 100 : 0;
 
-  const transitPct =
+  const inProgressPct =
     totalStatus > 0
-      ? (stats.outForDelivery / totalStatus) * 100
+      ? (stats.inProgress / totalStatus) * 100
       : 0;
 
   const undeliveredPct =
@@ -126,19 +131,16 @@ export function DashboardUI({
       ? (stats.undelivered / totalStatus) * 100
       : 0;
 
-  const returnPct =
-    totalStatus > 0 ? (stats.returns / totalStatus) * 100 : 0;
-
   const donutBackground =
     totalStatus === 0
       ? "conic-gradient(#edf1ef 0% 100%)"
       : `conic-gradient(
           #15905c 0% ${deliveredPct}%,
-          #3f82df ${deliveredPct}% ${deliveredPct + transitPct}%,
-          #eea33b ${deliveredPct + transitPct}% ${
-            deliveredPct + transitPct + undeliveredPct
+          #3f82df ${deliveredPct}% ${deliveredPct + inProgressPct}%,
+          #eea33b ${deliveredPct + inProgressPct}% ${
+            deliveredPct + inProgressPct + undeliveredPct
           }%,
-          #df5555 ${deliveredPct + transitPct + undeliveredPct}% 100%
+          #df5555 ${deliveredPct + inProgressPct + undeliveredPct}% 100%
         )`;
 
   const chartPoints = buildChartPoints(movement);
@@ -163,18 +165,18 @@ export function DashboardUI({
       trendClass: "text-[#15905c]",
     },
     {
-      label: "In Transit",
-      value: stats.outForDelivery,
-      note: "Current live queue",
+      label: "In Progress",
+      value: stats.inProgress,
+      note: range.label,
       icon: Clock3,
       tone: "bg-[#fff3e3] text-[#dd8b24]",
-      trend: "Live",
+      trend: `${stats.warehouse} Warehouse`,
       trendClass: "text-[#dd8b24]",
     },
     {
       label: "Failed / RTO",
       value: stats.undelivered + stats.returns,
-      note: "Needs operational action",
+      note: range.label,
       icon: RotateCcw,
       tone: "bg-[#fff0f0] text-[#d85151]",
       trend: `${stats.returns} RTO`,
@@ -358,7 +360,7 @@ export function DashboardUI({
               {[
                 ["Booked", stats.booked],
                 ["Delivered", stats.delivered],
-                ["In Transit", stats.outForDelivery],
+                ["In Progress", stats.inProgress],
                 ["Failed / RTO", stats.undelivered + stats.returns],
               ].map(([label, value]) => (
                 <div
@@ -448,7 +450,7 @@ export function DashboardUI({
               </h2>
 
               <span className="text-[10px] font-semibold text-[#8c9791]">
-                Live status
+                Selected period
               </span>
             </div>
 
@@ -474,7 +476,7 @@ export function DashboardUI({
               <div className="w-full space-y-3">
                 {[
                   ["Delivered", stats.delivered, "#15905c"],
-                  ["In Transit", stats.outForDelivery, "#3f82df"],
+                  ["In Progress", stats.inProgress, "#3f82df"],
                   ["Undelivered", stats.undelivered, "#eea33b"],
                   ["Returns / RTO", stats.returns, "#df5555"],
                 ].map(([label, value, color]) => (
@@ -641,21 +643,28 @@ export function DashboardUI({
             {[
               {
                 label: "Out for Delivery",
-                value: stats.outForDelivery,
+                value: stats.liveOutForDelivery,
                 icon: Truck,
                 href: "/dispatch",
                 tone: "bg-[#eaf2ff] text-[#3f82df]",
               },
               {
+                label: "At Warehouse",
+                value: stats.liveWarehouse,
+                icon: PackageCheck,
+                href: "/warehouse",
+                tone: "bg-[#eef8f2] text-[#15905c]",
+              },
+              {
                 label: "Undelivered",
-                value: stats.undelivered,
+                value: stats.liveUndelivered,
                 icon: ArrowDownRight,
                 href: "/shipments?status=undelivered",
                 tone: "bg-[#fff3e3] text-[#dd8b24]",
               },
               {
                 label: "Return Pending",
-                value: stats.returns,
+                value: stats.liveReturns,
                 icon: RotateCcw,
                 href: "/returns",
                 tone: "bg-[#fff0f0] text-[#d85151]",
