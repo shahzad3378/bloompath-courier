@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { parseBulkShipmentFile, type BulkRowError } from "@/lib/bulk-shipments";
+import { buildShipmentAddress, geocodeAddress, geocodeInBatches } from "@/lib/google-maps";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,11 +75,38 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
     };
   });
 
-  const { data, error } = await supabase.from("shipments").insert(insertRows).select("id, tracking_number, reference_number");
+  const { data, error } = await supabase.from("shipments").insert(insertRows).select("id, tracking_number, reference_number, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code");
   if (error || !data) return { status: "error", message: error?.code === "23505" ? "One or more reference numbers are already in use. No shipments were imported." : "The batch could not be booked. No shipments were imported; review the file and retry.", errors: [], imported: [] };
+
+  let geocodedCount = 0;
+  if (process.env.GOOGLE_MAPS_API_KEY) {
+    await geocodeInBatches(data, async (shipment) => {
+      const address = buildShipmentAddress({
+        address1: shipment.consignee_address,
+        address2: shipment.consignee_address_2,
+        city: shipment.consignee_city,
+        stateProvince: shipment.consignee_state_province,
+        postalCode: shipment.consignee_postal_code,
+        countryCode: shipment.consignee_country_code,
+      });
+      const point = await geocodeAddress(address);
+      if (!point) return;
+      const { error: updateError } = await supabase
+        .from("shipments")
+        .update({ delivery_latitude: point.latitude, delivery_longitude: point.longitude })
+        .eq("id", shipment.id)
+        .eq("organization_id", profile.organization_id);
+      if (!updateError) geocodedCount += 1;
+    }, 5);
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/shipments");
   revalidatePath("/dispatch");
-  return { status: "success", message: `${data.length} shipment${data.length === 1 ? "" : "s"} booked. Postal/city zones were matched automatically where configured.`, errors: [], imported: data.map((shipment) => ({ id: Number(shipment.id), trackingNumber: shipment.tracking_number, referenceNumber: shipment.reference_number })) };
+  return {
+    status: "success",
+    message: `${data.length} shipment${data.length === 1 ? "" : "s"} booked. Zones matched automatically; ${geocodedCount} address${geocodedCount === 1 ? "" : "es"} mapped for routing.`,
+    errors: [],
+    imported: data.map((shipment) => ({ id: Number(shipment.id), trackingNumber: shipment.tracking_number, referenceNumber: shipment.reference_number })),
+  };
 }
