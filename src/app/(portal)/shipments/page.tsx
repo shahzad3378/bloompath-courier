@@ -194,19 +194,23 @@ export default async function ShipmentsPage({
   );
 
   const latestUndeliveredByShipment = new Map<number, string>();
+  const latestProofByShipment = new Map<
+    number,
+    { kind: "POA" | "POD"; attemptNumber: number }
+  >();
 
   if (visibleShipmentIds.length > 0) {
-    const { data: undeliveredAttempts } = await supabase
+    const { data: visibleAttempts } = await supabase
       .from("delivery_attempts")
-      .select("shipment_id, created_at")
+      .select("shipment_id, attempt_number, outcome, proof_path, created_at")
       .in("shipment_id", visibleShipmentIds)
-      .eq("outcome", "undelivered")
       .order("created_at", { ascending: false });
 
-    for (const attempt of undeliveredAttempts ?? []) {
+    for (const attempt of visibleAttempts ?? []) {
       const shipmentId = Number(attempt.shipment_id);
 
       if (
+        attempt.outcome === "undelivered" &&
         !latestUndeliveredByShipment.has(shipmentId) &&
         attempt.created_at
       ) {
@@ -214,6 +218,16 @@ export default async function ShipmentsPage({
           shipmentId,
           attempt.created_at,
         );
+      }
+
+      if (
+        attempt.proof_path &&
+        !latestProofByShipment.has(shipmentId)
+      ) {
+        latestProofByShipment.set(shipmentId, {
+          kind: attempt.outcome === "delivered" ? "POD" : "POA",
+          attemptNumber: Number(attempt.attempt_number),
+        });
       }
     }
   }
@@ -230,6 +244,10 @@ export default async function ShipmentsPage({
     return {
       ...shipment,
       last_undelivered_at: lastUndeliveredAt,
+      latest_proof_kind:
+        latestProofByShipment.get(shipment.id)?.kind ?? null,
+      latest_proof_attempt:
+        latestProofByShipment.get(shipment.id)?.attemptNumber ?? null,
       undelivered_aging_days:
         lastUndeliveredAt && !agingClosed
           ? agingDaysSince(lastUndeliveredAt)
