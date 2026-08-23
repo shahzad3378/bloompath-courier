@@ -28,6 +28,7 @@ type ShipmentMarker = {
   consignee_name: string;
   consignee_city: string | null;
   cod_amount: number;
+  currency: string;
   status: string;
   assigned_driver_id: string | null;
   delivery_latitude: number;
@@ -261,7 +262,7 @@ export function LiveOperationsMap({
                     <br />
                     {shipment.consignee_city || "—"}
                     <br />
-                    COD AED{" "}
+                    COD {shipment.currency}{" "}
                     {Number(
                       shipment.cod_amount || 0,
                     ).toFixed(2)}

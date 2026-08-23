@@ -143,9 +143,13 @@ export default async function InvoiceDetailPage({
     ? invoiceRow.shipper[0] ?? null
     : invoiceRow.shipper;
 
-  const { data: itemData } = await supabase
-    .from("invoice_items")
-    .select(`
+  const [
+    { data: itemData },
+    { data: shipperBusiness },
+  ] = await Promise.all([
+    supabase
+      .from("invoice_items")
+      .select(`
       id,
       shipment_id,
       tracking_number,
@@ -157,9 +161,15 @@ export default async function InvoiceDetailPage({
       return_charge,
       total_charges,
       net_payable
-    `)
-    .eq("invoice_id", invoice.id)
-    .order("id", { ascending: true });
+      `)
+      .eq("invoice_id", invoice.id)
+      .order("id", { ascending: true }),
+    supabase
+      .from("shipper_business_profiles")
+      .select("account_number")
+      .eq("shipper_id", invoice.shipper_id)
+      .maybeSingle(),
+  ]);
 
   const items = itemData ?? [];
 
@@ -199,6 +209,9 @@ export default async function InvoiceDetailPage({
             {shipper?.full_name ||
               shipper?.email ||
               "Shipper"}
+          </p>
+          <p className="mt-1 font-mono text-xs font-black text-[#526159]">
+            System account: {shipperBusiness?.account_number || "Pending"}
           </p>
         </div>
 
@@ -362,6 +375,15 @@ export default async function InvoiceDetailPage({
               {invoice.recipient_email ||
                 shipper?.email ||
                 "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase text-[#87938d]">
+              System Account
+            </p>
+            <p className="mt-1 font-mono text-sm font-black">
+              {shipperBusiness?.account_number || "Pending"}
             </p>
           </div>
         </div>

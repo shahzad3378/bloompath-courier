@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
+import { formatMoney } from "@/lib/currency";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 
 export type FinanceActionState = {
@@ -41,6 +43,11 @@ export async function receiveDriverCodAction(
 
   const supabase = await createClient();
 
+  const currency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id,
+  );
+
   const { data: entry } = await supabase
     .from("driver_cod_entries")
     .select("id, outstanding_amount")
@@ -57,7 +64,7 @@ export async function receiveDriverCodAction(
   if (amount > Number(entry.outstanding_amount)) {
     return {
       status: "error",
-      message: `Amount cannot exceed AED ${Number(entry.outstanding_amount).toFixed(2)}.`,
+      message: `Amount cannot exceed ${formatMoney(entry.outstanding_amount, currency)}.`,
     };
   }
 
@@ -118,7 +125,7 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
   const { data: ledgers, error: ledgerError } = await supabase
     .from("finance_ledger")
     .select(
-      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable",
+      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency",
     )
     .in("id", ledgerIds)
     .eq("shipper_id", shipperId);
@@ -138,6 +145,11 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
 
   const now = new Date().toISOString();
 
+  const currency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id,
+  );
+
   const transactionDates = await supabase
     .from("finance_ledger")
     .select("id, transaction_at")
@@ -153,7 +165,7 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
       organization_id: profile.organization_id,
       shipper_id: shipperId,
       status: "draft",
-      currency: "AED",
+      currency,
       period_from: dates[0]?.toISOString() ?? now,
       period_to: dates.at(-1)?.toISOString() ?? now,
       created_by: profile.id,

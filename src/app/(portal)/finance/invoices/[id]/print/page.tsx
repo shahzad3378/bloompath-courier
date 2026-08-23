@@ -97,7 +97,11 @@ export default async function PrintInvoicePage({
   const settlement = relation(invoice.settlement);
   const shipper = relation(invoice.shipper);
 
-  const [{ data: items }, { data: settings }] =
+  const [
+    { data: items },
+    { data: settings },
+    { data: shipperBusiness },
+  ] =
     await Promise.all([
       supabase
         .from("invoice_items")
@@ -133,6 +137,12 @@ export default async function PrintInvoicePage({
           "organization_id",
           profile.organization_id,
         )
+        .maybeSingle(),
+
+      supabase
+        .from("shipper_business_profiles")
+        .select("account_number")
+        .eq("shipper_id", invoice.shipper_id)
         .maybeSingle(),
     ]);
 
@@ -265,6 +275,10 @@ export default async function PrintInvoicePage({
 
             <p className="mt-1 text-sm">
               {shipper?.email || "—"}
+            </p>
+
+            <p className="mt-1 font-mono text-sm font-bold">
+              Account: {shipperBusiness?.account_number || "Pending"}
             </p>
 
             {shipper?.phone ? (

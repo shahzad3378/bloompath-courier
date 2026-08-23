@@ -221,7 +221,7 @@ export default async function NewCourierCompanyPage({
               </label>
 
               <label className="text-xs font-bold text-[#53645c]">
-                Base Currency *
+                Base Currency (auto enforced) *
                 <select
                   name="base_currency"
                   required
@@ -237,6 +237,9 @@ export default async function NewCourierCompanyPage({
                     </option>
                   ))}
                 </select>
+                <span className="mt-1 block text-[10px] font-normal text-[#87938d]">
+                  The primary country&apos;s official currency is saved automatically.
+                </span>
               </label>
             </div>
 

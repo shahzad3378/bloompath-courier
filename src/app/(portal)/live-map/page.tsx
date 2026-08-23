@@ -50,6 +50,7 @@ export default async function LiveMapPage() {
           consignee_name,
           consignee_city,
           cod_amount,
+          currency,
           status,
           assigned_driver_id,
           delivery_latitude,

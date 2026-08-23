@@ -12,8 +12,8 @@ const financeRoles = [
   "finance_staff",
 ] as const;
 
-function money(value: unknown) {
-  return `AED ${Number(value || 0).toFixed(2)}`;
+function money(value: unknown, currency: string) {
+  return `${currency} ${Number(value || 0).toFixed(2)}`;
 }
 
 function date(value: string | null | undefined) {
@@ -111,9 +111,13 @@ export async function GET(
 
   const settlement = relation(invoice.settlement);
   const shipper = relation(invoice.shipper);
+  const currency = invoice.currency || "AED";
 
-  const { data: items, error: itemsError } =
-    await supabase
+  const [
+    { data: items, error: itemsError },
+    { data: shipperBusiness },
+  ] = await Promise.all([
+    supabase
       .from("invoice_items")
       .select(`
         id,
@@ -128,7 +132,13 @@ export async function GET(
         net_payable
       `)
       .eq("invoice_id", invoice.id)
-      .order("id");
+      .order("id"),
+    supabase
+      .from("shipper_business_profiles")
+      .select("account_number")
+      .eq("shipper_id", invoice.shipper_id)
+      .maybeSingle(),
+  ]);
 
   if (itemsError) {
     return new Response(
@@ -364,6 +374,17 @@ export async function GET(
   );
 
   text(
+    `Account: ${shipperBusiness?.account_number || "Pending"}`,
+    margin + 12,
+    y - 59,
+    {
+      size: 8,
+      bold: true,
+      color: grey,
+    },
+  );
+
+  text(
     `Settlement: ${
       settlement?.settlement_number || "-"
     }`,
@@ -551,7 +572,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.cod_collected),
+    money(invoice.cod_collected, currency),
     475,
     y,
     {
@@ -573,7 +594,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.total_delivery_charges),
+    money(invoice.total_delivery_charges, currency),
     475,
     y,
     {
@@ -594,7 +615,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.total_return_charges),
+    money(invoice.total_return_charges, currency),
     475,
     y,
     {
@@ -615,7 +636,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.tax_amount),
+    money(invoice.tax_amount, currency),
     475,
     y,
     {
@@ -646,7 +667,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.total_amount),
+    money(invoice.total_amount, currency),
     465,
     y - 3,
     {
@@ -669,7 +690,7 @@ export async function GET(
   );
 
   text(
-    money(invoice.net_settlement_payable),
+    money(invoice.net_settlement_payable, currency),
     465,
     y,
     {

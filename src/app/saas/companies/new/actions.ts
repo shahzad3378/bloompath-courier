@@ -22,7 +22,7 @@ export async function createCourierCompany(formData: FormData) {
     "primary_country",
   ).toUpperCase();
 
-  const operatingCountries = Array.from(
+  let operatingCountries = Array.from(
     new Set(
       formData
         .getAll("operating_countries")
@@ -31,12 +31,12 @@ export async function createCourierCompany(formData: FormData) {
     ),
   );
 
-  const baseCurrency = text(
+  let baseCurrency = text(
     formData,
     "base_currency",
   ).toUpperCase();
 
-  const supportedCurrencies = Array.from(
+  let supportedCurrencies = Array.from(
     new Set(
       formData
         .getAll("supported_currencies")
@@ -83,15 +83,26 @@ export async function createCourierCompany(formData: FormData) {
     redirect("/saas/companies/new?error=billing");
   }
 
-  if (!operatingCountries.includes(primaryCountry)) {
-    redirect("/saas/companies/new?error=market");
-  }
-
-  if (!supportedCurrencies.includes(baseCurrency)) {
-    redirect("/saas/companies/new?error=market");
-  }
-
   const admin = createAdminClient();
+
+  const { data: primaryMarket } = await admin
+    .from("countries")
+    .select("code, default_currency_code")
+    .eq("code", primaryCountry)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!primaryMarket?.default_currency_code) {
+    redirect("/saas/companies/new?error=market");
+  }
+
+  baseCurrency = primaryMarket.default_currency_code;
+  operatingCountries = Array.from(
+    new Set([...operatingCountries, primaryCountry]),
+  );
+  supportedCurrencies = Array.from(
+    new Set([...supportedCurrencies, baseCurrency]),
+  );
 
   const [
     { data: plan, error: planError },
