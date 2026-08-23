@@ -6,6 +6,8 @@ import {
   ReceiptText,
 } from "lucide-react";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { formatMoney } from "@/lib/currency";
 import {
@@ -13,6 +15,10 @@ import {
   resolveOrganizationCurrency,
 } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = {
   title: "Invoices",
@@ -34,19 +40,20 @@ function relation<T>(
   return value ?? null;
 }
 
-export default async function FinanceInvoicesPage() {
+export default async function FinanceInvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(financeRoles);
+  const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const supabase = await createClient();
 
-  const [
-    { data, error },
-    currency,
-    shipperDirectory,
-  ] = await Promise.all([
-    supabase
-      .from("invoices")
-      .select(`
+  let invoiceQuery = supabase
+    .from("invoices")
+    .select(`
       id,
       invoice_number,
       settlement_id,
@@ -71,13 +78,25 @@ export default async function FinanceInvoicesPage() {
         delivery_charge,
         return_charge
       )
-      `)
-      .order("invoice_date", {
-        ascending: false,
-      })
-      .order("id", {
-        ascending: false,
-      }),
+    `, { count: "exact" })
+    .eq("organization_id", profile.organization_id!)
+    .order("invoice_date", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (params.from) {
+    invoiceQuery = invoiceQuery.gte("invoice_date", params.from);
+  }
+
+  if (params.to) {
+    invoiceQuery = invoiceQuery.lte("invoice_date", params.to);
+  }
+
+  const [
+    { data, error, count },
+    currency,
+    shipperDirectory,
+  ] = await Promise.all([
+    invoiceQuery.range(pagination.from, pagination.to),
     resolveOrganizationCurrency(
       supabase,
       profile.organization_id!,
@@ -201,6 +220,15 @@ export default async function FinanceInvoicesPage() {
           </p>
         </div>
 
+        <DataTableToolbar
+          pathname="/finance/invoices"
+          params={params}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={count ?? 0}
+          dateLabel="Invoice date"
+        />
+
         {error ? (
           <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
             Invoices could not be loaded.
@@ -218,10 +246,11 @@ export default async function FinanceInvoicesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[1450px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-4 py-3">Select</th>
                   <th className="px-4 py-3">Invoice</th>
                   <th className="px-4 py-3">Settlement</th>
                   <th className="px-4 py-3">Shipper</th>
@@ -260,6 +289,14 @@ export default async function FinanceInvoicesPage() {
                       key={row.id}
                       className="bp-table-row"
                     >
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          data-table-row-select
+                          aria-label={`Select ${row.invoice_number}`}
+                          className="size-4 accent-[#13734b]"
+                        />
+                      </td>
                       <td className="px-4 py-4">
                         <Link
                           href={`/finance/invoices/${row.id}`}
@@ -381,7 +418,7 @@ export default async function FinanceInvoicesPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>

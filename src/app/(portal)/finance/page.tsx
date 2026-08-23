@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { ReceiveDriverCodForm } from "@/components/finance-forms";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import {
   createSettlementAction,
   updateSettlementStatusAction,
@@ -20,6 +22,11 @@ import {
 } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseDateBoundary,
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = { title: "COD & Finance" };
 
@@ -92,39 +99,72 @@ type SettlementItemRow = {
   net_payable: number;
 };
 
-export default async function FinancePage() {
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(financeRoles);
+  const filters = await searchParams;
+  const pagination = parseTablePagination(filters);
 
   const supabase = await createClient();
 
+  let codQuery = supabase
+    .from("driver_cod_entries")
+    .select(
+      "id, tracking_number, cod_amount, received_amount, outstanding_amount, delivered_at, cleared_at, driver_id, profiles!driver_cod_entries_driver_id_fkey(full_name, employee_code)",
+      { count: "exact" },
+    )
+    .eq("organization_id", profile.organization_id!)
+    .order("delivered_at", { ascending: false });
+
+  let ledgerQuery = supabase
+    .from("finance_ledger")
+    .select(
+      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency, transaction_type, transaction_at, profiles!finance_ledger_shipper_id_fkey(full_name, email)",
+      { count: "exact" },
+    )
+    .eq("organization_id", profile.organization_id!)
+    .order("transaction_at", { ascending: false });
+
+  let settlementQuery = supabase
+    .from("settlements")
+    .select(
+      "id, settlement_number, shipper_id, status, total_cod, total_delivery_charges, total_return_charges, total_charges, net_payable, currency, period_from, period_to, created_at, profiles!settlements_shipper_id_fkey(full_name, email)",
+      { count: "exact" },
+    )
+    .eq("organization_id", profile.organization_id!)
+    .order("created_at", { ascending: false });
+
+  const from = parseDateBoundary(filters.from);
+  const to = parseDateBoundary(filters.to, true);
+
+  if (from) {
+    codQuery = codQuery.gte("delivered_at", from);
+    ledgerQuery = ledgerQuery.gte("transaction_at", from);
+    settlementQuery = settlementQuery.gte("created_at", from);
+  }
+
+  if (to) {
+    codQuery = codQuery.lte("delivered_at", to);
+    ledgerQuery = ledgerQuery.lte("transaction_at", to);
+    settlementQuery = settlementQuery.lte("created_at", to);
+  }
+
   const [
     { data: codData, error: codError },
-    { data: ledgerData },
+    { data: ledgerData, count: ledgerCount },
     { data: settlementData },
     { data: settlementItemData },
     currency,
     shipperDirectory,
   ] = await Promise.all([
-    supabase
-      .from("driver_cod_entries")
-      .select(
-        "id, tracking_number, cod_amount, received_amount, outstanding_amount, delivered_at, cleared_at, driver_id, profiles!driver_cod_entries_driver_id_fkey(full_name, employee_code)",
-      )
-      .order("delivered_at", { ascending: false }),
+    codQuery.limit(5000),
 
-    supabase
-      .from("finance_ledger")
-      .select(
-        "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency, transaction_type, transaction_at, profiles!finance_ledger_shipper_id_fkey(full_name, email)",
-      )
-      .order("transaction_at", { ascending: false }),
+    ledgerQuery.range(pagination.from, pagination.to),
 
-    supabase
-      .from("settlements")
-      .select(
-        "id, settlement_number, shipper_id, status, total_cod, total_delivery_charges, total_return_charges, total_charges, net_payable, currency, period_from, period_to, created_at, profiles!settlements_shipper_id_fkey(full_name, email)",
-      )
-      .order("created_at", { ascending: false }),
+    settlementQuery.limit(5000),
 
     supabase
       .from("settlement_items")
@@ -147,6 +187,7 @@ export default async function FinancePage() {
   const codRows = (codData ?? []) as unknown as DriverCodRow[];
   const ledgerRows = (ledgerData ?? []) as unknown as FinanceLedgerRow[];
   const settlements = (settlementData ?? []) as unknown as SettlementRow[];
+  const totalTransactionRows = ledgerCount ?? 0;
   const settlementItems =
     (settlementItemData ?? []) as unknown as SettlementItemRow[];
 
@@ -310,6 +351,92 @@ export default async function FinancePage() {
           );
         })}
       </div>
+
+      <section className="mt-7 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
+        <div className="border-b border-[#e8eeeb] px-5 py-4">
+          <h2 className="font-bold text-[#26372f]">
+            Finance transactions
+          </h2>
+          <p className="mt-1 text-xs text-[#87938d]">
+            Date-filtered transaction register with bulk row selection.
+          </p>
+        </div>
+
+        <DataTableToolbar
+          pathname="/finance"
+          params={filters}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={totalTransactionRows}
+          dateLabel="Transaction date"
+        />
+
+        {ledgerRows.length === 0 ? (
+          <p className="p-10 text-center text-sm text-[#87938d]">
+            No finance transactions found for these filters.
+          </p>
+        ) : (
+          <SelectableTable visibleCount={ledgerRows.length}>
+            <table className="w-full min-w-[1150px] text-left text-sm">
+              <thead className="sticky top-0 z-10 border-b border-[#e8eeeb] bg-[#f8faf9] text-[10px] uppercase tracking-wide text-[#77847e]">
+                <tr>
+                  <th className="px-4 py-3">Select</th>
+                  <th className="px-4 py-3">AWB</th>
+                  <th className="px-4 py-3">Shipper</th>
+                  <th className="px-4 py-3">Account</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">COD</th>
+                  <th className="px-4 py-3">Charges</th>
+                  <th className="px-4 py-3">Net payable</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#edf1ef]">
+                {ledgerRows.map((row) => {
+                  const directoryShipper = shipperDirectory.get(row.shipper_id);
+
+                  return (
+                    <tr key={row.id} className="bp-table-row">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          data-table-row-select
+                          aria-label={`Select transaction ${row.tracking_number}`}
+                          className="size-4 accent-[#13734b]"
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono font-black text-[#13734b]">
+                        {row.tracking_number}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-[#26372f]">
+                        {directoryShipper?.name || row.profiles?.full_name || "Shipper"}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-[#526159]">
+                        {directoryShipper?.accountNumber || "Pending"}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#68766f]">
+                        {formatDubaiDate(row.transaction_at)}
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold capitalize text-[#68766f]">
+                        {row.transaction_type.replaceAll("_", " ")}
+                      </td>
+                      <td className="px-4 py-3 font-bold">
+                        {money(row.cod_amount, row.currency)}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-[#b76223]">
+                        {money(row.total_charges, row.currency)}
+                      </td>
+                      <td className="px-4 py-3 font-black text-[#13734b]">
+                        {money(row.net_payable, row.currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </SelectableTable>
+        )}
+      </section>
 
       <section className="mt-7 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
         <div className="border-b border-[#e8eeeb] px-5 py-4">

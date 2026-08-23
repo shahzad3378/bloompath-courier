@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { createInvoiceFromSettlementAction } from "@/app/(portal)/finance/actions";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { formatMoney } from "@/lib/currency";
 import {
@@ -15,6 +17,11 @@ import {
 } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseDateBoundary,
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = { title: "Settlements" };
 
@@ -24,19 +31,20 @@ const financeRoles = [
   "finance_staff",
 ] as const;
 
-export default async function SettlementsPage() {
+export default async function SettlementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(financeRoles);
+  const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const supabase = await createClient();
 
-  const [
-    { data, error },
-    currency,
-    shipperDirectory,
-  ] = await Promise.all([
-    supabase
-      .from("settlements")
-      .select(`
+  let settlementQuery = supabase
+    .from("settlements")
+    .select(`
       id,
       settlement_number,
       shipper_id,
@@ -55,8 +63,21 @@ export default async function SettlementsPage() {
         invoice_number,
         status
       )
-      `)
-      .order("created_at", { ascending: false }),
+    `, { count: "exact" })
+    .eq("organization_id", profile.organization_id!)
+    .order("created_at", { ascending: false });
+
+  const from = parseDateBoundary(params.from);
+  const to = parseDateBoundary(params.to, true);
+  if (from) settlementQuery = settlementQuery.gte("created_at", from);
+  if (to) settlementQuery = settlementQuery.lte("created_at", to);
+
+  const [
+    { data, error, count },
+    currency,
+    shipperDirectory,
+  ] = await Promise.all([
+    settlementQuery.range(pagination.from, pagination.to),
     resolveOrganizationCurrency(
       supabase,
       profile.organization_id!,
@@ -151,6 +172,15 @@ export default async function SettlementsPage() {
           </p>
         </div>
 
+        <DataTableToolbar
+          pathname="/finance/settlements"
+          params={params}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={count ?? 0}
+          dateLabel="Created date"
+        />
+
         {error ? (
           <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
             Settlements could not be loaded.
@@ -160,10 +190,11 @@ export default async function SettlementsPage() {
             No settlements created yet.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-5 py-3">Select</th>
                   <th className="px-5 py-3">Settlement</th>
                   <th className="px-5 py-3">Shipper</th>
                   <th className="px-5 py-3">Account No.</th>
@@ -182,6 +213,14 @@ export default async function SettlementsPage() {
 
                   return (
                   <tr key={row.id} className="bp-table-row">
+                    <td className="px-5 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select ${row.settlement_number}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     <td className="px-5 py-4">
                       <p className="font-mono text-xs font-black text-[#15905c]">
                         {row.settlement_number}
@@ -305,7 +344,7 @@ export default async function SettlementsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>

@@ -9,12 +9,18 @@ import {
   Truck,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
 import {
   formatAed,
   formatDubaiDate,
 } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = {
   title: "Delivery Reports",
@@ -112,6 +118,8 @@ export default async function DeliveryReportsPage({
     shipper?: string;
     driver?: string;
     status?: string;
+    page?: string;
+    page_size?: string;
   }>;
 }) {
   const profile = await requireProfile(
@@ -119,6 +127,7 @@ export default async function DeliveryReportsPage({
   );
 
   const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const now = new Date();
   const todayStart = dubaiDayStartUtc(now);
@@ -213,7 +222,8 @@ export default async function DeliveryReportsPage({
         full_name,
         email
       )
-    `)
+    `, { count: "exact" })
+    .eq("organization_id", profile.organization_id!)
     .is("deleted_at", null)
     .gte("booked_at", startIso)
     .lt("booked_at", endIso)
@@ -246,11 +256,11 @@ export default async function DeliveryReportsPage({
   }
 
   const [
-    { data: shipmentData, error },
+    { data: shipmentData, error, count },
     { data: shippers },
     { data: drivers },
   ] = await Promise.all([
-    shipmentQuery,
+    shipmentQuery.range(pagination.from, pagination.to),
 
     supabase
       .from("profiles")
@@ -490,6 +500,11 @@ export default async function DeliveryReportsPage({
         method="get"
         className="bp-panel mt-6 grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-7"
       >
+        <input
+          type="hidden"
+          name="page_size"
+          value={pagination.pageSize}
+        />
         <select
           name="range"
           defaultValue={range}
@@ -702,6 +717,15 @@ export default async function DeliveryReportsPage({
           </p>
         </div>
 
+        <DataTableToolbar
+          pathname="/reports"
+          params={params as TableSearchParams}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={count ?? 0}
+          showDates={false}
+        />
+
         {error ? (
           <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
             Delivery report could not
@@ -713,10 +737,13 @@ export default async function DeliveryReportsPage({
             these filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[1250px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-4 py-3">
+                    Select
+                  </th>
                   <th className="px-4 py-3">
                     AWB
                   </th>
@@ -756,6 +783,14 @@ export default async function DeliveryReportsPage({
                     key={row.id}
                     className="bp-table-row"
                   >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select ${row.tracking_number}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     <td className="px-4 py-4 font-mono text-xs font-black text-[#15905c]">
                       {row.tracking_number}
                     </td>
@@ -844,7 +879,7 @@ export default async function DeliveryReportsPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>

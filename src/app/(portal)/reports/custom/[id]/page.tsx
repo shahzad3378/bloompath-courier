@@ -5,6 +5,8 @@ import {
   FileText,
 } from "lucide-react";
 import { notFound } from "next/navigation";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import {
@@ -12,6 +14,10 @@ import {
   formatDubaiDate,
 } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = {
   title: "Run Custom Report",
@@ -112,11 +118,14 @@ export default async function RunCustomReportPage({
     status?: string;
     city?: string;
     payment_type?: string;
+    page?: string;
+    page_size?: string;
   }>;
 }) {
   const profile = await requireProfile(internalRoles);
   const { id } = await params;
   const filters = await searchParams;
+  const pagination = parseTablePagination(filters);
 
   if (!/^\d+$/.test(id)) notFound();
 
@@ -166,6 +175,7 @@ export default async function RunCustomReportPage({
     : ["tracking_number", "status"];
 
   let rows: any[] = [];
+  let totalCount = 0;
 
   if (report.data_source === "shipments") {
     let query = db
@@ -195,11 +205,10 @@ export default async function RunCustomReportPage({
           full_name,
           email
         )
-      `)
+      `, { count: "exact" })
       .eq("organization_id", profile.organization_id)
       .is("deleted_at", null)
-      .order("booked_at", { ascending: false })
-      .limit(500);
+      .order("booked_at", { ascending: false });
 
     const from = parseDateStart(filters.from);
     const to = parseDateStart(filters.to);
@@ -244,8 +253,12 @@ export default async function RunCustomReportPage({
       );
     }
 
-    const { data } = await query;
+    const { data, count } = await query.range(
+      pagination.from,
+      pagination.to,
+    );
     rows = data ?? [];
+    totalCount = count ?? 0;
   } else if (report.data_source === "finance") {
     let query = db
       .from("finance_ledger")
@@ -258,10 +271,9 @@ export default async function RunCustomReportPage({
         total_charges,
         net_payable,
         transaction_at
-      `)
+      `, { count: "exact" })
       .eq("organization_id", profile.organization_id)
-      .order("transaction_at", { ascending: false })
-      .limit(500);
+      .order("transaction_at", { ascending: false });
 
     const from = parseDateStart(filters.from);
     const to = parseDateStart(filters.to);
@@ -280,15 +292,18 @@ export default async function RunCustomReportPage({
       );
     }
 
-    const { data } = await query;
+    const { data, count } = await query.range(
+      pagination.from,
+      pagination.to,
+    );
     rows = data ?? [];
+    totalCount = count ?? 0;
   } else if (report.data_source === "settlements") {
     let query = db
       .from("settlements")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("organization_id", profile.organization_id)
-      .order("created_at", { ascending: false })
-      .limit(500);
+      .order("created_at", { ascending: false });
 
     const from = parseDateStart(filters.from);
     const to = parseDateStart(filters.to);
@@ -307,8 +322,12 @@ export default async function RunCustomReportPage({
       );
     }
 
-    const { data } = await query;
+    const { data, count } = await query.range(
+      pagination.from,
+      pagination.to,
+    );
     rows = data ?? [];
+    totalCount = count ?? 0;
   }
 
   const exportParams = new URLSearchParams();
@@ -377,6 +396,11 @@ export default async function RunCustomReportPage({
         method="get"
         className="bp-panel mt-6 grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-7"
       >
+        <input
+          type="hidden"
+          name="page_size"
+          value={pagination.pageSize}
+        />
         <input
           name="from"
           type="date"
@@ -459,6 +483,17 @@ export default async function RunCustomReportPage({
         </button>
       </form>
 
+      <div className="mt-6 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
+        <DataTableToolbar
+          pathname={`/reports/custom/${report.id}`}
+          params={filters as TableSearchParams}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={totalCount}
+          showDates={false}
+        />
+      </div>
+
       <section className="bp-panel mt-6 overflow-hidden">
         <div className="bp-panel-header flex items-center justify-between">
           <div>
@@ -467,7 +502,7 @@ export default async function RunCustomReportPage({
             </h2>
 
             <p className="mt-1 text-xs text-[#87938d]">
-              {rows.length} rows · {columns.length} columns
+              {totalCount.toLocaleString()} rows · {columns.length} columns
             </p>
           </div>
 
@@ -479,10 +514,11 @@ export default async function RunCustomReportPage({
             No records found for these filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-4 py-3">Select</th>
                   {columns.map((column: string) => (
                     <th
                       key={column}
@@ -501,6 +537,14 @@ export default async function RunCustomReportPage({
                     key={row.id ?? `${index}`}
                     className="bp-table-row"
                   >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select row ${index + 1}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     {columns.map((column: string) => (
                       <td
                         key={column}
@@ -513,7 +557,7 @@ export default async function RunCustomReportPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>

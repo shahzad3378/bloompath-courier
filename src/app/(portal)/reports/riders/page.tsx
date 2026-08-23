@@ -7,17 +7,41 @@ import {
   Truck,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseDateBoundary,
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = {
   title: "Rider Reports",
 };
 
-export default async function RiderReportsPage() {
+export default async function RiderReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(internalRoles);
+  const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const supabase = await createClient();
+
+  let shipmentQuery = supabase
+    .from("shipments")
+    .select("assigned_driver_id, status, booked_at")
+    .eq("organization_id", profile.organization_id!)
+    .is("deleted_at", null);
+
+  const from = parseDateBoundary(params.from);
+  const to = parseDateBoundary(params.to, true);
+  if (from) shipmentQuery = shipmentQuery.gte("booked_at", from);
+  if (to) shipmentQuery = shipmentQuery.lte("booked_at", to);
 
   const [
     { data: drivers },
@@ -36,14 +60,7 @@ export default async function RiderReportsPage() {
       .eq("status", "active")
       .order("full_name"),
 
-    supabase
-      .from("shipments")
-      .select(`
-        assigned_driver_id,
-        status
-      `)
-      .eq("organization_id", profile.organization_id)
-      .is("deleted_at", null),
+    shipmentQuery,
   ]);
 
   const shipmentRows = shipments ?? [];
@@ -84,6 +101,12 @@ export default async function RiderReportsPage() {
       deliveryRate,
     };
   });
+
+  const totalRows = rows.length;
+  const visibleRows = rows.slice(
+    pagination.from,
+    pagination.to + 1,
+  );
 
   const totalAssigned = rows.reduce(
     (sum, row) => sum + row.assigned,
@@ -190,15 +213,25 @@ export default async function RiderReportsPage() {
           </p>
         </div>
 
-        {rows.length === 0 ? (
+        <DataTableToolbar
+          pathname="/reports/riders"
+          params={params}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={totalRows}
+          dateLabel="Shipment date"
+        />
+
+        {visibleRows.length === 0 ? (
           <p className="p-10 text-center text-sm text-[#87938d]">
             No active riders available.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={visibleRows.length}>
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-4 py-3">Select</th>
                   <th className="px-4 py-3">Rider</th>
                   <th className="px-4 py-3">Assigned</th>
                   <th className="px-4 py-3">Delivered</th>
@@ -209,11 +242,19 @@ export default async function RiderReportsPage() {
               </thead>
 
               <tbody className="divide-y divide-[#edf1ef]">
-                {rows.map((row) => (
+                {visibleRows.map((row) => (
                   <tr
                     key={row.id}
                     className="bp-table-row"
                   >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select ${row.full_name || row.email}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     <td className="px-4 py-4">
                       <p className="font-bold text-[#34453c]">
                         {row.full_name || row.email}
@@ -250,7 +291,7 @@ export default async function RiderReportsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>

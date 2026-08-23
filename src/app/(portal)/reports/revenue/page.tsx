@@ -7,9 +7,16 @@ import {
   WalletCards,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseDateBoundary,
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = {
   title: "Revenue Reports",
@@ -22,43 +29,56 @@ function money(
   return `${currency} ${Number(value || 0).toFixed(2)}`;
 }
 
-export default async function RevenueReportsPage() {
+export default async function RevenueReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(internalRoles);
+  const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const supabase = await createClient();
 
+  let ledgerQuery = supabase
+    .from("finance_ledger")
+    .select(`
+      id,
+      tracking_number,
+      currency,
+      cod_amount,
+      delivery_charge,
+      return_charge,
+      total_charges,
+      net_payable,
+      transaction_at
+    `, { count: "exact" })
+    .eq("organization_id", profile.organization_id!)
+    .order("transaction_at", { ascending: false });
+
+  let settlementQuery = supabase
+    .from("settlements")
+    .select("id, status, currency, net_payable, created_at")
+    .eq("organization_id", profile.organization_id!);
+
+  const from = parseDateBoundary(params.from);
+  const to = parseDateBoundary(params.to, true);
+  if (from) {
+    ledgerQuery = ledgerQuery.gte("transaction_at", from);
+    settlementQuery = settlementQuery.gte("created_at", from);
+  }
+  if (to) {
+    ledgerQuery = ledgerQuery.lte("transaction_at", to);
+    settlementQuery = settlementQuery.lte("created_at", to);
+  }
+
   const [
-    { data: ledgerData },
+    { data: ledgerData, count },
     { data: settlementData },
     organizationCurrency,
   ] = await Promise.all([
-    supabase
-      .from("finance_ledger")
-      .select(`
-        id,
-        tracking_number,
-        currency,
-        cod_amount,
-        delivery_charge,
-        return_charge,
-        total_charges,
-        net_payable,
-        transaction_at
-      `)
-      .eq("organization_id", profile.organization_id)
-      .order("transaction_at", {
-        ascending: false,
-      }),
-
-    supabase
-      .from("settlements")
-      .select(`
-        id,
-        status,
-        currency,
-        net_payable
-      `)
-      .eq("organization_id", profile.organization_id),
+    ledgerQuery.range(pagination.from, pagination.to),
+    settlementQuery,
     resolveOrganizationCurrency(
       supabase,
       profile.organization_id!,
@@ -203,15 +223,25 @@ export default async function RevenueReportsPage() {
           </p>
         </div>
 
+        <DataTableToolbar
+          pathname="/reports/revenue"
+          params={params}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={count ?? 0}
+          dateLabel="Transaction date"
+        />
+
         {rows.length === 0 ? (
           <p className="p-10 text-center text-sm text-[#87938d]">
             No revenue transactions available.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[950px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-4 py-3">Select</th>
                   <th className="px-4 py-3">
                     AWB
                   </th>
@@ -239,6 +269,14 @@ export default async function RevenueReportsPage() {
                     key={row.id}
                     className="bp-table-row"
                   >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select ${row.tracking_number}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     <td className="px-4 py-4 font-mono text-xs font-black text-[#13734b]">
                       {row.tracking_number}
                     </td>
@@ -281,7 +319,7 @@ export default async function RevenueReportsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
 
         <div className="border-t border-[#edf1ef] bg-[#fafcfb] p-5">

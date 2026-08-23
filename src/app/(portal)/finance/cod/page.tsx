@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { ReceiveDriverCodForm } from "@/components/finance-forms";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
+import { DataTableToolbar } from "@/components/data-table-toolbar";
+import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { formatMoney } from "@/lib/currency";
 import {
@@ -13,6 +15,11 @@ import {
 } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseDateBoundary,
+  parseTablePagination,
+  type TableSearchParams,
+} from "@/lib/table-pagination";
 
 export const metadata = { title: "COD Management" };
 
@@ -22,19 +29,20 @@ const financeRoles = [
   "finance_staff",
 ] as const;
 
-export default async function CodManagementPage() {
+export default async function CodManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<TableSearchParams>;
+}) {
   const profile = await requireProfile(financeRoles);
+  const params = await searchParams;
+  const pagination = parseTablePagination(params);
 
   const supabase = await createClient();
 
-  const [
-    { data, error },
-    currency,
-    shipperDirectory,
-  ] = await Promise.all([
-    supabase
-      .from("driver_cod_entries")
-      .select(`
+  let codQuery = supabase
+    .from("driver_cod_entries")
+    .select(`
       id,
       shipment_id,
       tracking_number,
@@ -48,8 +56,21 @@ export default async function CodManagementPage() {
         full_name,
         employee_code
       )
-    `)
-      .order("delivered_at", { ascending: false }),
+    `, { count: "exact" })
+    .eq("organization_id", profile.organization_id!)
+    .order("delivered_at", { ascending: false });
+
+  const from = parseDateBoundary(params.from);
+  const to = parseDateBoundary(params.to, true);
+  if (from) codQuery = codQuery.gte("delivered_at", from);
+  if (to) codQuery = codQuery.lte("delivered_at", to);
+
+  const [
+    { data, error, count },
+    currency,
+    shipperDirectory,
+  ] = await Promise.all([
+    codQuery.range(pagination.from, pagination.to),
     resolveOrganizationCurrency(
       supabase,
       profile.organization_id!,
@@ -161,6 +182,15 @@ export default async function CodManagementPage() {
           </p>
         </div>
 
+        <DataTableToolbar
+          pathname="/finance/cod"
+          params={params}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={count ?? 0}
+          dateLabel="Delivered date"
+        />
+
         {error ? (
           <p className="p-8 text-center text-sm font-semibold text-[#b74646]">
             COD transactions could not be loaded.
@@ -170,10 +200,11 @@ export default async function CodManagementPage() {
             No COD transactions available.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <SelectableTable visibleCount={rows.length}>
             <table className="w-full min-w-[1000px] text-left text-sm">
               <thead className="bg-[#fafcfb] text-[10px] uppercase tracking-wide text-[#87938d]">
                 <tr>
+                  <th className="px-5 py-3">Select</th>
                   <th className="px-5 py-3">AWB</th>
                   <th className="px-5 py-3">Driver</th>
                   <th className="px-5 py-3">Shipper</th>
@@ -196,6 +227,14 @@ export default async function CodManagementPage() {
 
                   return (
                   <tr key={row.id} className="bp-table-row">
+                    <td className="px-5 py-4">
+                      <input
+                        type="checkbox"
+                        data-table-row-select
+                        aria-label={`Select ${row.tracking_number}`}
+                        className="size-4 accent-[#13734b]"
+                      />
+                    </td>
                     <td className="px-5 py-4 font-mono text-xs font-black text-[#15905c]">
                       {row.tracking_number}
                     </td>
@@ -258,7 +297,7 @@ export default async function CodManagementPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </SelectableTable>
         )}
       </section>
     </div>
