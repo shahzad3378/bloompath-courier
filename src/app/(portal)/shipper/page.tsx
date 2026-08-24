@@ -14,10 +14,9 @@ import {
   Warehouse,
 } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
-import {
-  formatAed,
-  formatDubaiDate,
-} from "@/lib/shipments";
+import { formatMoney } from "@/lib/currency";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
+import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -33,13 +32,6 @@ type ViewKey =
   | "return"
   | "rtos"
   | "cancelled";
-
-function money(
-  value: unknown,
-  currency = "AED",
-) {
-  return `${currency} ${Number(value || 0).toFixed(2)}`;
-}
 
 function statusLabel(status: string) {
   return status.replaceAll("_", " ");
@@ -99,6 +91,7 @@ export default async function ShipperPage({
   const [
     { data: shipmentData },
     { data: invoices },
+    currency,
   ] = await Promise.all([
     supabase
       .from("shipments")
@@ -109,6 +102,7 @@ export default async function ShipperPage({
         consignee_name,
         consignee_city,
         cod_amount,
+        currency,
         payment_type,
         service_type,
         status,
@@ -143,6 +137,7 @@ export default async function ShipperPage({
       .order("invoice_date", {
         ascending: false,
       }),
+    resolveOrganizationCurrency(supabase, profile.organization_id),
   ]);
 
   const latestProofByShipment = new Map<
@@ -497,8 +492,9 @@ export default async function ShipperPage({
                       </td>
 
                       <td className="px-5 py-4 font-bold">
-                        {formatAed(
+                        {formatMoney(
                           Number(shipment.cod_amount || 0),
+                          shipment.currency || currency,
                         )}
                       </td>
 
@@ -593,7 +589,7 @@ export default async function ShipperPage({
                   </p>
 
                   <p className="mt-1 text-lg font-black text-[#26372f]">
-                    {money(
+                    {formatMoney(
                       latestInvoice.total_amount,
                       latestInvoice.currency,
                     )}
@@ -678,9 +674,9 @@ export default async function ShipperPage({
               </p>
 
               <p className="mt-2 text-xl font-black text-[#26372f]">
-                {money(
+                {formatMoney(
                   openInvoiceValue,
-                  invoiceRows[0]?.currency || "AED",
+                  invoiceRows[0]?.currency || currency,
                 )}
               </p>
             </div>

@@ -12,10 +12,12 @@ type ZoneSummary = { name: string; count: number };
 export function FleetRoutePlanner({
   drivers,
   warehouseCount,
+  totalShipmentCount,
   zones,
 }: {
   drivers: Driver[];
   warehouseCount: number;
+  totalShipmentCount: number;
   zones: ZoneSummary[];
 }) {
   const [state, action, pending] = useActionState(autoPlanFleetRoutesAction, initial);
@@ -40,7 +42,8 @@ export function FleetRoutePlanner({
             </div>
             <div className="shrink-0 rounded-xl border border-[#dce8e2] bg-[#f8fbf9] px-4 py-3 text-right">
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">At warehouse</p>
-              <p className="mt-1 text-2xl font-black text-[#13734b]">{warehouseCount}</p>
+              <p className="mt-1 text-2xl font-black text-[#13734b]">{warehouseCount.toLocaleString("en-US")}</p>
+              <p className="mt-1 text-[10px] font-semibold text-[#87938d]">of {totalShipmentCount.toLocaleString("en-US")} total shipments</p>
             </div>
           </div>
 

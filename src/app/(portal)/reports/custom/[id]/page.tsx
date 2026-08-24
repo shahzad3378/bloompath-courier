@@ -9,10 +9,9 @@ import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
-import {
-  formatAed,
-  formatDubaiDate,
-} from "@/lib/shipments";
+import { formatMoney } from "@/lib/currency";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
+import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 import {
   parseTablePagination,
@@ -59,7 +58,7 @@ function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * 86400000);
 }
 
-function renderValue(column: string, row: any) {
+function renderValue(column: string, row: any, currency: string) {
   if (column === "shipper") {
     return (
       row.shipper?.full_name ||
@@ -91,7 +90,7 @@ function renderValue(column: string, row: any) {
       "net_payable",
     ].includes(column)
   ) {
-    return formatAed(Number(row[column] || 0));
+    return formatMoney(Number(row[column] || 0), currency);
   }
 
   if (
@@ -132,7 +131,7 @@ export default async function RunCustomReportPage({
   const supabase = await createClient();
   const db = supabase as any;
 
-  const [{ data: report }, { data: shippers }, { data: drivers }] =
+  const [{ data: report }, { data: shippers }, { data: drivers }, currency] =
     await Promise.all([
       db
         .from("report_definitions")
@@ -166,6 +165,7 @@ export default async function RunCustomReportPage({
         .eq("role", "driver")
         .eq("status", "active")
         .order("full_name"),
+      resolveOrganizationCurrency(supabase, profile.organization_id),
     ]);
 
   if (!report) notFound();
@@ -550,7 +550,7 @@ export default async function RunCustomReportPage({
                         key={column}
                         className="px-4 py-4 capitalize"
                       >
-                        {String(renderValue(column, row))}
+                        {String(renderValue(column, row, currency))}
                       </td>
                     ))}
                   </tr>

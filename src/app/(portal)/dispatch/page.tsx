@@ -35,6 +35,10 @@ export default async function DispatchPage() {
     { data: driverData, error: driverError },
     { data: runData, error },
     { data: warehouseData, error: warehouseError },
+    { count: exactWarehouseCount },
+    { count: totalShipmentCount },
+    { count: activeRouteCount },
+    { count: activeShipmentCount },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -57,6 +61,28 @@ export default async function DispatchPage() {
       .eq("fulfillment_mode", "own_fleet")
       .is("deleted_at", null)
       .limit(5000),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "at_warehouse")
+      .eq("fulfillment_mode", "own_fleet")
+      .is("deleted_at", null),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .is("deleted_at", null),
+    supabase
+      .from("dispatch_runs")
+      .select("id, dispatch_run_items!inner(id)", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .in("status", ["draft", "handed_over"]),
+    supabase
+      .from("dispatch_run_items")
+      .select("id, dispatch_runs!inner(organization_id, status)", { count: "exact", head: true })
+      .eq("dispatch_runs.organization_id", profile.organization_id)
+      .in("dispatch_runs.status", ["draft", "handed_over"]),
   ]);
 
   const drivers = driverData ?? [];
@@ -68,6 +94,12 @@ export default async function DispatchPage() {
     zoneMap.set(name, (zoneMap.get(name) ?? 0) + 1);
   }
   const zoneSummary = Array.from(zoneMap, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  const warehouseCount = exactWarehouseCount ?? warehouseRows.length;
+  const totalCount = totalShipmentCount ?? warehouseCount;
+  const nonEmptyActiveRoutes = activeRouteCount ?? runs.filter((run) => run.status !== "completed" && run.dispatch_run_items.length > 0).length;
+  const routedShipmentCount = activeShipmentCount ?? runs
+    .filter((run) => run.status !== "completed")
+    .reduce((sum, run) => sum + run.dispatch_run_items.length, 0);
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -98,7 +130,8 @@ export default async function DispatchPage() {
 
           <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">Active routes</p>
-            <p className="mt-1 text-2xl font-black text-[#13734b]">{runs.filter((run) => run.status !== "completed").length}</p>
+            <p className="mt-1 text-2xl font-black text-[#13734b]">{nonEmptyActiveRoutes.toLocaleString("en-US")}</p>
+            <p className="mt-1 text-[10px] font-semibold text-[#87938d]">{routedShipmentCount.toLocaleString("en-US")} AWBs routed</p>
           </div>
         </div>
       </div>
@@ -131,7 +164,7 @@ export default async function DispatchPage() {
       {warehouseError ? (
         <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Warehouse route-planning pool could not be loaded.</div>
       ) : (
-        <FleetRoutePlanner drivers={drivers} warehouseCount={warehouseRows.length} zones={zoneSummary} />
+        <FleetRoutePlanner drivers={drivers} warehouseCount={warehouseCount} totalShipmentCount={totalCount} zones={zoneSummary} />
       )}
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">

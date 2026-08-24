@@ -12,10 +12,9 @@ import { requireProfile } from "@/lib/auth";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
-import {
-  formatAed,
-  formatDubaiDate,
-} from "@/lib/shipments";
+import { formatMoney } from "@/lib/currency";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
+import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 import {
   parseTablePagination,
@@ -259,6 +258,7 @@ export default async function DeliveryReportsPage({
     { data: shipmentData, error, count },
     { data: shippers },
     { data: drivers },
+    currency,
   ] = await Promise.all([
     shipmentQuery.range(pagination.from, pagination.to),
 
@@ -287,6 +287,7 @@ export default async function DeliveryReportsPage({
       .eq("role", "driver")
       .eq("status", "active")
       .order("full_name"),
+    resolveOrganizationCurrency(supabase, profile.organization_id),
   ]);
 
   const shipments =
@@ -694,7 +695,7 @@ export default async function DeliveryReportsPage({
           </p>
 
           <p className="mt-1 text-[10px] text-[#87938d]">
-            COD {formatAed(totalCod)}
+            COD {formatMoney(totalCod, currency)}
           </p>
         </div>
       </section>
@@ -871,8 +872,9 @@ export default async function DeliveryReportsPage({
                     </td>
 
                     <td className="px-4 py-4 font-bold">
-                      {formatAed(
+                      {formatMoney(
                         row.cod_amount,
+                        currency,
                       )}
                     </td>
                   </tr>
