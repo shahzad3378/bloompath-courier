@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { optimizeRouteStops } from "@/lib/google-maps";
+import { optimizeRouteStops, parseCoordinatePair } from "@/lib/google-maps";
 import { createClient } from "@/lib/supabase/server";
 
 export type FleetPlanState = {
@@ -168,13 +168,13 @@ export async function autoPlanFleetRoutesAction(
       return { status: "error", message: `Route planning stopped after ${createdRoutes} routes. ${runError?.message ?? "Route could not be created."}` };
     }
 
-    const knownStops = batch.shipments
-      .map((shipment) => ({
-        id: shipment.id,
-        latitude: Number(shipment.delivery_latitude),
-        longitude: Number(shipment.delivery_longitude),
-      }))
-      .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
+    const knownStops = batch.shipments.flatMap((shipment) => {
+      const point = parseCoordinatePair(
+        shipment.delivery_latitude,
+        shipment.delivery_longitude,
+      );
+      return point ? [{ id: shipment.id, ...point }] : [];
+    });
 
     const optimizedShipmentIds = knownStops.length >= 2 ? await optimizeRouteStops(knownStops) : [];
     const optimizedSet = new Set(optimizedShipmentIds);
@@ -203,7 +203,12 @@ export async function autoPlanFleetRoutesAction(
   revalidatePath("/dispatch");
   revalidatePath("/shipments");
 
-  const coordinateCount = shipments.filter((shipment) => Number.isFinite(Number(shipment.delivery_latitude)) && Number.isFinite(Number(shipment.delivery_longitude))).length;
+  const coordinateCount = shipments.filter((shipment) =>
+    parseCoordinatePair(
+      shipment.delivery_latitude,
+      shipment.delivery_longitude,
+    ),
+  ).length;
   const optimizationNote = coordinateCount === shipments.length
     ? "Google stop sequencing was applied to all routes."
     : `${coordinateCount}/${shipments.length} shipments already had coordinates; remaining stops are provisionally ordered by zone/postal code and will be Google-optimized at driver handover.`;

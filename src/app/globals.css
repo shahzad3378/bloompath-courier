@@ -242,3 +242,21 @@ textarea:focus {
 }
 
 @import "leaflet/dist/leaflet.css";
+
+
+/* Number labels used by the dispatcher route map. */
+.bp-route-stop-label {
+  min-width: 22px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+
+.bp-route-stop-label::before {
+  display: none;
+}

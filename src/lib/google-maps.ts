@@ -10,6 +10,39 @@ export type RouteStop = {
   longitude: number;
 };
 
+export function parseCoordinatePair(
+  latitudeValue: unknown,
+  longitudeValue: unknown,
+) {
+  if (
+    latitudeValue === null ||
+    latitudeValue === undefined ||
+    latitudeValue === "" ||
+    longitudeValue === null ||
+    longitudeValue === undefined ||
+    longitudeValue === ""
+  ) {
+    return null;
+  }
+
+  const latitude = Number(latitudeValue);
+  const longitude = Number(longitudeValue);
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180 ||
+    (latitude === 0 && longitude === 0)
+  ) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
 export function buildShipmentAddress(input: {
   address1: string;
   address2?: string | null;
@@ -31,9 +64,18 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
   url.searchParams.set("address", address);
   url.searchParams.set("key", apiKey);
   const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) return null;
-  const payload = (await response.json()) as { status?: string; results?: Array<{ formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }> };
-  if (payload.status !== "OK") return null;
+  if (!response.ok) {
+    console.error("GOOGLE_GEOCODE_ERROR", { httpStatus: response.status });
+    return null;
+  }
+  const payload = (await response.json()) as { status?: string; error_message?: string; results?: Array<{ formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } } }> };
+  if (payload.status !== "OK") {
+    console.error("GOOGLE_GEOCODE_ERROR", {
+      apiStatus: payload.status ?? "UNKNOWN",
+      message: payload.error_message ?? null,
+    });
+    return null;
+  }
   const first = payload.results?.[0];
   const latitude = Number(first?.geometry?.location?.lat);
   const longitude = Number(first?.geometry?.location?.lng);
@@ -51,7 +93,10 @@ function waypoint(stop: RouteStop) {
 
 export async function optimizeRouteStops(stops: RouteStop[]): Promise<number[]> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  const valid = stops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
+  const valid = stops.flatMap((stop) => {
+    const point = parseCoordinatePair(stop.latitude, stop.longitude);
+    return point ? [{ ...stop, ...point }] : [];
+  });
   if (!apiKey || valid.length < 2) return valid.map((stop) => stop.id);
 
   // Compute Routes supports 25 intermediate waypoints. For a courier run larger than

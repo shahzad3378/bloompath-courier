@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, MapPin, PackageCheck, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Check, MapPin, MapPinned, PackageCheck, Trash2, Truck } from "lucide-react";
 import {
   handoverDispatchRunAction,
+  optimizeDispatchRunAction,
   removeDispatchAwbAction,
 } from "@/app/(portal)/dispatch/actions";
 import { DispatchAwbScanForm } from "@/components/dispatch-forms";
+import { DispatchRouteMapActionButton } from "@/components/dispatch-route-map-action-button";
+import { DispatchRouteMapLoader } from "@/components/dispatch-route-map-loader";
 import { requireProfile } from "@/lib/auth";
 import {
   dispatchStatusClass,
@@ -15,6 +18,10 @@ import {
 } from "@/lib/dispatch";
 import { formatMoney } from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
+import {
+  buildShipmentAddress,
+  parseCoordinatePair,
+} from "@/lib/google-maps";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,12 +32,68 @@ type RunWithDriver = DispatchRun & {
   profiles: { full_name: string; employee_code: string | null; phone: string | null } | null;
 };
 
+function buildGoogleMapsLinks(items: DispatchRunItem[]) {
+  const addresses = items
+    .map((item) =>
+      buildShipmentAddress({
+        address1: item.shipments.consignee_address,
+        address2: item.shipments.consignee_address_2,
+        city: item.shipments.consignee_city,
+        stateProvince: item.shipments.consignee_state_province,
+        postalCode: item.shipments.consignee_postal_code,
+        countryCode: item.shipments.consignee_country_code,
+      }),
+    )
+    .filter(Boolean);
+
+  if (addresses.length === 0) return [];
+
+  if (addresses.length === 1) {
+    const url = new URL("https://www.google.com/maps/search/");
+    url.searchParams.set("api", "1");
+    url.searchParams.set("query", addresses[0]);
+    return [{ label: "Google Maps", url: url.toString() }];
+  }
+
+  const links: Array<{ label: string; url: string }> = [];
+  let start = 0;
+
+  while (start < addresses.length - 1) {
+    const segment = addresses.slice(start, start + 9);
+    const url = new URL("https://www.google.com/maps/dir/");
+    url.searchParams.set("api", "1");
+    url.searchParams.set("travelmode", "driving");
+    url.searchParams.set("origin", segment[0]);
+    url.searchParams.set("destination", segment[segment.length - 1]);
+
+    if (segment.length > 2) {
+      url.searchParams.set("waypoints", segment.slice(1, -1).join("|"));
+    }
+
+    links.push({
+      label:
+        addresses.length <= 9
+          ? "Open in Google Maps"
+          : `Google Maps segment ${links.length + 1}`,
+      url: url.toString(),
+    });
+    start += Math.max(1, segment.length - 1);
+  }
+
+  return links;
+}
+
 export default async function DispatchRunPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ handed_over?: string; error?: string }>;
+  searchParams: Promise<{
+    handed_over?: string;
+    error?: string;
+    route_mapped?: string;
+    route_unmapped?: string;
+  }>;
 }) {
   const profile = await requireProfile(dispatchRoles);
   const { id } = await params;
@@ -68,12 +131,48 @@ export default async function DispatchRunPage({
   const items = (itemData ?? []) as unknown as DispatchRunItem[];
   const completed = items.filter((item) => item.completed_at).length;
   const batchNumber = run.route_name.match(/· Batch (\d+)$/)?.[1] ?? null;
+  const orderedItems = [...items].sort(
+    (left, right) =>
+      (left.stop_sequence ?? Number.MAX_SAFE_INTEGER) -
+      (right.stop_sequence ?? Number.MAX_SAFE_INTEGER),
+  );
+  const routeMapStops = orderedItems.flatMap((item, index) => {
+    const point = parseCoordinatePair(
+      item.shipments.delivery_latitude,
+      item.shipments.delivery_longitude,
+    );
+
+    return point
+      ? [{
+          id: item.id,
+          sequence: item.stop_sequence ?? index + 1,
+          trackingNumber: item.shipments.tracking_number,
+          consigneeName: item.shipments.consignee_name,
+          city: item.shipments.consignee_city,
+          completed: Boolean(item.completed_at),
+          ...point,
+        }]
+      : [];
+  });
+  const googleMapsLinks = buildGoogleMapsLinks(orderedItems);
+  const mappedNotice = /^\d+$/.test(notices.route_mapped ?? "")
+    ? Number(notices.route_mapped)
+    : null;
+  const unmappedNotice = /^\d+$/.test(notices.route_unmapped ?? "")
+    ? Number(notices.route_unmapped)
+    : null;
 
   return (
     <div className="mx-auto max-w-[1350px]">
       <Link href="/dispatch" className="mb-4 inline-flex items-center gap-2 text-xs font-bold text-[#587068]"><ArrowLeft className="size-4" /> Back to dispatch</Link>
       {notices.handed_over === "1" ? <div className="mb-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">Route handed over. AWBs are now Out for Delivery on the driver app.</div> : null}
-      {notices.error ? <div className="mb-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Route handover failed. Confirm it has at least one eligible AWB and an active driver.</div> : null}
+      {mappedNotice !== null ? (
+        <div className={`mb-5 rounded-xl border px-4 py-3 text-sm font-semibold ${unmappedNotice === 0 ? "border-[#bfe3cf] bg-[#ebf8f1] text-[#176a47]" : "border-[#efd8aa] bg-[#fff9ed] text-[#805918]"}`}>
+          {mappedNotice} stops mapped and optimized
+          {unmappedNotice ? `; ${unmappedNotice} addresses still need valid coordinates.` : "."}
+        </div>
+      ) : null}
+      {notices.error ? <div className="mb-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">{notices.error === "route_map" ? "Route mapping could not be refreshed." : "Route handover failed. Confirm it has at least one eligible AWB and an active driver."}</div> : null}
 
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div><p className="text-sm font-semibold text-[#188459]">Dispatch route</p><div className="mt-1 flex flex-wrap items-center gap-3"><h1 className="font-mono text-3xl font-black tracking-[-0.035em] text-[#17231e]">{run.run_number}</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${dispatchStatusClass(run.status)}`}>{dispatchStatusLabels[run.status]}</span></div><p className="mt-2 text-sm text-[#74827b]">{run.route_name} · Created {formatDubaiDate(run.created_at)}</p></div>
@@ -86,6 +185,36 @@ export default async function DispatchRunPage({
           this route contains {items.length.toLocaleString("en-US")} AWBs. All active routes contain {(activeShipmentCount ?? items.length).toLocaleString("en-US")} AWBs across {(activeRouteCount ?? 1).toLocaleString("en-US")} non-empty routes.
         </div>
       ) : null}
+
+      <section className="mt-6 overflow-hidden rounded-2xl border border-[#dce6e1] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
+        <div className="flex flex-col justify-between gap-4 border-b border-[#e8eeeb] px-5 py-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e7f4ed] text-[#13734b]">
+              <MapPinned className="size-5" />
+            </span>
+            <div>
+              <h2 className="font-bold text-[#26372f]">Dispatcher route map</h2>
+              <p className="mt-1 text-xs text-[#87938d]">
+                Review Google-sequenced stops before and after driver handover.
+              </p>
+            </div>
+          </div>
+          {run.status !== "completed" ? (
+            <form action={optimizeDispatchRunAction}>
+              <input type="hidden" name="run_id" value={run.id} />
+              <DispatchRouteMapActionButton />
+            </form>
+          ) : null}
+        </div>
+        <div className="p-4 sm:p-5">
+          <DispatchRouteMapLoader
+            runNumber={run.run_number}
+            stops={routeMapStops}
+            totalStops={items.length}
+            googleMapsLinks={googleMapsLinks}
+          />
+        </div>
+      </section>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_340px]">
         <div className="space-y-5">

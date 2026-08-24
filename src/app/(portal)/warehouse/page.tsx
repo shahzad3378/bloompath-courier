@@ -108,6 +108,7 @@ export default async function WarehousePage({
           "*, profiles!shipments_assigned_driver_id_fkey(full_name)",
         )
         .eq("tracking_number", lookupTracking)
+        .eq("organization_id", profile.organization_id)
         .is("deleted_at", null)
         .maybeSingle()
     : { data: null, error: null };
@@ -120,10 +121,16 @@ export default async function WarehousePage({
     { data: returnData, error: returnError },
     { data: warehouseData, error: warehouseError },
     { data: rtoData, error: rtoError },
+    { count: totalShipmentCount },
+    { count: bookedShipmentCount },
+    { count: atWarehouseCount },
+    { count: outForDeliveryCount },
+    { count: deliveredCount },
   ] = await Promise.all([
     supabase
       .from("pickup_manifests")
       .select("*, pickup_manifest_items(id, received_at)")
+      .eq("organization_id", profile.organization_id)
       .in("status", ["picked_up", "partially_received"])
       .order("picked_up_at", { ascending: true }),
 
@@ -132,6 +139,7 @@ export default async function WarehousePage({
       .select(
         "*, profiles!shipments_assigned_driver_id_fkey(full_name)",
       )
+      .eq("organization_id", profile.organization_id)
       .in("status", ["undelivered", "return_initiated"])
       .not("assigned_driver_id", "is", null)
       .is("deleted_at", null)
@@ -140,6 +148,7 @@ export default async function WarehousePage({
     supabase
       .from("shipments")
       .select("*")
+      .eq("organization_id", profile.organization_id)
       .eq("status", "at_warehouse")
       .is("deleted_at", null)
       .order("updated_at", { ascending: true }),
@@ -147,10 +156,40 @@ export default async function WarehousePage({
     supabase
       .from("shipments")
       .select("*")
+      .eq("organization_id", profile.organization_id)
       .eq("status", "return_initiated")
       .is("assigned_driver_id", null)
       .is("deleted_at", null)
       .order("updated_at", { ascending: true }),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .is("deleted_at", null),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "booked")
+      .is("deleted_at", null),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "at_warehouse")
+      .is("deleted_at", null),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "out_for_delivery")
+      .is("deleted_at", null),
+    supabase
+      .from("shipments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "delivered")
+      .is("deleted_at", null),
   ]);
 
   const manifests = (manifestData ?? []) as WarehouseManifest[];
@@ -300,13 +339,16 @@ export default async function WarehousePage({
   if (view === "dispatch_ready")
     visibleInventory = dispatchReadyInventory;
 
+  const exactWarehouseCount =
+    (atWarehouseCount ?? warehouseData?.length ?? 0) +
+    (rtoData?.length ?? 0);
   const tabs = [
-    ["all", "All in Warehouse", warehouseInventory.length],
+    ["all", "All in Warehouse", exactWarehouseCount],
     ["new", "New Pickup", newPickupInventory.length],
     ["driver_returns", "Driver Returns", pendingReturns.length],
     ["reattempt", "Reattempt Ready", reattemptInventory.length],
     ["rto", "RTO Ready", rtoInventory.length],
-    ["dispatch_ready", "Dispatch Ready", dispatchReadyInventory.length],
+    ["dispatch_ready", "Dispatch Ready", atWarehouseCount ?? dispatchReadyInventory.length],
   ] as const;
 
   return (
@@ -347,6 +389,13 @@ export default async function WarehousePage({
             </Link>
           ))}
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-[#dce6e1] bg-white px-4 py-3 text-xs font-semibold text-[#68766f]">
+        <span><strong className="text-[#26372f]">{(totalShipmentCount ?? exactWarehouseCount).toLocaleString("en-US")}</strong> total system shipments</span>
+        <span><strong className="text-[#a56b19]">{(bookedShipmentCount ?? 0).toLocaleString("en-US")}</strong> awaiting warehouse receive scan</span>
+        <span><strong className="text-[#376eb1]">{(outForDeliveryCount ?? 0).toLocaleString("en-US")}</strong> out for delivery</span>
+        <span><strong className="text-[#13734b]">{(deliveredCount ?? 0).toLocaleString("en-US")}</strong> delivered</span>
       </div>
 
       <section className="mt-7 rounded-2xl border border-[#dce6e1] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">

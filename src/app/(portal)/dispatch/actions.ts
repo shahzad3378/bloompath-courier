@@ -4,7 +4,13 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
-import { buildShipmentAddress, geocodeAddress, optimizeRouteStops } from "@/lib/google-maps";
+import {
+  buildShipmentAddress,
+  geocodeAddress,
+  geocodeInBatches,
+  optimizeRouteStops,
+  parseCoordinatePair,
+} from "@/lib/google-maps";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -65,70 +71,182 @@ export async function removeDispatchAwbAction(formData: FormData): Promise<void>
   revalidatePath("/dispatch");
 }
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+async function mapAndOptimizeDispatchRun(
+  supabase: SupabaseServerClient,
+  runId: number,
+  organizationId: string,
+) {
+  const { data: items } = await supabase
+    .from("dispatch_run_items")
+    .select("id, created_at, shipment_id, shipments(id, delivery_latitude, delivery_longitude, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code)")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
+
+  const allItems = (items ?? []) as any[];
+  const routeStopByItem = new Map<
+    number,
+    { id: number; latitude: number; longitude: number }
+  >();
+
+  await geocodeInBatches(
+    allItems,
+    async (item) => {
+      const shipment = Array.isArray(item.shipments)
+        ? item.shipments[0]
+        : item.shipments;
+      if (!shipment) return;
+
+      let point = parseCoordinatePair(
+        shipment.delivery_latitude,
+        shipment.delivery_longitude,
+      );
+
+      if (!point) {
+        const address = buildShipmentAddress({
+          address1: shipment.consignee_address,
+          address2: shipment.consignee_address_2,
+          city: shipment.consignee_city,
+          stateProvince: shipment.consignee_state_province,
+          postalCode: shipment.consignee_postal_code,
+          countryCode: shipment.consignee_country_code,
+        });
+        const geocoded = await geocodeAddress(address);
+
+        if (geocoded) {
+          point = {
+            latitude: geocoded.latitude,
+            longitude: geocoded.longitude,
+          };
+          await supabase
+            .from("shipments")
+            .update({
+              delivery_latitude: point.latitude,
+              delivery_longitude: point.longitude,
+            })
+            .eq("id", shipment.id)
+            .eq("organization_id", organizationId);
+        }
+      }
+
+      if (point) {
+        routeStopByItem.set(Number(item.id), {
+          id: Number(item.id),
+          ...point,
+        });
+      }
+    },
+    5,
+  );
+
+  const routeStops = allItems.flatMap((item) => {
+    const stop = routeStopByItem.get(Number(item.id));
+    return stop ? [stop] : [];
+  });
+  const optimizedIds = await optimizeRouteStops(routeStops);
+  const optimizedSet = new Set(optimizedIds);
+  const fallbackIds = allItems
+    .map((item) => Number(item.id))
+    .filter((itemId) => !optimizedSet.has(itemId));
+  const sequence = [...optimizedIds, ...fallbackIds];
+  const optimizedAt = new Date().toISOString();
+
+  for (let offset = 0; offset < sequence.length; offset += 25) {
+    await Promise.all(
+      sequence.slice(offset, offset + 25).map((itemId, batchIndex) =>
+        supabase
+          .from("dispatch_run_items")
+          .update({
+            stop_sequence: offset + batchIndex + 1,
+            optimized_at: optimizedSet.has(itemId) ? optimizedAt : null,
+          })
+          .eq("id", itemId)
+          .eq("run_id", runId),
+      ),
+    );
+  }
+
+  return {
+    totalStops: allItems.length,
+    mappedStops: routeStops.length,
+    unmappedStops: allItems.length - routeStops.length,
+  };
+}
+
+export async function optimizeDispatchRunAction(
+  formData: FormData,
+): Promise<void> {
+  const profile = await requireProfile(dispatchRoles);
+  const runId = numericId(formData, "run_id");
+  if (!runId || !profile.organization_id) {
+    redirect("/dispatch?error=invalid");
+  }
+
+  const supabase = await createClient();
+  const { data: run } = await supabase
+    .from("dispatch_runs")
+    .select("id")
+    .eq("id", Number(runId))
+    .eq("organization_id", profile.organization_id)
+    .in("status", ["draft", "handed_over"])
+    .maybeSingle();
+
+  if (!run) {
+    redirect(`/dispatch/${runId}?error=route_map`);
+  }
+
+  const summary = await mapAndOptimizeDispatchRun(
+    supabase,
+    Number(runId),
+    profile.organization_id,
+  );
+
+  revalidatePath(`/dispatch/${runId}`);
+  redirect(
+    `/dispatch/${runId}?route_mapped=${summary.mappedStops}&route_unmapped=${summary.unmappedStops}`,
+  );
+}
+
 export async function handoverDispatchRunAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(dispatchRoles);
   const runId = numericId(formData, "run_id");
   if (!runId || !profile.organization_id) redirect("/dispatch?error=invalid");
   const supabase = await createClient();
 
-  const { data: items } = await supabase
-    .from("dispatch_run_items")
-    .select("id, created_at, shipment_id, shipments(id, delivery_latitude, delivery_longitude, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code)")
-    .eq("run_id", Number(runId))
-    .order("created_at", { ascending: true });
+  const { data: run } = await supabase
+    .from("dispatch_runs")
+    .select("id")
+    .eq("id", Number(runId))
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "draft")
+    .maybeSingle();
 
-  const allItems = items ?? [];
-  const routeStops: Array<{ id: number; latitude: number; longitude: number }> = [];
+  if (!run) redirect(`/dispatch/${runId}?error=handover`);
 
-  for (const item of allItems as any[]) {
-    const shipment = Array.isArray(item.shipments) ? item.shipments[0] : item.shipments;
-    if (!shipment) continue;
-    let latitude = Number(shipment.delivery_latitude);
-    let longitude = Number(shipment.delivery_longitude);
+  const summary = await mapAndOptimizeDispatchRun(
+    supabase,
+    Number(runId),
+    profile.organization_id,
+  );
 
-    if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && process.env.GOOGLE_MAPS_API_KEY) {
-      const address = buildShipmentAddress({
-        address1: shipment.consignee_address,
-        address2: shipment.consignee_address_2,
-        city: shipment.consignee_city,
-        stateProvince: shipment.consignee_state_province,
-        postalCode: shipment.consignee_postal_code,
-        countryCode: shipment.consignee_country_code,
-      });
-      const point = await geocodeAddress(address);
-      if (point) {
-        latitude = point.latitude;
-        longitude = point.longitude;
-        await supabase
-          .from("shipments")
-          .update({ delivery_latitude: latitude, delivery_longitude: longitude })
-          .eq("id", shipment.id)
-          .eq("organization_id", profile.organization_id);
-      }
-    }
-
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      routeStops.push({ id: Number(item.id), latitude, longitude });
-    }
-  }
-
-  const optimizedIds = await optimizeRouteStops(routeStops);
-  const optimizedSet = new Set(optimizedIds);
-  const fallbackIds = allItems.map((item: any) => Number(item.id)).filter((id) => !optimizedSet.has(id));
-  const sequence = [...optimizedIds, ...fallbackIds];
-
-  for (let index = 0; index < sequence.length; index += 1) {
-    await supabase.from("dispatch_run_items").update({ stop_sequence: index + 1 }).eq("id", sequence[index]).eq("run_id", Number(runId));
-  }
-
-  const { data, error } = await supabase.from("dispatch_runs").update({ status: "handed_over" }).eq("id", runId).eq("status", "draft").select("id").maybeSingle();
+  const { data, error } = await supabase
+    .from("dispatch_runs")
+    .update({ status: "handed_over" })
+    .eq("id", Number(runId))
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
   if (error || !data) redirect(`/dispatch/${runId}?error=handover`);
 
   revalidatePath("/dispatch");
   revalidatePath(`/dispatch/${runId}`);
   revalidatePath("/driver");
   revalidatePath("/shipments");
-  redirect(`/dispatch/${runId}?handed_over=1&optimized=1`);
+  redirect(
+    `/dispatch/${runId}?handed_over=1&route_mapped=${summary.mappedStops}&route_unmapped=${summary.unmappedStops}`,
+  );
 }
 
 export async function completeDeliveryAction(_state: DispatchActionState, formData: FormData): Promise<DispatchActionState> {
