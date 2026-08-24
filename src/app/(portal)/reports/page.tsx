@@ -287,7 +287,7 @@ export default async function DeliveryReportsPage({
       .eq("role", "driver")
       .eq("status", "active")
       .order("full_name"),
-    resolveOrganizationCurrency(supabase, profile.organization_id),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
   ]);
 
   const shipments =

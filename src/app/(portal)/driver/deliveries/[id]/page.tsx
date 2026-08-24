@@ -19,7 +19,7 @@ export default async function DriverDeliveryPage({ params }: { params: Promise<{
   const supabase = await createClient();
   const [{ data }, currency] = await Promise.all([
     supabase.from("dispatch_run_items").select("*, shipments(*), dispatch_runs!inner(*)").eq("id", id).maybeSingle(),
-    resolveOrganizationCurrency(supabase, profile.organization_id),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
   ]);
   if (!data) notFound();
   const delivery = data as unknown as DriverDelivery;

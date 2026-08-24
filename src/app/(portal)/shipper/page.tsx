@@ -137,7 +137,7 @@ export default async function ShipperPage({
       .order("invoice_date", {
         ascending: false,
       }),
-    resolveOrganizationCurrency(supabase, profile.organization_id),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
   ]);
 
   const latestProofByShipment = new Map<

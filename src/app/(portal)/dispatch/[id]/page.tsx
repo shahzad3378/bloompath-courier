@@ -51,7 +51,7 @@ export default async function DispatchRunPage({
       .eq("organization_id", profile.organization_id)
       .maybeSingle(),
     supabase.from("dispatch_run_items").select("*, shipments(*)").eq("run_id", id).order("created_at", { ascending: true }),
-    resolveOrganizationCurrency(supabase, profile.organization_id),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
     supabase
       .from("dispatch_runs")
       .select("id, dispatch_run_items!inner(id)", { count: "exact", head: true })

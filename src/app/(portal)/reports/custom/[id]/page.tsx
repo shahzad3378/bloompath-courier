@@ -165,7 +165,7 @@ export default async function RunCustomReportPage({
         .eq("role", "driver")
         .eq("status", "active")
         .order("full_name"),
-      resolveOrganizationCurrency(supabase, profile.organization_id),
+      resolveOrganizationCurrency(supabase, profile.organization_id!),
     ]);
 
   if (!report) notFound();

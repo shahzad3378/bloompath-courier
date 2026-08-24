@@ -46,7 +46,7 @@ export default async function ShipmentDetailsPage({
       .select("id, shipment_id, attempt_number, outcome, undelivered_reason, notes, proof_path, performed_by, created_at")
       .eq("shipment_id", id)
       .order("attempt_number", { ascending: true }),
-    resolveOrganizationCurrency(supabase, profile.organization_id),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
   ]);
   if (!data) notFound();
   const shipment = data as Shipment;
