@@ -12,6 +12,7 @@ This contract records observable workflow behavior for the authenticated courier
 | Shipment custody | Shipment status plus warehouse receive scan | “In warehouse” means physical custody, not every shipment in the system. |
 | Dispatch route | `dispatch_runs` and `dispatch_run_items.stop_sequence` | A route shows assigned AWBs, mapped stops, unmapped stops, driver, and progress separately. |
 | Route visualization | Shared dispatcher route-map component | Client-only map loading, numbered stops, text sequence, and Google Maps driving links. |
+| Route optimization overview | `/dispatch/route-optimization` plus shared map loader | Show unassigned warehouse pool, active routes, missing-coordinate count, and latest active-driver GPS without mixing scopes. |
 | Operational feedback | Inline page banners and stable loading panels | Success, partial success, and recovery guidance remain visible in text. |
 | Currency | Organization base currency with shipment override | No screen hardcodes AED for a non-AED tenant. |
 
@@ -33,6 +34,8 @@ This contract records observable workflow behavior for the authenticated courier
 5. Handover repeats the same safe mapping step, then changes eligible AWBs to Out for Delivery.
 6. Dispatcher can review the numbered route overview and open address segments in Google Maps.
 7. Missing coordinates never become the placeholder point (0,0).
+8. The route-optimization view displays dispatch-ready unassigned AWBs, route-assigned AWBs, active drivers, and missing coordinates as separate counts.
+9. Automatic planning remains a deliberate dispatcher action and creates draft routes; it does not bypass warehouse custody or handover.
 
 ## Loading, empty, and recovery states
 
