@@ -201,6 +201,7 @@ export async function autoPlanFleetRoutesAction(
   }
 
   revalidatePath("/dispatch");
+  revalidatePath("/dispatch/route-optimization");
   revalidatePath("/shipments");
 
   const coordinateCount = shipments.filter((shipment) =>
