@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  MapPinned,
   Route,
   Truck,
   UserPlus,
@@ -119,6 +120,14 @@ export default async function DispatchPage() {
               Add Driver
             </Link>
           ) : null}
+
+          <Link
+            href="/dispatch/route-optimization"
+            className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#bcd9ca] bg-white px-4 text-sm font-bold text-[#13734b] transition hover:bg-[#edf7f2] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2b9466]/15"
+          >
+            <MapPinned className="size-4" />
+            Route Optimization
+          </Link>
 
           <Link
             href="/dispatch/3pl"
