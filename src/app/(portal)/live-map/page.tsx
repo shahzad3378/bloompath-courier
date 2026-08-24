@@ -2,7 +2,7 @@ import { MapPinned, RadioTower } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
-import { LiveOperationsMap } from "@/components/live-operations-map";
+import { LiveOperationsMapLoader } from "@/components/live-operations-map-loader";
 
 export const metadata = {
   title: "Live Operations Map",
@@ -58,17 +58,35 @@ export default async function LiveMapPage() {
         `)
         .eq("organization_id", profile.organization_id)
         .eq("status", "out_for_delivery")
-        .is("deleted_at", null)
-        .not("delivery_latitude", "is", null)
-        .not("delivery_longitude", "is", null),
+        .is("deleted_at", null),
     ]);
 
-  const shipments = (shipmentData ?? []).map((row: any) => ({
-    ...row,
-    delivery_latitude: Number(row.delivery_latitude),
-    delivery_longitude: Number(row.delivery_longitude),
-    cod_amount: Number(row.cod_amount || 0),
-  }));
+  const assignedShipments = shipmentData ?? [];
+  const shipments = assignedShipments.flatMap((row: any) => {
+    if (
+      row.delivery_latitude === null ||
+      row.delivery_latitude === undefined ||
+      row.delivery_longitude === null ||
+      row.delivery_longitude === undefined
+    ) {
+      return [];
+    }
+
+    const latitude = Number(row.delivery_latitude);
+    const longitude = Number(row.delivery_longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return [];
+    }
+
+    return [{
+      ...row,
+      delivery_latitude: latitude,
+      delivery_longitude: longitude,
+      cod_amount: Number(row.cod_amount || 0),
+    }];
+  });
+  const unmappedStopCount = assignedShipments.length - shipments.length;
 
   const drivers = (locationData ?? []).map((row: any) => ({
     driver_id: row.driver_id,
@@ -88,7 +106,7 @@ export default async function LiveMapPage() {
       row.driver?.full_name ||
       row.driver?.email ||
       "Driver",
-    assigned_count: shipments.filter(
+    assigned_count: assignedShipments.filter(
       (shipment: any) =>
         shipment.assigned_driver_id === row.driver_id,
     ).length,
@@ -118,9 +136,11 @@ export default async function LiveMapPage() {
         </div>
       </div>
 
-      <LiveOperationsMap
+      <LiveOperationsMapLoader
         initialDrivers={drivers}
         shipments={shipments}
+        totalDeliveryStops={assignedShipments.length}
+        unmappedStopCount={unmappedStopCount}
         organizationId={profile.organization_id}
       />
     </div>

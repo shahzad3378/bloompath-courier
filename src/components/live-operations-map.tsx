@@ -9,7 +9,7 @@ import {
 } from "react-leaflet";
 import { createClient } from "@/lib/supabase/client";
 
-type DriverLocation = {
+export type DriverLocation = {
   driver_id: string;
   latitude: number;
   longitude: number;
@@ -22,7 +22,7 @@ type DriverLocation = {
   assigned_count: number;
 };
 
-type ShipmentMarker = {
+export type ShipmentMarker = {
   id: number;
   tracking_number: string;
   consignee_name: string;
@@ -35,9 +35,11 @@ type ShipmentMarker = {
   delivery_longitude: number;
 };
 
-type Props = {
+export type LiveOperationsMapProps = {
   initialDrivers: DriverLocation[];
   shipments: ShipmentMarker[];
+  totalDeliveryStops: number;
+  unmappedStopCount: number;
   organizationId: string;
 };
 
@@ -53,12 +55,23 @@ function dubaiTime(value: string) {
 export function LiveOperationsMap({
   initialDrivers,
   shipments,
+  totalDeliveryStops,
+  unmappedStopCount,
   organizationId,
-}: Props) {
+}: LiveOperationsMapProps) {
   const [drivers, setDrivers] =
     useState<DriverLocation[]>(initialDrivers);
 
   const supabase = useMemo(() => createClient(), []);
+  const assignedCountByDriver = useMemo(
+    () => new Map(
+      initialDrivers.map((driver) => [
+        driver.driver_id,
+        driver.assigned_count,
+      ]),
+    ),
+    [initialDrivers],
+  );
 
   useEffect(() => {
     const channel = supabase
@@ -116,10 +129,7 @@ export function LiveOperationsMap({
                 row.driver?.email ||
                 "Driver",
               assigned_count:
-                shipments.filter(
-                  (shipment) =>
-                    shipment.assigned_driver_id === row.driver_id,
-                ).length,
+                assignedCountByDriver.get(row.driver_id) ?? 0,
             })),
           );
         },
@@ -129,7 +139,7 @@ export function LiveOperationsMap({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [organizationId, shipments, supabase]);
+  }, [assignedCountByDriver, organizationId, supabase]);
 
   const center: [number, number] =
     drivers.length > 0
@@ -171,8 +181,17 @@ export function LiveOperationsMap({
             Delivery stops
           </p>
           <p className="mt-2 text-2xl font-black text-[#26372f]">
-            {shipments.length}
+            {totalDeliveryStops}
           </p>
+          {unmappedStopCount > 0 ? (
+            <p className="mt-1 text-[10px] font-semibold text-[#a56b19]">
+              {unmappedStopCount} awaiting coordinates
+            </p>
+          ) : (
+            <p className="mt-1 text-[10px] font-semibold text-[#87938d]">
+              All stops mapped
+            </p>
+          )}
         </div>
 
         <div className="rounded-2xl border border-[#e0e8e4] bg-white p-4">
@@ -181,6 +200,9 @@ export function LiveOperationsMap({
           </p>
           <p className="mt-2 text-sm font-black text-[#13734b]">
             Realtime connected
+          </p>
+          <p className="mt-1 text-[10px] font-semibold text-[#87938d]">
+            {shipments.length} mapped stops
           </p>
         </div>
       </div>
