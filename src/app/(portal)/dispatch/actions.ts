@@ -15,6 +15,12 @@ import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export type DispatchActionState = { status: "idle" | "success" | "error"; message: string };
+export type CancelDraftRoutesState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  cancelledRoutes?: number;
+  releasedShipments?: number;
+};
 const dispatchRoles = ["super_admin", "operations_admin", "warehouse_staff", "dispatcher"] as const;
 const proofMimeTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"]]);
 
@@ -61,14 +67,113 @@ export async function addDispatchAwbAction(_state: DispatchActionState, formData
 }
 
 export async function removeDispatchAwbAction(formData: FormData): Promise<void> {
-  await requireProfile(dispatchRoles);
+  const profile = await requireProfile(dispatchRoles);
   const runId = numericId(formData, "run_id");
   const itemId = numericId(formData, "item_id");
-  if (!runId || !itemId) return;
+  if (!profile.organization_id || !runId || !itemId) return;
+
   const supabase = await createClient();
+  const { data: draftRun } = await supabase
+    .from("dispatch_runs")
+    .select("id")
+    .eq("id", runId)
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "draft")
+    .maybeSingle();
+  if (!draftRun) return;
+
   await supabase.from("dispatch_run_items").delete().eq("id", itemId).eq("run_id", runId);
   revalidatePath(`/dispatch/${runId}`);
   revalidatePath("/dispatch");
+  revalidatePath("/dispatch/route-optimization");
+  revalidatePath("/warehouse");
+}
+
+export async function cancelDraftRoutesAction(
+  _state: CancelDraftRoutesState,
+  formData: FormData,
+): Promise<CancelDraftRoutesState> {
+  const profile = await requireProfile(dispatchRoles);
+  if (!profile.organization_id) {
+    return { status: "error", message: "Organization could not be identified." };
+  }
+
+  const routeIds = Array.from(
+    new Set(
+      formData
+        .getAll("route_ids")
+        .map((value) => String(value))
+        .filter((value) => /^\d+$/.test(value))
+        .map(Number)
+        .filter((value) => Number.isSafeInteger(value) && value > 0),
+    ),
+  );
+
+  if (routeIds.length === 0) {
+    return { status: "error", message: "Select at least one draft route." };
+  }
+  if (routeIds.length > 100) {
+    return { status: "error", message: "A maximum of 100 draft routes can be cancelled at once." };
+  }
+
+  const supabase = await createClient();
+  const db = supabase as any;
+  const { data: selectedRuns, error: selectedError } = await supabase
+    .from("dispatch_runs")
+    .select("id,status")
+    .eq("organization_id", profile.organization_id)
+    .in("id", routeIds);
+
+  if (selectedError || !selectedRuns || selectedRuns.length !== routeIds.length) {
+    return { status: "error", message: "One or more selected routes could not be found." };
+  }
+
+  const lockedRoutes = selectedRuns.filter((run) => run.status !== "draft");
+  if (lockedRoutes.length > 0) {
+    return {
+      status: "error",
+      message: "Only draft routes can be cancelled. With-driver and completed routes stay locked for delivery audit.",
+    };
+  }
+
+  const cancelledAt = new Date().toISOString();
+  const { data: cancelledRuns, error: cancelError } = await db
+    .from("dispatch_runs")
+    .update({
+      status: "cancelled",
+      cancelled_by: profile.id,
+      cancelled_at: cancelledAt,
+      updated_at: cancelledAt,
+    })
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "draft")
+    .in("id", routeIds)
+    .select("id");
+
+  if (cancelError || !cancelledRuns || cancelledRuns.length === 0) {
+    return { status: "error", message: "The selected draft routes could not be cancelled. Refresh and try again." };
+  }
+
+  const cancelledIds = cancelledRuns.map((run: { id: number }) => Number(run.id));
+  const { count: releasedShipments } = await db
+    .from("dispatch_run_items")
+    .select("id", { count: "exact", head: true })
+    .in("run_id", cancelledIds);
+
+  revalidatePath("/dispatch");
+  revalidatePath("/dispatch/route-optimization");
+  revalidatePath("/warehouse");
+  revalidatePath("/shipments");
+  for (const routeId of cancelledIds) revalidatePath(`/dispatch/${routeId}`);
+
+  const cancelledCount = cancelledIds.length;
+  const shipmentCount = releasedShipments ?? 0;
+  return {
+    status: "success",
+    message: `${cancelledCount} draft route${cancelledCount === 1 ? "" : "s"} cancelled. ${shipmentCount} shipment${shipmentCount === 1 ? "" : "s"} released back to route planning.`,
+    cancelledRoutes: cancelledCount,
+    releasedShipments: shipmentCount,
+  };
 }
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
