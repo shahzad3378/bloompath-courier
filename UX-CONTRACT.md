@@ -13,6 +13,8 @@ This contract records observable workflow behavior for the authenticated courier
 | Dispatch route | `dispatch_runs` and `dispatch_run_items.stop_sequence` | A route shows assigned AWBs, mapped stops, unmapped stops, driver, and progress separately. |
 | Route visualization | Shared dispatcher route-map component | Client-only map loading, numbered stops, text sequence, and Google Maps driving links. |
 | Route optimization overview | `/dispatch/route-optimization` plus shared map loader | Show unassigned warehouse pool, active routes, missing-coordinate count, and latest active-driver GPS without mixing scopes. |
+| Draft route selection | Draft route manager | Checkboxes select only the draft routes shown, report exact selected route/shipment counts, and use an app-owned confirmation for cancellation. |
+| Route cancellation | Server-authorized dispatch transition | Only draft routes may be cancelled; route records/items remain for audit while warehouse-ready AWBs return to route planning. With-driver and completed routes stay locked. |
 | Operational feedback | Inline page banners and stable loading panels | Success, partial success, and recovery guidance remain visible in text. |
 | Currency | Organization base currency with shipment override | No screen hardcodes AED for a non-AED tenant. |
 
@@ -36,6 +38,9 @@ This contract records observable workflow behavior for the authenticated courier
 7. Missing coordinates never become the placeholder point (0,0).
 8. The route-optimization view displays dispatch-ready unassigned AWBs, route-assigned AWBs, active drivers, and missing coordinates as separate counts.
 9. Automatic planning remains a deliberate dispatcher action and creates draft routes; it does not bypass warehouse custody or handover.
+10. A dispatcher may remove a single AWB from a draft route or bulk-cancel selected draft routes.
+11. Cancelling preserves the route and item history, records actor and timestamp, and releases its warehouse-ready AWBs back to the optimization pool.
+12. With-driver and completed routes cannot be cancelled through the draft cancellation workflow.
 
 ## Loading, empty, and recovery states
 
@@ -47,6 +52,7 @@ This contract records observable workflow behavior for the authenticated courier
 ## Accessibility and responsive behavior
 
 - Actions use semantic buttons and links with visible focus.
+- Dangerous bulk actions name the selected scope and consequence in an app-owned modal; initial focus lands on “Keep routes,” Escape closes, and focus returns to the trigger.
 - Route markers are backed by a text sequence list.
 - Color never carries the only status meaning.
 - Desktop route map and sequence collapse into a vertical layout on narrow screens.
