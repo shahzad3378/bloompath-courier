@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MapPinned, Route, Truck } from "lucide-react";
 import { DispatchOptimizationMapLoader } from "@/components/dispatch-optimization-map-loader";
+import { DraftRouteManager } from "@/components/draft-route-manager";
 import type {
   OptimizationDriver,
   OptimizationRoute,
@@ -225,6 +226,18 @@ export default async function RouteOptimizationPage() {
           drivers={drivers}
         />
       </div>
+
+      <DraftRouteManager
+        routes={routes
+          .filter((route) => route.status === "draft")
+          .map((route) => ({
+            id: route.id,
+            runNumber: route.runNumber,
+            routeName: route.routeName,
+            driverName: route.driverName,
+            totalStops: route.totalStops,
+          }))}
+      />
 
       <FleetRoutePlanner
         drivers={(driverData ?? []).map((driver) => ({ id: driver.id, full_name: driver.full_name, employee_code: driver.employee_code }))}
