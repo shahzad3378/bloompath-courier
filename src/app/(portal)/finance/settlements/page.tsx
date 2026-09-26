@@ -91,7 +91,7 @@ export default async function SettlementsPage({
   const money = (value: unknown, rowCurrency = currency) =>
     formatMoney(value, rowCurrency);
 
-  const rows = (data ?? []) as any[];
+  const rows = data ?? [];
 
   const pending = rows.filter(
     (row) => row.status !== "paid",
@@ -127,6 +127,7 @@ export default async function SettlementsPage({
         </div>
 
         <FinanceExportButtons dataset="settlements" />
+        <Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create customer invoice</Link>
       </div>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -210,6 +211,7 @@ export default async function SettlementsPage({
               <tbody className="divide-y divide-[#edf1ef]">
                 {rows.map((row) => {
                   const shipper = shipperDirectory.get(row.shipper_id);
+                  const invoice = Array.isArray(row.invoice) ? row.invoice[0] : row.invoice;
 
                   return (
                   <tr key={row.id} className="bp-table-row">
@@ -282,12 +284,12 @@ export default async function SettlementsPage({
                     </td>
 
                     <td className="px-5 py-4">
-                      {row.invoice?.id ? (
+                      {invoice?.id ? (
                         <Link
-                          href={`/finance/invoices/${row.invoice.id}`}
+                          href={`/finance/invoices/${invoice.id}`}
                           className="font-mono text-xs font-black text-[#13734b]"
                         >
-                          {row.invoice.invoice_number}
+                          {invoice.invoice_number}
                         </Link>
                       ) : ["approved", "paid"].includes(row.status) ? (
                         <form
