@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  FilePlus2,
   ReceiptText,
 } from "lucide-react";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
@@ -107,7 +108,7 @@ export default async function FinanceInvoicesPage({
     ),
   ]);
 
-  const rows = (data ?? []) as any[];
+  const rows = data ?? [];
 
   const draftCount = rows.filter(
     (row) => row.status === "draft",
@@ -148,7 +149,7 @@ export default async function FinanceInvoicesPage({
           </p>
         </div>
 
-        <FinanceExportButtons dataset="invoices" />
+        <div className="flex flex-wrap gap-2"><Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create invoice</Link><FinanceExportButtons dataset="invoices" /></div>
       </div>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -242,7 +243,7 @@ export default async function FinanceInvoicesPage({
             </p>
 
             <p className="mt-1 text-xs text-[#87938d]">
-              Approve a settlement and generate its invoice.
+              Select a customer and their eligible AWBs to create an invoice draft.
             </p>
           </div>
         ) : (
