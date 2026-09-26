@@ -16,7 +16,7 @@ Returns, background GPS, push notifications and offline result queues are outsid
 
 ## Configure and run
 
-1. Copy `.env.example` to `.env` and set the **Courier UAE** project URL and publishable key. Do not point the app at the separate BloomPath catalog database.
+1. Copy `.env.example` to `.env` for local development. The preview and production build profiles already use the **Courier UAE** project URL and publishable key. Do not point the app at the separate BloomPath catalog database.
 2. Run `npm ci` and `npx expo start --android`.
 3. Sign in with an existing active driver account.
 4. For an internal Android APK, run `npx eas-cli build --platform android --profile preview` after linking your Expo account. Production uses an AAB.
