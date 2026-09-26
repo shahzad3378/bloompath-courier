@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   let query = supabase.from("shipments").select("*")
     .eq("organization_id", profile.organization_id)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id", { ascending: false });
 
   if (profile.role === "shipper") query = query.eq("shipper_id", profile.id);
   else if (shipper) query = query.eq("shipper_id", shipper);
@@ -49,10 +49,15 @@ export async function GET(request: Request) {
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) query = query.gte("created_at", `${from}T00:00:00+04:00`);
   if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) query = query.lte("created_at", `${to}T23:59:59.999+04:00`);
 
-  const { data, error } = await query;
-  if (error) return new Response("Shipment export could not be generated.", { status: 500 });
+  const allRows: Awaited<ReturnType<typeof query.range>>["data"] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await query.range(offset, offset + 999);
+    if (error) return new Response("Shipment export could not be generated.", { status: 500 });
+    allRows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
 
-  const rows = (data ?? []).filter((shipment) => !q ||
+  const rows = allRows.filter((shipment) => !q ||
     String(shipment.tracking_number ?? "").toLowerCase().includes(q) ||
     String(shipment.reference_number ?? "").toLowerCase().includes(q) ||
     String(shipment.consignee_name ?? "").toLowerCase().includes(q) ||

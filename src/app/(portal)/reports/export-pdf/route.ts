@@ -6,64 +6,7 @@ import {
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
-
-type RangeKey =
-  | "today"
-  | "7d"
-  | "30d"
-  | "month"
-  | "custom";
-
-function dubaiDayStartUtc(date: Date) {
-  const dubai = new Date(
-    date.getTime() +
-      4 * 60 * 60 * 1000,
-  );
-
-  return new Date(
-    Date.UTC(
-      dubai.getUTCFullYear(),
-      dubai.getUTCMonth(),
-      dubai.getUTCDate(),
-    ) -
-      4 * 60 * 60 * 1000,
-  );
-}
-
-function addDays(
-  date: Date,
-  days: number,
-) {
-  return new Date(
-    date.getTime() +
-      days * 86400000,
-  );
-}
-
-function parseDubaiDate(
-  value: string | null,
-) {
-  if (
-    !value ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      value,
-    )
-  ) {
-    return null;
-  }
-
-  const [year, month, day] =
-    value.split("-").map(Number);
-
-  return new Date(
-    Date.UTC(
-      year,
-      month - 1,
-      day,
-    ) -
-      4 * 60 * 60 * 1000,
-  );
-}
+import { resolveReportDateRange } from "@/lib/report-date-range";
 
 function shortDate(
   value: string | null | undefined,
@@ -81,7 +24,7 @@ function shortDate(
   ).format(new Date(value));
 }
 
-function relation(value: any) {
+function relation(value: unknown) {
   if (Array.isArray(value)) {
     return value[0] ?? null;
   }
@@ -100,81 +43,12 @@ export async function GET(
   const url =
     new URL(request.url);
 
-  const requestedRange =
-    url.searchParams.get(
-      "range",
-    ) ?? "7d";
-
-  const range: RangeKey = [
-    "today",
-    "7d",
-    "30d",
-    "month",
-    "custom",
-  ].includes(requestedRange)
-    ? (requestedRange as RangeKey)
-    : "7d";
-
-  const now = new Date();
-  const todayStart =
-    dubaiDayStartUtc(now);
-
-  let start =
-    addDays(todayStart, -6);
-
-  let endExclusive =
-    addDays(todayStart, 1);
-
-  if (range === "today") {
-    start = todayStart;
-  } else if (
-    range === "30d"
-  ) {
-    start =
-      addDays(todayStart, -29);
-  } else if (
-    range === "month"
-  ) {
-    const dubai = new Date(
-      now.getTime() +
-        4 * 60 * 60 * 1000,
-    );
-
-    start = new Date(
-      Date.UTC(
-        dubai.getUTCFullYear(),
-        dubai.getUTCMonth(),
-        1,
-      ) -
-        4 * 60 * 60 * 1000,
-    );
-  } else if (
-    range === "custom"
-  ) {
-    const customFrom =
-      parseDubaiDate(
-        url.searchParams.get(
-          "from",
-        ),
-      );
-
-    const customTo =
-      parseDubaiDate(
-        url.searchParams.get(
-          "to",
-        ),
-      );
-
-    if (
-      customFrom &&
-      customTo &&
-      customFrom <= customTo
-    ) {
-      start = customFrom;
-      endExclusive =
-        addDays(customTo, 1);
-    }
-  }
+  const { start, endExclusive, error: rangeError } = resolveReportDateRange({
+    range: url.searchParams.get("range"),
+    from: url.searchParams.get("from"),
+    to: url.searchParams.get("to"),
+  });
+  if (rangeError) return new Response(rangeError, { status: 400 });
 
   const supabase =
     await createClient();
@@ -205,6 +79,7 @@ export async function GET(
         email
       )
     `)
+    .eq("organization_id", profile.organization_id!)
     .is("deleted_at", null)
     .gte(
       "booked_at",
@@ -254,13 +129,7 @@ export async function GET(
     );
   }
 
-  const [
-    { data, error },
-    { data: settings },
-  ] = await Promise.all([
-    query,
-
-    supabase
+  const { data: settings } = await supabase
       .from(
         "organization_settings",
       )
@@ -271,18 +140,15 @@ export async function GET(
         "organization_id",
         profile.organization_id,
       )
-      .maybeSingle(),
-  ]);
+      .maybeSingle();
 
-  if (error) {
-    return new Response(
-      "Report export could not be generated.",
-      { status: 500 },
-    );
+  const rows: Awaited<ReturnType<typeof query.range>>["data"] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await query.range(offset, offset + 999);
+    if (error) return new Response("Report export could not be generated.", { status: 500 });
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
   }
-
-  const rows =
-    (data ?? []) as any[];
 
   const company =
     settings?.display_name ||
