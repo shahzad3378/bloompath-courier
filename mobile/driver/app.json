@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "BloomPath Courier Driver",
+    "slug": "bloompath-courier-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "bloompathcourierdriver",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.bloompath.courier.driver",
+      "adaptiveIcon": {
+        "backgroundColor": "#10291f",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow BloomPath Courier to scan shipment barcodes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow BloomPath Courier to take delivery proof photos.",
+          "photosPermission": "Allow access to delivery proof photos."
+        }
+      ],
+      "expo-router"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
