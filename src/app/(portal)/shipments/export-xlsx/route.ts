@@ -46,8 +46,9 @@ export async function GET(request: Request) {
       shipper:profiles!shipments_shipper_id_fkey(full_name,email),
       driver:profiles!shipments_assigned_driver_id_fkey(full_name,email)
     `)
+    .eq("organization_id", profile.organization_id)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id", { ascending: false });
 
   if (profile.role === "shipper") {
     query = query.eq("shipper_id", profile.id);
@@ -77,16 +78,15 @@ export async function GET(request: Request) {
     );
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    return new Response(
-      "Excel export could not be generated.",
-      { status: 500 },
-    );
+  const allRows: Awaited<ReturnType<typeof query.range>>["data"] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await query.range(offset, offset + 999);
+    if (error) return new Response("Excel export could not be generated.", { status: 500 });
+    allRows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
   }
 
-  const rows = (data ?? []).filter((shipment) => {
+  const rows = allRows.filter((shipment) => {
     if (!q) return true;
 
     return (

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ReportDateFields } from "@/components/report-date-fields";
+import { resolveReportDateRange } from "@/lib/report-date-range";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -24,56 +27,6 @@ import {
 export const metadata = {
   title: "Delivery Reports",
 };
-
-type RangeKey =
-  | "today"
-  | "7d"
-  | "30d"
-  | "month"
-  | "custom";
-
-function dubaiDayStartUtc(date: Date) {
-  const dubai = new Date(
-    date.getTime() + 4 * 60 * 60 * 1000,
-  );
-
-  return new Date(
-    Date.UTC(
-      dubai.getUTCFullYear(),
-      dubai.getUTCMonth(),
-      dubai.getUTCDate(),
-    ) -
-      4 * 60 * 60 * 1000,
-  );
-}
-
-function addDays(date: Date, days: number) {
-  return new Date(
-    date.getTime() + days * 86400000,
-  );
-}
-
-function parseDubaiDate(value?: string) {
-  if (
-    !value ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(value)
-  ) {
-    return null;
-  }
-
-  const [year, month, day] = value
-    .split("-")
-    .map(Number);
-
-  return new Date(
-    Date.UTC(
-      year,
-      month - 1,
-      day,
-    ) -
-      4 * 60 * 60 * 1000,
-  );
-}
 
 function agingDaysSince(value: string) {
   const start = new Date(value);
@@ -119,6 +72,7 @@ export default async function DeliveryReportsPage({
     status?: string;
     page?: string;
     page_size?: string;
+    error?: string;
   }>;
 }) {
   const profile = await requireProfile(
@@ -128,67 +82,8 @@ export default async function DeliveryReportsPage({
   const params = await searchParams;
   const pagination = parseTablePagination(params);
 
-  const now = new Date();
-  const todayStart = dubaiDayStartUtc(now);
-
-  const requestedRange =
-    params.range ?? "7d";
-
-  const range: RangeKey = [
-    "today",
-    "7d",
-    "30d",
-    "month",
-    "custom",
-  ].includes(requestedRange)
-    ? (requestedRange as RangeKey)
-    : "7d";
-
-  let start = addDays(todayStart, -6);
-  let endExclusive = addDays(
-    todayStart,
-    1,
-  );
-
-  if (range === "today") {
-    start = todayStart;
-  } else if (range === "30d") {
-    start = addDays(todayStart, -29);
-  } else if (range === "month") {
-    const dubai = new Date(
-      now.getTime() +
-        4 * 60 * 60 * 1000,
-    );
-
-    start = new Date(
-      Date.UTC(
-        dubai.getUTCFullYear(),
-        dubai.getUTCMonth(),
-        1,
-      ) -
-        4 * 60 * 60 * 1000,
-    );
-  } else if (range === "custom") {
-    const customFrom = parseDubaiDate(
-      params.from,
-    );
-
-    const customTo = parseDubaiDate(
-      params.to,
-    );
-
-    if (
-      customFrom &&
-      customTo &&
-      customFrom <= customTo
-    ) {
-      start = customFrom;
-      endExclusive = addDays(
-        customTo,
-        1,
-      );
-    }
-  }
+  const { range, start, endExclusive, error: rangeError } = resolveReportDateRange(params);
+  if (rangeError) redirect("/reports?range=7d&error=invalid_dates");
 
   const startIso = start.toISOString();
   const endIso =
@@ -291,7 +186,27 @@ export default async function DeliveryReportsPage({
   ]);
 
   const shipments =
-    (shipmentData ?? []) as any[];
+    shipmentData ?? [];
+
+  // Summary cards cover the entire selected period, not just the visible table page.
+  let summaryQuery = supabase.from("shipments")
+    .select("status, cod_amount")
+    .eq("organization_id", profile.organization_id!)
+    .is("deleted_at", null)
+    .gte("booked_at", startIso)
+    .lt("booked_at", endIso)
+    .order("id", { ascending: true });
+  if (params.shipper) summaryQuery = summaryQuery.eq("shipper_id", params.shipper);
+  if (params.driver) summaryQuery = summaryQuery.eq("assigned_driver_id", params.driver);
+  if (params.status) summaryQuery = summaryQuery.eq("status", params.status);
+  const summaryRows: { status: string; cod_amount: number | null }[] = [];
+  let summaryError = false;
+  for (let offset = 0; offset < (count ?? 0); offset += 1000) {
+    const { data: batch, error: batchError } = await summaryQuery.range(offset, offset + 999);
+    if (batchError) { summaryError = true; break; }
+    summaryRows.push(...(batch ?? []));
+    if ((batch ?? []).length < 1000) break;
+  }
 
   const latestUndelivered =
     new Map<number, string>();
@@ -365,27 +280,27 @@ export default async function DeliveryReportsPage({
     },
   );
 
-  const booked = rows.length;
+  const booked = summaryRows.length;
 
-  const delivered = rows.filter(
+  const delivered = summaryRows.filter(
     (row) =>
       row.status === "delivered",
   ).length;
 
   const outForDelivery =
-    rows.filter(
+    summaryRows.filter(
       (row) =>
         row.status ===
         "out_for_delivery",
     ).length;
 
   const undelivered =
-    rows.filter(
+    summaryRows.filter(
       (row) =>
         row.status === "undelivered",
     ).length;
 
-  const returns = rows.filter(
+  const returns = summaryRows.filter(
     (row) =>
       row.status ===
         "return_initiated" ||
@@ -400,7 +315,7 @@ export default async function DeliveryReportsPage({
         )
       : 0;
 
-  const totalCod = rows.reduce(
+  const totalCod = summaryRows.reduce(
     (sum, row) =>
       sum +
       Number(row.cod_amount || 0),
@@ -496,6 +411,9 @@ export default async function DeliveryReportsPage({
         </div>
       </div>
 
+      {params.error === "invalid_dates" ? <p role="alert" className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Select both calendar dates, with From on or before To.</p> : null}
+      {summaryError ? <p role="alert" className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Report totals could not be loaded.</p> : null}
+
       <form
         action="/reports"
         method="get"
@@ -506,45 +424,7 @@ export default async function DeliveryReportsPage({
           name="page_size"
           value={pagination.pageSize}
         />
-        <select
-          name="range"
-          defaultValue={range}
-          className="bp-input text-xs font-semibold"
-        >
-          <option value="today">
-            Today
-          </option>
-          <option value="7d">
-            Last 7 Days
-          </option>
-          <option value="30d">
-            Last 30 Days
-          </option>
-          <option value="month">
-            This Month
-          </option>
-          <option value="custom">
-            Custom
-          </option>
-        </select>
-
-        <input
-          name="from"
-          type="date"
-          defaultValue={
-            params.from ?? ""
-          }
-          className="bp-input text-xs"
-        />
-
-        <input
-          name="to"
-          type="date"
-          defaultValue={
-            params.to ?? ""
-          }
-          className="bp-input text-xs"
-        />
+        <ReportDateFields range={range} from={params.from ?? ""} to={params.to ?? ""} />
 
         <select
           name="shipper"
@@ -714,7 +594,7 @@ export default async function DeliveryReportsPage({
           </div>
 
           <p className="text-xs font-bold text-[#15905c]">
-            {rows.length} AWBs
+            {(count ?? 0).toLocaleString()} AWBs
           </p>
         </div>
 
@@ -803,17 +683,17 @@ export default async function DeliveryReportsPage({
                     </td>
 
                     <td className="px-4 py-4">
-                      {row.shipper
+                      {row.shipper?.[0]
                         ?.full_name ||
-                        row.shipper
+                        row.shipper?.[0]
                           ?.email ||
                         "—"}
                     </td>
 
                     <td className="px-4 py-4">
-                      {row.driver
+                      {row.driver?.[0]
                         ?.full_name ||
-                        row.driver
+                        row.driver?.[0]
                           ?.email ||
                         "—"}
                     </td>

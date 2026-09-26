@@ -197,6 +197,113 @@ export async function setUserStatusAction(
   redirect("/users?status_saved=1");
 }
 
+function staffEditPath(id: string, query: string) {
+  return `/users/${id}?${query}`;
+}
+
+export async function updateStaffDetailsAction(formData: FormData): Promise<void> {
+  const actor = await requireProfile(["super_admin"]);
+  const targetId = String(formData.get("profile_id") ?? "");
+  if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(targetId) || targetId === actor.id) {
+    redirect("/users?error=invalid");
+  }
+
+  const fullName = clean(formData, "full_name", 120);
+  const email = clean(formData, "email", 180).toLowerCase();
+  const phone = clean(formData, "phone", 30);
+  const employeeCode = clean(formData, "employee_code", 50);
+  if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    redirect(staffEditPath(targetId, "error=invalid"));
+  }
+
+  const admin = createAdminClient();
+  const { data: target } = await admin.from("profiles")
+    .select("id, email, role")
+    .eq("id", targetId)
+    .eq("organization_id", actor.organization_id)
+    .maybeSingle();
+  if (!target || target.role === "super_admin" || target.role === "shipper") {
+    redirect("/users?error=invalid");
+  }
+
+  // Supabase Auth owns the sign-in email; keep it aligned with the profile.
+  if (email !== target.email.toLowerCase()) {
+    const { error: authError } = await admin.auth.admin.updateUserById(targetId, {
+      email,
+      email_confirm: true,
+    });
+    if (authError) {
+      redirect(staffEditPath(targetId, "error=email"));
+    }
+  }
+
+  const { data: saved, error } = await admin.from("profiles")
+    .update({ full_name: fullName, email, phone: phone || null, employee_code: employeeCode || null })
+    .eq("id", targetId)
+    .eq("organization_id", actor.organization_id)
+    .select("id")
+    .maybeSingle();
+  if (error || !saved) {
+    if (email !== target.email.toLowerCase()) {
+      const { error: rollbackError } = await admin.auth.admin.updateUserById(targetId, {
+        email: target.email,
+        email_confirm: true,
+      });
+      if (rollbackError) console.error("STAFF_EMAIL_ROLLBACK_ERROR", rollbackError);
+    }
+    redirect(staffEditPath(targetId, "error=save"));
+  }
+
+  revalidatePath("/users");
+  revalidatePath(`/users/${targetId}`);
+  redirect(staffEditPath(targetId, "saved=profile"));
+}
+
+export async function updateDriverDetailsAction(formData: FormData): Promise<void> {
+  const actor = await requireProfile(["super_admin"]);
+  const targetId = String(formData.get("profile_id") ?? "");
+  if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(targetId) || targetId === actor.id) {
+    redirect("/users?error=invalid");
+  }
+
+  const vehicleNumber = clean(formData, "vehicle_number", 80);
+  const plateNumber = clean(formData, "plate_number", 80);
+  const drivingLicenceNumber = clean(formData, "driving_licence_number", 100);
+  const licenceExpiry = clean(formData, "licence_expiry", 20);
+  if (licenceExpiry) {
+    const parsed = new Date(`${licenceExpiry}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(licenceExpiry) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== licenceExpiry) {
+      redirect(staffEditPath(targetId, "error=invalid"));
+    }
+  }
+
+  const admin = createAdminClient();
+  const { data: target } = await admin.from("profiles")
+    .select("id")
+    .eq("id", targetId)
+    .eq("organization_id", actor.organization_id)
+    .eq("role", "driver")
+    .maybeSingle();
+  if (!target) redirect("/users?error=invalid");
+
+  const { error } = await admin.from("driver_profiles").upsert({
+    driver_id: targetId,
+    organization_id: actor.organization_id,
+    vehicle_number: vehicleNumber || null,
+    plate_number: plateNumber || null,
+    driving_licence_number: drivingLicenceNumber || null,
+    licence_expiry: licenceExpiry || null,
+  }, { onConflict: "driver_id" });
+  if (error) {
+    console.error("UPDATE_DRIVER_DETAILS_ERROR", error);
+    redirect(staffEditPath(targetId, "error=driver"));
+  }
+
+  revalidatePath("/users");
+  revalidatePath(`/users/${targetId}`);
+  redirect(staffEditPath(targetId, "saved=driver"));
+}
+
 export async function setShipmentDeletePermissionAction(
   formData: FormData,
 ): Promise<void> {

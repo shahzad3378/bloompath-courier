@@ -1,35 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
-
-type RangeKey = "today" | "7d" | "30d" | "month" | "custom";
-
-function dubaiDayStartUtc(date: Date) {
-  const dubai = new Date(date.getTime() + 4 * 60 * 60 * 1000);
-
-  return new Date(
-    Date.UTC(
-      dubai.getUTCFullYear(),
-      dubai.getUTCMonth(),
-      dubai.getUTCDate(),
-    ) -
-      4 * 60 * 60 * 1000,
-  );
-}
-
-function addDays(date: Date, days: number) {
-  return new Date(date.getTime() + days * 86400000);
-}
-
-function parseDubaiDate(value: string | null) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-
-  const [year, month, day] = value.split("-").map(Number);
-
-  return new Date(
-    Date.UTC(year, month - 1, day) - 4 * 60 * 60 * 1000,
-  );
-}
+import { resolveReportDateRange } from "@/lib/report-date-range";
 
 function csvCell(value: unknown) {
   let text =
@@ -59,63 +31,16 @@ function dubaiDate(value: string | null | undefined) {
 }
 
 export async function GET(request: Request) {
-  await requireProfile(internalRoles);
+  const profile = await requireProfile(internalRoles);
 
   const url = new URL(request.url);
 
-  const requestedRange = url.searchParams.get("range") ?? "7d";
-
-  const range: RangeKey = [
-    "today",
-    "7d",
-    "30d",
-    "month",
-    "custom",
-  ].includes(requestedRange)
-    ? (requestedRange as RangeKey)
-    : "7d";
-
-  const now = new Date();
-  const todayStart = dubaiDayStartUtc(now);
-
-  let start = addDays(todayStart, -6);
-  let endExclusive = addDays(todayStart, 1);
-
-  if (range === "today") {
-    start = todayStart;
-  } else if (range === "30d") {
-    start = addDays(todayStart, -29);
-  } else if (range === "month") {
-    const dubai = new Date(
-      now.getTime() + 4 * 60 * 60 * 1000,
-    );
-
-    start = new Date(
-      Date.UTC(
-        dubai.getUTCFullYear(),
-        dubai.getUTCMonth(),
-        1,
-      ) -
-        4 * 60 * 60 * 1000,
-    );
-  } else if (range === "custom") {
-    const customFrom = parseDubaiDate(
-      url.searchParams.get("from"),
-    );
-
-    const customTo = parseDubaiDate(
-      url.searchParams.get("to"),
-    );
-
-    if (
-      customFrom &&
-      customTo &&
-      customFrom <= customTo
-    ) {
-      start = customFrom;
-      endExclusive = addDays(customTo, 1);
-    }
-  }
+  const { start, endExclusive, error: rangeError } = resolveReportDateRange({
+    range: url.searchParams.get("range"),
+    from: url.searchParams.get("from"),
+    to: url.searchParams.get("to"),
+  });
+  if (rangeError) return new Response(rangeError, { status: 400 });
 
   const supabase = await createClient();
 
@@ -141,10 +66,11 @@ export async function GET(request: Request) {
       shipper:profiles!shipments_shipper_id_fkey(full_name,email),
       driver:profiles!shipments_assigned_driver_id_fkey(full_name,email)
     `)
+    .eq("organization_id", profile.organization_id!)
     .is("deleted_at", null)
     .gte("booked_at", start.toISOString())
     .lt("booked_at", endExclusive.toISOString())
-    .order("booked_at", { ascending: false });
+    .order("booked_at", { ascending: false }).order("id", { ascending: false });
 
   const shipper = url.searchParams.get("shipper");
   const driver = url.searchParams.get("driver");
@@ -162,16 +88,15 @@ export async function GET(request: Request) {
     query = query.eq("status", status);
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    return new Response(
-      "Report export could not be generated.",
-      { status: 500 },
-    );
+  const allRows: Awaited<ReturnType<typeof query.range>>["data"] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await query.range(offset, offset + 999);
+    if (error) return new Response("Report export could not be generated.", { status: 500 });
+    allRows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
   }
 
-  const rows = (data ?? []) as any[];
+  const rows = allRows;
 
   const header = [
     "tracking_number",
@@ -199,10 +124,10 @@ export async function GET(request: Request) {
       row.tracking_number,
       row.reference_number ?? "",
       dubaiDate(row.booked_at),
-      row.shipper?.full_name ?? "",
-      row.shipper?.email ?? "",
-      row.driver?.full_name ?? "",
-      row.driver?.email ?? "",
+      row.shipper?.[0]?.full_name ?? "",
+      row.shipper?.[0]?.email ?? "",
+      row.driver?.[0]?.full_name ?? "",
+      row.driver?.[0]?.email ?? "",
       row.consignee_name,
       row.consignee_phone ?? "",
       row.consignee_city,
@@ -224,7 +149,7 @@ export async function GET(request: Request) {
 
   const dateStamp = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dubai",
-  }).format(now);
+  }).format(new Date());
 
   return new Response(csv, {
     headers: {

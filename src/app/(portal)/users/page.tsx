@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Plus,
   ShieldCheck,
@@ -402,6 +403,18 @@ export default async function UsersPage({
                             <p className="mt-1 text-[11px] text-[#9aa39f]">
                               {profile.phone}
                             </p>
+                          ) : null}
+                          {!isSuperAdmin && profile.role !== "shipper" ? (
+                            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                              <Link href={`/users/${profile.id}`} className="text-xs font-bold text-[#13734b] underline-offset-2 hover:underline">Edit details</Link>
+                              <form action={setUserStatusAction}>
+                                <input type="hidden" name="profile_id" value={profile.id} />
+                                <input type="hidden" name="status" value={profile.status === "active" ? "suspended" : "active"} />
+                                <button className={`text-xs font-bold underline-offset-2 hover:underline ${profile.status === "active" ? "text-[#a34b4b]" : "text-[#13734b]"}`}>
+                                  {profile.status === "active" ? "Block login" : "Allow login"}
+                                </button>
+                              </form>
+                            </div>
                           ) : null}
                         </td>
 
