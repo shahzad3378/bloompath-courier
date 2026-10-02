@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRightLeft, FileJson, Plug, Webhook } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 
@@ -10,6 +11,8 @@ export default async function CourierIntegrationsPage() {
   return <div className="mx-auto max-w-[1200px] space-y-6">
     <header><p className="text-sm font-semibold text-[#188459]">Carrier network</p><h1 className="mt-1 text-3xl font-black text-[#17231e]">Courier Partner API Integration</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-[#74827b]">Use this specification when this courier company connects to another courier, 3PL, postal operator or last-mile partner. The partner courier provides its API document and credentials; CourierOS maps that API into this common connector contract.</p></header>
 
+    <section className="bp-panel p-5"><h2 className="text-lg font-bold">BroadReach · Canada & USA</h2><p className="mt-2 text-sm text-[var(--muted)]">Generate partner AWBs and download shipping labels for FastDrop shipments.</p><Link href="/courier-integrations/broadreach" className="bp-button-primary mt-4 !min-h-11 !text-sm">Open BroadReach booking</Link></section>
+
     <section className="grid gap-4 md:grid-cols-4">{[[Plug,"Credentials","Base URL, API key/OAuth, account ID."],[FileJson,"Create shipment","Send partner booking request and store partner AWB."],[ArrowRightLeft,"Status mapping","Translate partner statuses into CourierOS statuses."],[Webhook,"Webhooks","Receive real-time partner tracking updates."]].map(([Icon,title,text]) => <div key={String(title)} className="rounded-2xl border border-[#e0e8e4] bg-white p-5"><Icon className="size-5 text-[#13734b]" /><h2 className="mt-3 font-bold text-[#26372f]">{String(title)}</h2><p className="mt-2 text-xs leading-5 text-[#7c8982]">{String(text)}</p></div>)}</section>
 
     <section className="rounded-2xl border border-[#e0e8e4] bg-white p-6"><h2 className="text-lg font-black text-[#26372f]">Common carrier connector</h2><p className="mt-2 text-sm leading-6 text-[#6f7e77]">Every new courier integration should map the partner API into these operations, so the rest of the software does not need carrier-specific logic.</p><pre className="mt-4 overflow-x-auto rounded-xl bg-[#15231c] p-4 text-xs leading-6 text-white">{`createShipment(payload)\ngetTracking(partnerAwb)\ncancelShipment(partnerAwb)\ngetLabel(partnerAwb)\ngetPOD(partnerAwb)\nhandleWebhook(request)\nhealthCheck()`}</pre></section>
@@ -19,3 +22,4 @@ export default async function CourierIntegrationsPage() {
     <section className="rounded-2xl border border-[#cfe2d8] bg-[#f7fbf9] p-6"><h2 className="font-black text-[#26372f]">Integration onboarding checklist</h2><p className="mt-2 text-sm leading-6 text-[#6f7e77]">Collect partner API documentation, sandbox/production URLs, credentials, supported countries/services, booking fields, label format, tracking endpoint, cancel rules, POD endpoint, webhook specification, rate limits and error codes. Then configure field mapping, status mapping, retry rules and test booking → tracking → delivery/return end to end.</p></section>
   </div>;
 }
+

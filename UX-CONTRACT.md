@@ -56,3 +56,15 @@ This contract records observable workflow behavior for the authenticated courier
 - Route markers are backed by a text sequence list.
 - Color never carries the only status meaning.
 - Desktop route map and sequence collapse into a vertical layout on narrow screens.
+
+
+## BroadReach carrier booking
+
+- `/courier-integrations/broadreach` uses the shared `bp-panel`, `bp-input`, and button primitives; native selects and React `useActionState` follow existing form ownership.
+- Internal booking is role-authorized and scoped to the configured FastDrop tenant. Credentials never enter browser props, logs, or database rows.
+- Canada uses `CA_Rateshop`; USA uses `US_Rateshop`. Existing tenant AWBs remain the customer-facing identifiers.
+- Default is a test label. Live booking requires activation and an explicit shipping-charge checkbox.
+- One shipment represents one parcel. Item values, currency, optional dimensions and customs data are validated server-side.
+- Atomic per-shipment/per-mode reservation prevents concurrent double booking. Timeout, ambiguous error or process interruption stays blocked for manual carrier reconciliation.
+- Generated labels are retained internally and can be downloaded after authorization. Local linking can be retried without another carrier request.
+- Generating an AWB does not mark shipment handover or change physical custody. Warehouse handover reuses the pre-booked partner link.

@@ -1,0 +1,39 @@
+# FastDrop BroadReach booking
+
+Open **Courier Partner API → Open BroadReach booking**.
+
+Configure these server-only Vercel environment variables for the `bloompath-courier` project. Select Production; add Preview only when the test deployment should access the account. Never prefix these names with `NEXT_PUBLIC_`.
+
+| Variable | Value |
+|---|---|
+| `BROADREACH_ORGANIZATION_ID` | `edb6f2a6-1e35-45b6-a60c-35b8ca4aa01e` (FastDrop) |
+| `BROADREACH_ACCOUNT` | BroadReach account code |
+| `BROADREACH_USERNAME` | BroadReach Shipping API Basic Auth username |
+| `BROADREACH_PASSWORD` | BroadReach Shipping API Basic Auth password |
+| `BROADREACH_LIVE_ENABLED` | `false` until the real test is verified |
+
+Use the Shipping API credentials, not a `brda_` agent-access token. The API endpoint is `POST https://shipping-api.brdrch.com/api/v1`, with Basic Auth, JSON and `X-Requested-With: XMLHttpRequest`.
+
+Apply the `broadreach_awb_booking` migration before deploying. Existing Supabase server and service-role configuration is also required. Redeploy after changing environment variables.
+
+## Acceptance test
+
+1. Sign in as FastDrop super admin, operations admin or dispatcher.
+2. Choose an eligible single-parcel shipment with complete sender/recipient country, state/province and postal codes, positive kg weight, and no assigned driver or existing partner link. COD collection is not configured and nonzero COD bookings are rejected.
+3. Enter its FastDrop AWB, actual item values and their currency. Supply US cross-border SKU, origin and 10-digit HS code. Optional dimensions use cm.
+4. Keep **Test label** selected and generate. Download and inspect the PDF/PNG/ZPL. Confirm the correct service (`CA_Rateshop` or `US_Rateshop`) and account in BroadReach. Confirm the test has not changed custody or added a 3PL partner link.
+5. Verify both destination services with the account. Test booking support and account/service entitlement cannot be established without actual account credentials.
+6. Enable `BROADREACH_LIVE_ENABLED=true` and redeploy only after test verification. Live booking requires an explicit shipping-charge checkbox. Download labels through the authenticated internal route; seller/customer AWBs remain unchanged.
+7. When the live parcel is physically at warehouse, use the existing 3PL handover with BroadReach. It reuses the pre-booked partner link and then updates custody.
+
+## Duplicate and recovery behavior
+
+Reservation is atomic per tenant, shipment and test/live mode. A second click cannot send another carrier request. No automatic booking retry is used because the provider docs do not promise an idempotency key.
+
+After a timeout, non-success response, invalid label or process interruption, the pending/needs-review row blocks repeat requests. Search BroadReach by the original FastDrop AWB (`reference`) and reconcile the partner booking first. Only a trusted administrator may repair the reservation after confirming whether an AWB exists; do not delete it blindly.
+
+If label storage succeeded but partner linking failed, submitting the same mode again retries local linking and does not call BroadReach again. Test/live reservations are separate and labels can be downloaded repeatedly.
+
+This change implements booking, label storage/download and local handover compatibility. Tracking webhooks and carrier void/cancel are separate work. Archiving or cancelling a local shipment does not void a BroadReach shipment; reconcile it directly in BroadReach before doing so.
+
+Run focused verification with `node --test tests/broadreach.test.cjs`, `npm run typecheck` (after `npx next typegen`), and `npm run build`.
