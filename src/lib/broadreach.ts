@@ -41,11 +41,12 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Enter a three-letter declared-value currency.");
   const address = (side: "sender" | "consignee") => ({
     name: required(shipment[`${side}_name`], `${side} name`),
-    addr1: required(shipment[`${side}_address`], `${side} street address`),
-    addr2: shipment[`${side}_address_2`]?.trim() || "",
+    company: required(shipment[`${side}_name`], `${side} name`),
+    address1: required(shipment[`${side}_address`], `${side} street address`),
+    address2: shipment[`${side}_address_2`]?.trim() || "",
     city: required(shipment[`${side}_city`], `${side} city`),
-    state: required(shipment[`${side}_state_province`], `${side} state/province`),
-    postal: required(shipment[`${side}_postal_code`], `${side} postal/ZIP code`),
+    province: required(shipment[`${side}_state_province`], `${side} state/province`),
+    postalCode: required(shipment[`${side}_postal_code`], `${side} postal/ZIP code`),
     country: required(shipment[`${side}_country_code`], `${side} country`).toUpperCase(),
     phone: shipment[`${side}_phone`]?.trim() || "",
   });
@@ -74,10 +75,17 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
     reference: reference(shipment.tracking_number, "FastDrop AWB"),
     ...(shipment.reference_number?.trim() ? { reference2: reference(shipment.reference_number, "Additional reference") } : {}),
     test: options.test ? 1 : 0,
-    uom: "kg", weight, dimunit: "cm",
+    weightUnit: "kg", weight, pieces: 1, dimUnit: "cm",
     ...(options.dimensions ?? {}),
     currency, value, shipper, consignee, item: items,
   } };
+}
+
+export function buildBroadReachRates(shipment: Pick<Shipment, "weight_kg" | "consignee_country_code" | "consignee_postal_code">, account: string) {
+  const country = required(shipment.consignee_country_code, "destination country").toUpperCase();
+  const weight = Number(shipment.weight_kg);
+  if (!["CA", "US"].includes(country) || !Number.isFinite(weight) || weight <= 0) throw new Error("Rates require a Canada/USA destination and positive shipment weight.");
+  return { rateshipment: { account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm", consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code"), country } } };
 }
 
 export function parseBroadReachResponse(body: unknown) {
@@ -85,11 +93,14 @@ export function parseBroadReachResponse(body: unknown) {
   const result = body.shipmentresponse as Record<string, unknown>;
   if (!result || typeof result !== "object") throw new Error("BroadReach returned an invalid shipment response.");
   const text = (name: string) => typeof result[name] === "string" ? result[name].trim() : "";
-  const tracking = text("tracknbr");
-  const label = text("label").replace(/\s/g, "");
-  const format = text("labelformat").toLowerCase();
-  if (tracking.length < 2 || tracking.length > 100 || !label || label.length > 4 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(label) || !["pdf", "png", "zpl"].includes(format)) throw new Error("BroadReach returned incomplete tracking or label data. Review this booking before retrying.");
+  const tracking = text("trackingNumber") || text("tracknbr");
+  const rawLabel = text("label");
+  const label = rawLabel.startsWith("^XA") && rawLabel.endsWith("^XZ") ? Buffer.from(rawLabel).toString("base64") : rawLabel.replace(/\s/g, "");
   const bytes = Buffer.from(label, "base64");
+  const detected = bytes.subarray(0, 5).toString() === "%PDF-" ? "pdf" : bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? "png" : bytes.toString().trim().startsWith("^XA") ? "zpl" : "";
+  const format = (text("labelFormat") || text("labelformat") || detected).toLowerCase();
+  if (tracking.length < 2 || tracking.length > 100 || !label || label.length > 4 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(label) || !["pdf", "png", "zpl"].includes(format)) throw new Error("BroadReach returned incomplete tracking or label data. Review this booking before retrying.");
   if ((format === "pdf" && bytes.subarray(0, 5).toString() !== "%PDF-") || (format === "png" && !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) || (format === "zpl" && !bytes.toString().includes("^XA"))) throw new Error("BroadReach label content does not match its format. Review this booking before retrying.");
-  return { tracking, label, format, carrier: text("carrier"), service: text("service"), alternateTracking: text("alttracknbr"), scn: text("scn"), rate: text("rate"), currency: text("currency") };
+  const rate = result.totalCost ?? result.rate;
+  return { tracking, label, format, carrier: text("carrier"), service: text("serviceLevel") || text("service"), alternateTracking: text("alttracknbr"), scn: text("scn"), rate: typeof rate === "string" || typeof rate === "number" ? String(rate) : "", currency: text("currency") };
 }

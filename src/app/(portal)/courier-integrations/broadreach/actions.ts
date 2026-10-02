@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { broadReachServices, buildBroadReachShipment, type BroadReachItem } from "@/lib/broadreach";
+import { broadReachServices, buildBroadReachRates, buildBroadReachShipment, type BroadReachItem } from "@/lib/broadreach";
 import { getBroadReachConfig, requestBroadReachLabel, requestBroadReachRates, safeBroadReachError } from "@/lib/broadreach-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -61,7 +61,7 @@ export async function generateBroadReachAwb(_state: BroadReachState, form: FormD
   catch (issue) {
     const failure = safeBroadReachError(issue);
     console.error("broadreach.booking.failed", { bookingId, ...failure.diagnostic });
-    await admin.from("broadreach_bookings").update({ status: "needs_review", response_metadata: { diagnostic: failure.diagnostic } }).eq("id", bookingId).eq("organization_id", profile.organization_id);
+    await admin.from("broadreach_bookings").update({ status: "needs_review", ...(failure.tracking ? { partner_tracking_number: failure.tracking } : {}), response_metadata: { diagnostic: failure.diagnostic } }).eq("id", bookingId).eq("organization_id", profile.organization_id);
     return { ...fail(`${failure.message} Check BroadReach using the FastDrop AWB reference before retrying; duplicate booking remains blocked.`), haltBatch: true };
   }
   const { error: saveError } = await admin.from("broadreach_bookings").update({
@@ -86,12 +86,8 @@ export async function checkBroadReachConnection(_state: BroadReachState, form: F
   if (country !== "CA" && country !== "US") return fail("Choose a Canada or USA shipment for this connection check.");
   if (!data.sender_postal_code || !data.sender_country_code || !data.sender_state_province || !data.consignee_postal_code || !data.consignee_state_province || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete sender/recipient country, postal code, province/state and positive weight before checking rates.");
   try {
-    const count = await requestBroadReachRates({ rateshipment: {
-      account: config.account, service: broadReachServices[country], uom: "kg", weight: Number(data.weight_kg),
-      postal: data.consignee_postal_code, iso: country, province: data.consignee_state_province,
-      shipperpostal: data.sender_postal_code, shipperiso: String(data.sender_country_code).toUpperCase(), shipperprovince: data.sender_state_province,
-    } }, config);
-    return { status: "success", message: `API connection verified: ${broadReachServices[country]} returned ${count} eligible rate${count === 1 ? "" : "s"}. No AWB was created. This does not release an earlier unconfirmed booking.` };
+    const count = await requestBroadReachRates(buildBroadReachRates(data, config.account), config);
+    return { status: "success", message: `API connection verified: ${count} service rate${count === 1 ? "" : "s"} available for ${country}. Booking uses ${broadReachServices[country]}. No AWB was created. This does not release an earlier unconfirmed booking.` };
   } catch (issue) {
     const failure = safeBroadReachError(issue);
     console.error("broadreach.connection.failed", failure.diagnostic);

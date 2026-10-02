@@ -1,5 +1,5 @@
 import "server-only";
-import { parseBroadReachResponse, type buildBroadReachShipment } from "@/lib/broadreach";
+import { parseBroadReachResponse, type buildBroadReachShipment, type buildBroadReachRates } from "@/lib/broadreach";
 
 export function getBroadReachConfig(organizationId: string | null) {
   if (!organizationId || organizationId !== process.env.BROADREACH_ORGANIZATION_ID) return null;
@@ -12,7 +12,7 @@ export function getBroadReachConfig(organizationId: string | null) {
 
 export type BroadReachDiagnostic = {
   stage: "transport" | "http" | "response" | "label" | "rates";
-  reason: "network_error" | "credentials_rejected" | "access_rejected" | "bad_request" | "upstream_error" | "empty_response" | "response_too_large" | "invalid_json" | "invalid_label" | "account_rejected" | "service_rejected" | "address_rejected" | "weight_rejected" | "no_rates";
+  reason: "network_error" | "credentials_rejected" | "access_rejected" | "bad_request" | "upstream_error" | "empty_response" | "response_too_large" | "invalid_json" | "invalid_label" | "account_rejected" | "service_rejected" | "address_rejected" | "weight_rejected" | "no_rates" | "label_host_rejected" | "label_download_failed";
   httpStatus?: number;
 };
 
@@ -31,10 +31,12 @@ const explanations: Record<BroadReachDiagnostic["reason"], string> = {
   address_rejected: "BroadReach rejected an address or postal/ZIP code. Check sender and recipient address fields.",
   weight_rejected: "BroadReach rejected the weight or parcel dimensions.",
   no_rates: "BroadReach responded but returned no valid rates. Confirm account service coverage for these addresses.",
+  label_host_rejected: "BroadReach returned a label URL on an unapproved host. An administrator must verify and configure BROADREACH_LABEL_HOSTS before downloading it. Recover the generated label from BroadReach; do not rebook.",
+  label_download_failed: "BroadReach generated a shipment but its label download failed. Recover the label from BroadReach; do not rebook.",
 };
 
 export class BroadReachApiError extends Error {
-  constructor(public diagnostic: BroadReachDiagnostic) {
+  constructor(public diagnostic: BroadReachDiagnostic, public tracking?: string) {
     super(explanations[diagnostic.reason] + (diagnostic.httpStatus ? ` HTTP ${diagnostic.httpStatus}.` : ""));
     this.name = "BroadReachApiError";
   }
@@ -43,7 +45,9 @@ export class BroadReachApiError extends Error {
 function providerReason(body: unknown): BroadReachDiagnostic["reason"] | null {
   if (!body || typeof body !== "object") return null;
   const response = body as Record<string, unknown>;
-  const error = response.errorresponse ?? response.error ?? response.errors;
+  const scopes = [response, response.rateshipmentresponse, response.shipmentresponse];
+  const error = scopes.flatMap(scope => scope && typeof scope === "object" && !Array.isArray(scope) ? ["errorresponse", "error", "errors"].map(key => (scope as Record<string, unknown>)[key]) : [])
+    .find(value => Array.isArray(value) ? value.length > 0 : value && (typeof value !== "object" || Object.keys(value).length > 0));
   if (!error) return null;
   // Match known error categories only. Never return/log arbitrary provider text or PII.
   const text = JSON.stringify(error).toLowerCase();
@@ -69,6 +73,17 @@ async function requestBroadReach(payload: unknown, config: NonNullable<ReturnTyp
   } catch { throw new BroadReachApiError({ stage: "transport", reason: "network_error" }); }
   const httpStatus = response.status;
   if ([401, 403].includes(httpStatus)) throw new BroadReachApiError({ stage: "http", reason: httpStatus === 401 ? "credentials_rejected" : "access_rejected", httpStatus });
+  const bytes = await readBoundedResponse(response);
+  let body: unknown;
+  try { body = JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/, "")); }
+  catch { throw new BroadReachApiError({ stage: "response", reason: response.ok ? "invalid_json" : httpStatus === 400 ? "bad_request" : "upstream_error", httpStatus }); }
+  const reason = providerReason(body);
+  if (!response.ok || reason) throw new BroadReachApiError({ stage: response.ok ? "response" : "http", reason: reason ?? (httpStatus === 400 ? "bad_request" : "upstream_error"), httpStatus });
+  return { body, httpStatus };
+}
+
+async function readBoundedResponse(response: Response, limit = 5 * 1024 * 1024) {
+  const httpStatus = response.status;
   const reader = response.body?.getReader();
   if (!reader) throw new BroadReachApiError({ stage: "response", reason: "empty_response", httpStatus });
   const chunks: Uint8Array[] = [];
@@ -78,37 +93,59 @@ async function requestBroadReach(payload: unknown, config: NonNullable<ReturnTyp
       const { value, done } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > 5 * 1024 * 1024) { await reader.cancel(); throw new BroadReachApiError({ stage: "response", reason: "response_too_large", httpStatus }); }
+      if (size > limit) { await reader.cancel(); throw new BroadReachApiError({ stage: "response", reason: "response_too_large", httpStatus }); }
       chunks.push(value);
     }
   } catch (issue) {
     if (issue instanceof BroadReachApiError) throw issue;
     throw new BroadReachApiError({ stage: "transport", reason: "network_error", httpStatus });
   }
-  let body: unknown;
-  try { body = JSON.parse(Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "")); }
-  catch { throw new BroadReachApiError({ stage: "response", reason: response.ok ? "invalid_json" : httpStatus === 400 ? "bad_request" : "upstream_error", httpStatus }); }
-  const reason = providerReason(body);
-  if (!response.ok || reason) throw new BroadReachApiError({ stage: response.ok ? "response" : "http", reason: reason ?? (httpStatus === 400 ? "bad_request" : "upstream_error"), httpStatus });
-  return { body, httpStatus };
+  return Buffer.concat(chunks);
 }
 
 export async function requestBroadReachLabel(payload: ReturnType<typeof buildBroadReachShipment>, config: NonNullable<ReturnType<typeof getBroadReachConfig>>) {
   // No automatic retries: this API does not document a booking idempotency key.
   const { body, httpStatus } = await requestBroadReach(payload, config);
-  try { return parseBroadReachResponse(body); }
-  catch { throw new BroadReachApiError({ stage: "label", reason: "invalid_label", httpStatus }); }
+  const result = body && typeof body === "object" && "shipmentresponse" in body && body.shipmentresponse && typeof body.shipmentresponse === "object" ? body.shipmentresponse as Record<string, unknown> : null;
+  const rawTracking = result?.trackingNumber ?? result?.tracknbr;
+  const tracking = typeof rawTracking === "string" && rawTracking.trim().length >= 2 && rawTracking.trim().length <= 100 ? rawTracking.trim() : undefined;
+  try {
+    if (result && tracking && !result.label) {
+      const document = Array.isArray(result.documents) ? result.documents.find(doc => doc && doc.type === "shipping_label" && typeof doc.url === "string") : undefined;
+      const rawUrl = result.labelUrl ?? document?.url;
+      if (typeof rawUrl === "string") {
+        let url: URL;
+        try { url = new URL(rawUrl); } catch { throw new BroadReachApiError({ stage: "label", reason: "label_host_rejected" }, tracking); }
+        const allowed = new Set(["shipping-api.brdrch.com", ...(process.env.BROADREACH_LABEL_HOSTS ?? "").split(",").map(host => host.trim().toLowerCase()).filter(Boolean)]);
+        if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") || !allowed.has(url.hostname) || /^[\d.]+$/.test(url.hostname) || url.hostname.includes(":") || /(^|\.)(localhost|local|internal)$/.test(url.hostname)) throw new BroadReachApiError({ stage: "label", reason: "label_host_rejected" }, tracking);
+        const headers: Record<string, string> = { Accept: "application/pdf,image/png,text/plain", "X-Requested-With": "XMLHttpRequest" };
+        // Never forward API credentials to a separate CDN or follow redirects.
+        if (url.origin === "https://shipping-api.brdrch.com") headers.Authorization = `Basic ${Buffer.from(`${config.username}:${config.password}`).toString("base64")}`;
+        let downloaded: Response;
+        try { downloaded = await fetch(url.href, { method: "GET", headers, redirect: "error", cache: "no-store", credentials: "omit", signal: AbortSignal.timeout(25000) }); }
+        catch { throw new BroadReachApiError({ stage: "label", reason: "label_download_failed" }, tracking); }
+        if (!downloaded.ok) throw new BroadReachApiError({ stage: "label", reason: "label_download_failed", httpStatus: downloaded.status }, tracking);
+        const bytes = await readBoundedResponse(downloaded, 3 * 1024 * 1024);
+        return parseBroadReachResponse({ shipmentresponse: { ...result, label: bytes.toString("base64"), labelformat: result.labelFormat ?? result.labelformat ?? document?.format } });
+      }
+    }
+    return parseBroadReachResponse(body);
+  } catch (issue) {
+    if (issue instanceof BroadReachApiError) { issue.tracking ??= tracking; throw issue; }
+    throw new BroadReachApiError({ stage: "label", reason: "invalid_label", httpStatus }, tracking);
+  }
 }
 
-export async function requestBroadReachRates(payload: { rateshipment: Record<string, string | number> }, config: NonNullable<ReturnType<typeof getBroadReachConfig>>) {
+export async function requestBroadReachRates(payload: ReturnType<typeof buildBroadReachRates>, config: NonNullable<ReturnType<typeof getBroadReachConfig>>) {
   // Rates only: no shipment/label creation and no booking reservation.
   const { body, httpStatus } = await requestBroadReach(payload, config);
-  const rates = body && typeof body === "object" && "rateshipmentresponse" in body ? body.rateshipmentresponse : null;
-  if (!Array.isArray(rates) || !rates.length || !rates.every((rate) => rate && typeof rate.service === "string" && rate.rate !== "" && rate.rate !== null && rate.rate !== undefined && Number.isFinite(Number(rate.rate)))) throw new BroadReachApiError({ stage: "rates", reason: "no_rates", httpStatus });
+  const response = body && typeof body === "object" && "rateshipmentresponse" in body ? body.rateshipmentresponse : null;
+  const rates = Array.isArray(response) ? response : response && typeof response === "object" && "services" in response ? response.services : null;
+  if (!Array.isArray(rates) || !rates.length || !rates.every((rate) => { const total = rate?.total ?? rate?.rate; return rate && typeof rate.service === "string" && total !== "" && total !== null && total !== undefined && Number.isFinite(Number(total)); })) throw new BroadReachApiError({ stage: "rates", reason: "no_rates", httpStatus });
   return rates.length;
 }
 
 export function safeBroadReachError(issue: unknown) {
   const error = issue instanceof BroadReachApiError ? issue : new BroadReachApiError({ stage: "response", reason: "upstream_error" });
-  return { message: error.message, diagnostic: error.diagnostic };
+  return { message: error.message, diagnostic: error.diagnostic, tracking: error.tracking };
 }

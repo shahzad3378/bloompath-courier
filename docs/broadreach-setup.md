@@ -14,6 +14,10 @@ Configure these server-only Vercel environment variables for the `bloompath-cour
 
 Use the Shipping API credentials, not a `brda_` agent-access token. The API endpoint is `POST https://shipping-api.brdrch.com/api/v1`, with Basic Auth, JSON and `X-Requested-With: XMLHttpRequest`.
 
+Requests follow the supplied A2 API Docs contract: `weightUnit`, `dimUnit`, `pieces`, `address1`, `address2`, `province`, `postalCode`. Rates use nested `consignee` and accept `rateshipmentresponse.services[].total`, retaining legacy array/rate response support. Shipment responses accept `trackingNumber`, `serviceLevel`, `totalCost` and legacy aliases. References and inline customs item fields retain the provider-confirmed FastDrop conventions.
+
+The provider email promises inline `label` data while A2 documents `labelUrl` / shipping-label documents. Both are supported: inline PDF/PNG/base64 or raw ZPL is validated and saved; approved HTTPS label URLs are downloaded immediately and saved through the same authenticated storage workflow. `shipping-api.brdrch.com` is approved by default and receives Basic Auth. A separate verified CDN hostname can be added to server-only `BROADREACH_LABEL_HOSTS` (comma-separated hostnames); it never receives API credentials. Redirects, private-IP/localhost URLs, unsupported content and labels over 3 MB are rejected. A label download failure saves known partner tracking with the blocked reservation; recover it from the carrier portal rather than rebooking. Do not configure the illustrative `morpheus.api` hostname from the PDF as a real label host.
+
 Apply the `broadreach_awb_booking` migration before deploying. Existing Supabase server and service-role configuration is also required. Redeploy after changing environment variables.
 
 ## Acceptance test
