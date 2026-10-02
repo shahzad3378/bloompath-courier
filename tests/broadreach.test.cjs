@@ -32,6 +32,41 @@ test('destination selects the exact rate-shop code, keeps tenant AWB reference a
   const us = core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US', consignee_state_province: 'WA', consignee_postal_code: '98230' }, 'account', { ...options, test: false }).shipment;
   assert.equal(us.service, 'US_Rateshop'); assert.equal(us.test, 0);
 });
+
+test('connection checks send rates only and safely classify rejected credentials and provider errors', async () => {
+  const saved = global.fetch;
+  const config = { username: 'user', password: 'pass', account: 'account', liveEnabled: false };
+  const payload = { rateshipment: { account: 'account', service: 'CA_Rateshop', weight: 2, uom: 'kg' } };
+  try {
+    global.fetch = async (_url, init) => {
+      assert.deepEqual(JSON.parse(init.body), payload);
+      assert.equal(Object.hasOwn(JSON.parse(init.body), 'shipment'), false);
+      return Response.json({ rateshipmentresponse: [{ service: 'CA_Rateshop', rate: '12.50' }] });
+    };
+    assert.equal(await server.requestBroadReachRates(payload, config), 1);
+    for (const [status, body, reason] of [
+      [401, { error: 'private data' }, 'credentials_rejected'],
+      [403, { error: 'private data' }, 'access_rejected'],
+      [200, { errorresponse: 'invalid account private data' }, 'account_rejected'],
+      [200, { errorresponse: 'invalid password private data' }, 'credentials_rejected'],
+      [200, { rateshipmentresponse: [] }, 'no_rates'],
+    ]) {
+      global.fetch = async () => Response.json(body, { status });
+      await assert.rejects(server.requestBroadReachRates(payload, config), issue => {
+        const safe = server.safeBroadReachError(issue);
+        assert.equal(safe.diagnostic.reason, reason);
+        assert.equal(safe.diagnostic.httpStatus, status);
+        assert.doesNotMatch(JSON.stringify(safe), /private data|user:pass/);
+        return true;
+      });
+    }
+    global.fetch = async () => new Response('<html>private data</html>');
+    await assert.rejects(server.requestBroadReachRates(payload, config), issue => server.safeBroadReachError(issue).diagnostic.reason === 'invalid_json');
+    global.fetch = async () => Response.json({ shipmentresponse: { tracknbr: '123' } });
+    await assert.rejects(server.requestBroadReachLabel(core.buildBroadReachShipment(shipment, 'account', options), config), issue => server.safeBroadReachError(issue).diagnostic.reason === 'invalid_label');
+    assert.doesNotMatch(JSON.stringify(server.safeBroadReachError(new Error('password secret'))), /password secret/);
+  } finally { global.fetch = saved; }
+});
 test('unsafe or incomplete bookings fail before the carrier request', () => {
   for (const change of [{ pieces: 2 }, { weight_kg: 0 }, { consignee_country_code: 'AE' }, { sender_postal_code: '' }, { payment_type: 'cod', cod_amount: 20 }]) assert.throws(() => core.buildBroadReachShipment({ ...shipment, ...change }, 'account', options));
   assert.throws(() => core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US' }, 'account', { ...options, items: [{ description: 'Shirt', qty: 1, unit: 'pc', value: 5 }] }), /HS code/);
