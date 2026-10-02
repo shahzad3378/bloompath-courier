@@ -28,6 +28,8 @@ Apply the `broadreach_awb_booking` migration before deploying. Existing Supabase
 
 ## Duplicate and recovery behavior
 
+Use **Check API connection** with an existing Canada/USA FastDrop AWB to request rates without creating a label or changing booking records. Item fields are not required for this check. It validates API access, account and route coverage, but does not prove label generation or release an earlier unconfirmed booking. Errors show fixed diagnostic categories and HTTP status; arbitrary provider messages and credentials are never logged. New booking failures save the safe diagnostic in `response_metadata`.
+
 Reservation is atomic per tenant, shipment and test/live mode. A second click cannot send another carrier request. No automatic booking retry is used because the provider docs do not promise an idempotency key.
 
 After a timeout, non-success response, invalid label or process interruption, the pending/needs-review row blocks repeat requests. Search BroadReach by the original FastDrop AWB (`reference`) and reconcile the partner booking first. Only a trusted administrator may repair the reservation after confirming whether an AWB exists; do not delete it blindly.
