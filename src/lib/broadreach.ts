@@ -1,6 +1,6 @@
 import type { Shipment } from "@/lib/shipments";
 
-export const broadReachServices = { CA: "CA_Rateshop", US: "US_Rateshop" } as const;
+export const broadReachServices = { CA: "ca_rateshop", US: "us_rateshop" } as const;
 
 export type BroadReachItem = {
   description: string;
@@ -22,6 +22,12 @@ export type BroadReachOptions = {
 function required(value: unknown, name: string) {
   if (typeof value !== "string" || !value.trim()) throw new Error(`Add ${name} to the shipment before generating a label.`);
   return value.trim();
+}
+
+function reference(value: unknown, name: string) {
+  const text = required(value, name);
+  if ([...text].length > 35) throw new Error(`${name} must be 35 characters or fewer for BroadReach. Update the shipment reference before generating a label.`);
+  return text;
 }
 
 export function buildBroadReachShipment(shipment: Shipment, account: string, options: BroadReachOptions) {
@@ -65,8 +71,8 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
   return { shipment: {
     account: required(account, "BroadReach account"),
     service: broadReachServices[country],
-    reference: required(shipment.tracking_number, "FastDrop AWB"),
-    ...(shipment.reference_number ? { reference2: shipment.reference_number } : {}),
+    reference: reference(shipment.tracking_number, "FastDrop AWB"),
+    ...(shipment.reference_number?.trim() ? { reference2: reference(shipment.reference_number, "Additional reference") } : {}),
     test: options.test ? 1 : 0,
     uom: "kg", weight, dimunit: "cm",
     ...(options.dimensions ?? {}),

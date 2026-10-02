@@ -23,25 +23,25 @@ const shipment = {
   consignee_name: 'Receiver', consignee_address: '2 Street', consignee_city: 'Toronto', consignee_state_province: 'ON', consignee_postal_code: 'M5V 1A1', consignee_country_code: 'CA',
 };
 const options = { test: true, currency: 'CAD', items: [{ description: 'Shirt', qty: 2, unit: 'pc', value: 12.5, sku: 'SHIRT', origin: 'CN', hscode: '6109100012' }] };
-const response = { shipmentresponse: { tracknbr: 'PARTNER1001', label: Buffer.from('%PDF-1.4\nexample').toString('base64'), labelformat: 'pdf', service: 'CA_Rateshop', carrier: 'Example' } };
+const response = { shipmentresponse: { tracknbr: 'PARTNER1001', label: Buffer.from('%PDF-1.4\nexample').toString('base64'), labelformat: 'pdf', service: 'ca_rateshop', carrier: 'Example' } };
 
 test('destination selects the exact rate-shop code, keeps tenant AWB reference and uses kg/cm', () => {
   const ca = core.buildBroadReachShipment(shipment, 'account', options).shipment;
-  assert.equal(ca.service, 'CA_Rateshop'); assert.equal(ca.reference, 'FD10001');
+  assert.equal(ca.service, 'ca_rateshop'); assert.equal(ca.reference, 'FD10001');
   assert.equal(ca.uom, 'kg'); assert.equal(ca.dimunit, 'cm'); assert.equal(ca.weight, 2); assert.equal(ca.value, 25); assert.equal(ca.test, 1);
   const us = core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US', consignee_state_province: 'WA', consignee_postal_code: '98230' }, 'account', { ...options, test: false }).shipment;
-  assert.equal(us.service, 'US_Rateshop'); assert.equal(us.test, 0);
+  assert.equal(us.service, 'us_rateshop'); assert.equal(us.test, 0);
 });
 
 test('connection checks send rates only and safely classify rejected credentials and provider errors', async () => {
   const saved = global.fetch;
   const config = { username: 'user', password: 'pass', account: 'account', liveEnabled: false };
-  const payload = { rateshipment: { account: 'account', service: 'CA_Rateshop', weight: 2, uom: 'kg' } };
+  const payload = { rateshipment: { account: 'account', service: 'ca_rateshop', weight: 2, uom: 'kg' } };
   try {
     global.fetch = async (_url, init) => {
       assert.deepEqual(JSON.parse(init.body), payload);
       assert.equal(Object.hasOwn(JSON.parse(init.body), 'shipment'), false);
-      return Response.json({ rateshipmentresponse: [{ service: 'CA_Rateshop', rate: '12.50' }] });
+      return Response.json({ rateshipmentresponse: [{ service: 'ca_rateshop', rate: '12.50' }] });
     };
     assert.equal(await server.requestBroadReachRates(payload, config), 1);
     for (const [status, body, reason] of [
@@ -71,6 +71,12 @@ test('unsafe or incomplete bookings fail before the carrier request', () => {
   for (const change of [{ pieces: 2 }, { weight_kg: 0 }, { consignee_country_code: 'AE' }, { sender_postal_code: '' }, { payment_type: 'cod', cod_amount: 20 }]) assert.throws(() => core.buildBroadReachShipment({ ...shipment, ...change }, 'account', options));
   assert.throws(() => core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US' }, 'account', { ...options, items: [{ description: 'Shirt', qty: 1, unit: 'pc', value: 5 }] }), /HS code/);
   assert.throws(() => core.buildBroadReachShipment(shipment, 'account', { ...options, dimensions: { length: 1, width: 0, height: 2 } }));
+});
+
+test('provider references preserve values and enforce the confirmed 35-character limit', () => {
+  const result = core.buildBroadReachShipment({ ...shipment, tracking_number: 'A'.repeat(35), reference_number: '  ORDER001  ' }, '1384', options).shipment;
+  assert.equal(result.account, '1384'); assert.equal(result.reference, 'A'.repeat(35)); assert.equal(result.reference2, 'ORDER001');
+  for (const change of [{ tracking_number: 'A'.repeat(36) }, { reference_number: 'B'.repeat(36) }]) assert.throws(() => core.buildBroadReachShipment({ ...shipment, ...change }, '1384', options), /35 characters/);
 });
 test('carrier label responses reject missing tracking, malformed base64 and mislabeled documents', () => {
   assert.equal(core.parseBroadReachResponse(response).tracking, 'PARTNER1001');
