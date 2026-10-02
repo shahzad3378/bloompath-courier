@@ -12,7 +12,7 @@ export function BroadReachBookingForm({ configured, liveEnabled, initialAwb }: {
   const [items, setItems] = useState([0]);
   return <form action={action} className="bp-panel p-5 sm:p-6">
     <h2 className="text-xl font-bold">Generate BroadReach AWB</h2>
-    <p className="mt-2 text-sm text-[var(--muted)]">Canada uses CA_Rateshop. USA uses US_Rateshop. One shipment must represent one physical parcel.</p>
+    <p className="mt-2 text-sm text-[var(--muted)]">Canada uses ca_rateshop. USA uses us_rateshop. One shipment must represent one physical parcel.</p>
     <fieldset disabled={busy || !configured} className="mt-5 space-y-5 disabled:opacity-70">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">FastDrop AWB<input name="awb" defaultValue={initialAwb} required maxLength={100} className="bp-input mt-2 font-mono" /></label>

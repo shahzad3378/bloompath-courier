@@ -27,7 +27,7 @@ const explanations: Record<BroadReachDiagnostic["reason"], string> = {
   invalid_json: "BroadReach returned a response that is not valid JSON.",
   invalid_label: "BroadReach responded but did not return a valid supported PDF, PNG or ZPL label with tracking.",
   account_rejected: "BroadReach rejected the account code. Check BROADREACH_ACCOUNT and its access for these API credentials.",
-  service_rejected: "BroadReach rejected the requested service. Confirm CA_Rateshop / US_Rateshop are enabled for this account.",
+  service_rejected: "BroadReach rejected the requested service. Confirm ca_rateshop / us_rateshop are enabled for this account.",
   address_rejected: "BroadReach rejected an address or postal/ZIP code. Check sender and recipient address fields.",
   weight_rejected: "BroadReach rejected the weight or parcel dimensions.",
   no_rates: "BroadReach responded but returned no valid rates. Confirm account service coverage for these addresses.",

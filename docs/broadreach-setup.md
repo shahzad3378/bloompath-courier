@@ -7,7 +7,7 @@ Configure these server-only Vercel environment variables for the `bloompath-cour
 | Variable | Value |
 |---|---|
 | `BROADREACH_ORGANIZATION_ID` | `edb6f2a6-1e35-45b6-a60c-35b8ca4aa01e` (FastDrop) |
-| `BROADREACH_ACCOUNT` | BroadReach account code |
+| `BROADREACH_ACCOUNT` | `1384` (confirmed FastDrop account code) |
 | `BROADREACH_USERNAME` | BroadReach Shipping API Basic Auth username |
 | `BROADREACH_PASSWORD` | BroadReach Shipping API Basic Auth password |
 | `BROADREACH_LIVE_ENABLED` | `false` until the real test is verified |
@@ -18,10 +18,12 @@ Apply the `broadreach_awb_booking` migration before deploying. Existing Supabase
 
 ## Acceptance test
 
+BroadReach confirmed production labels are required to exercise void/cancel workflows. This connector does not yet implement void/cancel; arrange cancellation directly with BroadReach before creating paid verification labels. Live booking remains gated by `BROADREACH_LIVE_ENABLED` and the charge confirmation.
+
 1. Sign in as FastDrop super admin, operations admin or dispatcher.
 2. Choose an eligible single-parcel shipment with complete sender/recipient country, state/province and postal codes, positive kg weight, and no assigned driver or existing partner link. COD collection is not configured and nonzero COD bookings are rejected.
 3. Enter its FastDrop AWB, actual item values and their currency. Supply US cross-border SKU, origin and 10-digit HS code. Optional dimensions use cm.
-4. Keep **Test label** selected and generate. Download and inspect the PDF/PNG/ZPL. Confirm the correct service (`CA_Rateshop` or `US_Rateshop`) and account in BroadReach. Confirm the test has not changed custody or added a 3PL partner link.
+4. Keep **Test label** selected and generate. Download and inspect the PDF/PNG/ZPL. Confirm the correct service (`ca_rateshop` or `us_rateshop`) and account in BroadReach. Confirm the test has not changed custody or added a 3PL partner link.
 5. Verify both destination services with the account. Test booking support and account/service entitlement cannot be established without actual account credentials.
 6. Enable `BROADREACH_LIVE_ENABLED=true` and redeploy only after test verification. Live booking requires an explicit shipping-charge checkbox. Download labels through the authenticated internal route; seller/customer AWBs remain unchanged.
 7. When the live parcel is physically at warehouse, use the existing 3PL handover with BroadReach. It reuses the pre-booked partner link and then updates custody.
@@ -31,6 +33,8 @@ Apply the `broadreach_awb_booking` migration before deploying. Existing Supabase
 Use **Check API connection** with an existing Canada/USA FastDrop AWB to request rates without creating a label or changing booking records. Item fields are not required for this check. It validates API access, account and route coverage, but does not prove label generation or release an earlier unconfirmed booking. Errors show fixed diagnostic categories and HTTP status; arbitrary provider messages and credentials are never logged. New booking failures save the safe diagnostic in `response_metadata`.
 
 Reservation is atomic per tenant, shipment and test/live mode. A second click cannot send another carrier request. No automatic booking retry is used because the provider docs do not promise an idempotency key.
+
+BroadReach requires `reference` values to be unique within 180 days. Preserve the original FastDrop AWB; do not reuse it for another carrier booking. `reference` and optional `reference2` are validated at 35 characters maximum without truncation. Multi-piece creation is unsupported: book each separately represented physical parcel with its own unique reference and label cost.
 
 After a timeout, non-success response, invalid label or process interruption, the pending/needs-review row blocks repeat requests. Search BroadReach by the original FastDrop AWB (`reference`) and reconcile the partner booking first. Only a trusted administrator may repair the reservation after confirming whether an AWB exists; do not delete it blindly.
 
