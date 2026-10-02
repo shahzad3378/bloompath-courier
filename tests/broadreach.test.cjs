@@ -30,9 +30,54 @@ const response = { shipmentresponse: { tracknbr: 'PARTNER1001', label: Buffer.fr
 test('destination selects the exact rate-shop code, keeps tenant AWB reference and uses kg/cm', () => {
   const ca = core.buildBroadReachShipment(shipment, 'account', options).shipment;
   assert.equal(ca.service, 'ca_rateshop'); assert.equal(ca.reference, 'FD10001');
-  assert.equal(ca.uom, 'kg'); assert.equal(ca.dimunit, 'cm'); assert.equal(ca.weight, 2); assert.equal(ca.value, 25); assert.equal(ca.test, 1);
+  assert.equal(ca.weightUnit, 'kg'); assert.equal(ca.dimUnit, 'cm'); assert.equal(ca.weight, 2); assert.equal(ca.value, 25); assert.equal(ca.test, 1);
+  assert.equal(ca.pieces, 1); assert.equal(ca.shipper.address1, '1 Street'); assert.equal(ca.consignee.province, 'ON'); assert.equal(ca.consignee.postalCode, 'M5V 1A1');
+  assert.equal(ca.uom, undefined); assert.equal(ca.shipper.addr1, undefined);
   const us = core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US', consignee_state_province: 'WA', consignee_postal_code: '98230' }, 'account', { ...options, test: false }).shipment;
   assert.equal(us.service, 'us_rateshop'); assert.equal(us.test, 0);
+});
+
+test('A2 rates contract uses nested consignee and parses services/total with empty errors', async () => {
+  const saved = global.fetch;
+  try {
+    const payload = core.buildBroadReachRates(shipment, '1384');
+    assert.deepEqual(payload, { rateshipment: { account: '1384', weight: 2, weightUnit: 'kg', pieces: 1, dimUnit: 'cm', consignee: { country: 'CA', postalCode: 'M5V 1A1' } } });
+    global.fetch = async (_url, init) => { assert.deepEqual(JSON.parse(init.body), payload); return Response.json({ rateshipmentresponse: { services: [{ service: 'USPS_GROUND_ADVANTAGE', total: 12.5 }], errors: [] }, errors: [] }); };
+    assert.equal(await server.requestBroadReachRates(payload, { username: 'user', password: 'pass', account: '1384' }), 1);
+    global.fetch = async () => Response.json({ rateshipmentresponse: { services: [], errors: ['Account is unavailable'] } });
+    await assert.rejects(server.requestBroadReachRates(payload, { username: 'user', password: 'pass', account: '1384' }), issue => issue.diagnostic.reason === 'account_rejected');
+  } finally { global.fetch = saved; }
+});
+
+test('A2 tracking/label response aliases retain service and numeric cost; raw ZPL is supported', () => {
+  const result = core.parseBroadReachResponse({ shipmentresponse: { trackingNumber: 'A2TRACK', label: response.shipmentresponse.label, labelFormat: 'PDF', serviceLevel: 'USPS_GROUND_ADVANTAGE', totalCost: 12.5 } });
+  assert.equal(result.tracking, 'A2TRACK'); assert.equal(result.service, 'USPS_GROUND_ADVANTAGE'); assert.equal(result.rate, '12.5');
+  const zpl = core.parseBroadReachResponse({ shipmentresponse: { trackingNumber: 'ZPLTRACK', label: '^XA\n^FO10,10^FDExample^FS\n^XZ' } });
+  assert.equal(zpl.format, 'zpl'); assert.match(Buffer.from(zpl.label, 'base64').toString(), /^\^XA/);
+});
+
+test('label URL downloads are bounded and credentials never reach another host or redirect', async () => {
+  const saved = global.fetch, hosts = process.env.BROADREACH_LABEL_HOSTS;
+  const config = { username: 'user', password: 'pass', account: '1384' };
+  const payload = core.buildBroadReachShipment(shipment, '1384', options);
+  try {
+    let calls = 0;
+    global.fetch = async (_url, init) => { calls++; return Response.json({ shipmentresponse: { trackingNumber: 'CREATED1', labelUrl: 'http://127.0.0.1/private' } }); };
+    await assert.rejects(server.requestBroadReachLabel(payload, config), issue => issue.diagnostic.reason === 'label_host_rejected' && issue.tracking === 'CREATED1'); assert.equal(calls, 1);
+    process.env.BROADREACH_LABEL_HOSTS = 'labels.example.com';
+    global.fetch = async (url, init) => {
+      if (init.method === 'POST') return Response.json({ shipmentresponse: { trackingNumber: 'CREATED2', labelUrl: 'https://labels.example.com/label.pdf', serviceLevel: 'TEST' } });
+      assert.equal(url, 'https://labels.example.com/label.pdf'); assert.equal(init.headers.Authorization, undefined); assert.equal(init.redirect, 'error'); assert.equal(init.credentials, 'omit');
+      return new Response('%PDF-1.4 example', { headers: { 'Content-Type': 'application/pdf' } });
+    };
+    assert.equal((await server.requestBroadReachLabel(payload, config)).tracking, 'CREATED2');
+    global.fetch = async (_url, init) => init.method === 'POST' ? Response.json({ shipmentresponse: { trackingNumber: 'CREATED3', documents: [{ type: 'shipping_label', url: 'https://shipping-api.brdrch.com/labels/3', format: 'PDF' }] } }) : (assert.ok(init.headers.Authorization), new Response('%PDF-1.4 example'));
+    assert.equal((await server.requestBroadReachLabel(payload, config)).tracking, 'CREATED3');
+    global.fetch = async (_url, init) => init.method === 'POST' ? Response.json({ shipmentresponse: { trackingNumber: 'CREATED4', labelUrl: 'https://labels.example.com/label.pdf' } }) : new Response('private data', { status: 403 });
+    await assert.rejects(server.requestBroadReachLabel(payload, config), issue => issue.tracking === 'CREATED4' && issue.diagnostic.reason === 'label_download_failed');
+    global.fetch = async (_url, init) => init.method === 'POST' ? Response.json({ shipmentresponse: { trackingNumber: 'CREATED5', labelUrl: 'https://labels.example.com/label.pdf' } }) : new Response(new Uint8Array(3 * 1024 * 1024 + 1));
+    await assert.rejects(server.requestBroadReachLabel(payload, config), issue => issue.tracking === 'CREATED5' && issue.diagnostic.reason === 'response_too_large');
+  } finally { global.fetch = saved; if (hosts === undefined) delete process.env.BROADREACH_LABEL_HOSTS; else process.env.BROADREACH_LABEL_HOSTS = hosts; }
 });
 
 test('connection checks send rates only and safely classify rejected credentials and provider errors', async () => {
