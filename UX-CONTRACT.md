@@ -18,6 +18,16 @@ This contract records observable workflow behavior for the authenticated courier
 | Operational feedback | Inline page banners and stable loading panels | Success, partial success, and recovery guidance remain visible in text. |
 | Currency | Organization base currency with shipment override | No screen hardcodes AED for a non-AED tenant. |
 
+## Canonical UI Map
+
+| Capability | Canonical owner | Source of truth | Allowed variants | Verification |
+|---|---|---|---|---|
+| Form | Shared `bp-input`/buttons with server domain validation | DESIGN.md and authorized shipment/booking actions | Single booking / bulk file preview | Scoped ESLint, typecheck, parser and action tests |
+| Select/Listbox | Native select in operational booking forms | DESIGN.md; platform popup geometry is accepted | Single booking / batch mode | Semantic labels, disabled states and typecheck |
+| Scrollbar | `src/app/globals.css` | DESIGN.md runtime mapping | Results table owns horizontal overflow | Responsive source review and static audit |
+| Toast | Inline operational feedback/live regions | UX contract operational feedback | Field error / batch status | Live-region markup and action failure tests |
+| CRUD | Role/tenant-authorized server actions and existing database reservation RPCs | Authentication and shipment custody model | Booking / reusing saved labels | Tenant/action tests and reservation verification |
+
 ## Workflow ledger
 
 ### Warehouse custody
@@ -70,3 +80,8 @@ This contract records observable workflow behavior for the authenticated courier
 - Atomic per-shipment/per-mode reservation prevents concurrent double booking. Timeout, ambiguous error or process interruption stays blocked for manual carrier reconciliation.
 - Generated labels are retained internally and can be downloaded after authorization. Local linking can be retried without another carrier request.
 - Generating an AWB does not mark shipment handover or change physical custody. Warehouse handover reuses the pre-booked partner link.
+- Bulk booking owns a transient, non-shareable file preview rather than URL state. The existing file-reader, shipment mapper, booking action and authenticated download route remain canonical; the new `BroadReachBulkBooking` component owns per-parcel progress and `processBroadReachBatch` owns sequential execution.
+- Bulk preview accepts CSV/XLSX (2 MB, 100 parcels, 1,000 item rows), reports invalid rows in text and sends no carrier booking. Additional content rows group by AWB with consistent currency/dimensions. Unknown tenant AWBs cannot be booked.
+- Starting a batch checks rates before reservation, keeps invalid parcels excluded and repeats authorization for each parcel. Live charges require activation and explicit confirmation. Batch mode locks after the first parcel is processed.
+- Stop finishes the current request. Carrier uncertainty or interrupted transport stops subsequent parcels; continue sends only waiting rows and never auto-retries an attempted row. Leaving/unmounting stops subsequent dispatch. Results/labels are downloadable and saved bookings survive reload; the preview/report should be exported before navigation.
+- Shared green form/table/button tokens and native platform-owned selects match single booking. Inline live regions announce validation, counts and stop outcomes; the results table scrolls within its panel on narrow screens. Bulk forms own validation with `noValidate` and focus file errors. See `docs/broadreach-setup.md` for provider limits, billing and recovery sources.

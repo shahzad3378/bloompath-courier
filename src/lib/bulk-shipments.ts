@@ -123,7 +123,7 @@ function parseCsv(text: string): BulkCell[][] {
   return rows;
 }
 
-async function readRows(file: File): Promise<BulkCell[][]> {
+export async function readBulkFileRows(file: File): Promise<BulkCell[][]> {
   const extension = file.name.toLowerCase().split(".").pop();
   if (extension === "csv") return parseCsv(await file.text());
   if (extension === "xlsx") {
@@ -169,7 +169,7 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
 
   let rawRows: BulkCell[][];
   try {
-    rawRows = await readRows(file);
+    rawRows = await readBulkFileRows(file);
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "The spreadsheet could not be read.", errors: [] };
   }
@@ -291,3 +291,4 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
   if (errors.length) return { ok: false, message: `${errors.length} validation issue${errors.length === 1 ? "" : "s"} found. No shipments were imported.`, errors: errors.slice(0, 500) };
   return { ok: true, rows: parsedRows };
 }
+
