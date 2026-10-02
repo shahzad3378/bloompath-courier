@@ -17,6 +17,8 @@ function loadTs(filename, imports = {}) {
 }
 const core = loadTs('src/lib/broadreach.ts');
 const server = loadTs('src/lib/broadreach-server.ts', { 'server-only': {}, '@/lib/broadreach': core });
+const bulk = loadTs('src/lib/broadreach-bulk.ts');
+const bulkParser = loadTs('src/lib/broadreach-bulk-parser.ts', { '@/lib/broadreach-bulk': bulk });
 const shipment = {
   tracking_number: 'FD10001', pieces: 1, weight_kg: 2, payment_type: 'prepaid', cod_amount: 0,
   sender_name: 'Sender', sender_address: '1 Street', sender_city: 'Toronto', sender_state_province: 'ON', sender_postal_code: 'M5V 1A1', sender_country_code: 'CA',
@@ -105,4 +107,91 @@ test('transport sends Basic auth and required headers once, without redirect or 
     await assert.rejects(server.requestBroadReachLabel(core.buildBroadReachShipment(shipment, 'account', options), { username: 'user', password: 'pass', account: 'account', liveEnabled: false }));
     assert.equal(calls, 2);
   } finally { global.fetch = saved; }
+});
+
+const itemRow = (awb, changes = {}) => {
+  const values = { awb, currency: 'CAD', description: 'Shirt', qty: '1', value: '12.50', sku: '', origin: '', hscode: '', length: '', width: '', height: '', ...changes };
+  return bulk.broadReachBulkHeaders.map(header => values[header]);
+};
+test('bulk groups content rows into one parcel and validates domestic/cross-border customs', () => {
+  const parcels = bulkParser.parseBroadReachBulkRows([bulk.broadReachBulkHeaders, itemRow('FD10001'), itemRow('FD10001', { description: 'Book' }), itemRow('FD10002')]);
+  assert.equal(parcels.length, 2); assert.deepEqual(parcels[0].rows, [2, 3]); assert.equal(parcels[0].options.items.length, 2);
+  assert.equal(core.buildBroadReachShipment(shipment, '1384', { ...parcels[0].options, test: true }).shipment.value, 25);
+  const usShipment = { ...shipment, consignee_country_code: 'US', consignee_state_province: 'WA', consignee_postal_code: '98230' };
+  assert.throws(() => core.buildBroadReachShipment(usShipment, '1384', { ...parcels[0].options, test: true }), /HS code/);
+  const crossBorder = bulkParser.parseBroadReachBulkRows([bulk.broadReachBulkHeaders, itemRow('FD10001', { sku: 'SHIRT', origin: 'CN', hscode: '0109100012' })]);
+  assert.equal(core.buildBroadReachShipment(usShipment, '1384', { ...crossBorder[0].options, test: false }).shipment.item[0].hscode, '0109100012');
+  for (const rows of [
+    [bulk.broadReachBulkHeaders.slice(1), itemRow('FD1')],
+    [bulk.broadReachBulkHeaders, itemRow('FD1'), itemRow('FD1', { currency: 'USD' })],
+    [bulk.broadReachBulkHeaders, ...Array.from({ length: 101 }, (_, i) => itemRow('FD' + i))],
+    [bulk.broadReachBulkHeaders],
+  ]) assert.throws(() => bulkParser.parseBroadReachBulkRows(rows));
+});
+
+test('bulk books sequentially once, reports partial results and halts on carrier uncertainty', async () => {
+  const parcels = bulkParser.parseBroadReachBulkRows([bulk.broadReachBulkHeaders, itemRow('FD1'), itemRow('FD2'), itemRow('FD3')]);
+  const calls = [], updates = []; let concurrent = 0;
+  const outcome = await bulk.processBroadReachBatch(parcels, 'live', true, async form => {
+    assert.equal(++concurrent, 1); assert.equal(form.get('confirm_live'), 'on'); assert.equal(form.get('mode'), 'live');
+    calls.push(form.get('awb')); await Promise.resolve(); concurrent--;
+    return calls.length === 1 ? { status: 'success', bookingId: 'saved', tracking: 'TRACK1', message: 'Saved' } : { status: 'error', message: '401', haltBatch: true };
+  }, (index, result) => updates.push({ index, ...result }), () => false);
+  assert.equal(outcome, 'stopped'); assert.deepEqual(calls, ['FD1', 'FD2']);
+  assert.deepEqual(updates.map(row => row.status), ['processing', 'success', 'processing', 'error']);
+  let requests = 0;
+  assert.equal(await bulk.processBroadReachBatch(parcels, 'test', false, async () => { requests++; throw Error('offline'); }, () => {}, () => false), 'stopped');
+  assert.equal(requests, 1);
+  assert.equal(await bulk.processBroadReachBatch(parcels, 'test', false, async () => { throw Error('must not send'); }, () => {}, () => true), 'stopped');
+});
+
+test('bulk preview stays tenant-scoped and never calls the carrier or reserves a booking', async () => {
+  let authenticated = true, requestedTenant;
+  const previewAction = loadTs('src/app/(portal)/courier-integrations/broadreach/bulk-actions.ts', {
+    '@/lib/auth': { requireProfile: async roles => { assert.ok(roles.includes('dispatcher')); if (!authenticated) throw Error('denied'); return { organization_id: 'tenant' }; } },
+    '@/lib/broadreach': core, '@/lib/broadreach-bulk': bulk, '@/lib/broadreach-bulk-parser': bulkParser,
+    '@/lib/broadreach-server': { getBroadReachConfig: () => ({ account: '1384' }) },
+    '@/lib/bulk-shipments': { readBulkFileRows: async () => [bulk.broadReachBulkHeaders, itemRow('FD10001'), itemRow('FD_UNKNOWN')] },
+    '@/lib/supabase/server': { createClient: async () => ({ from: table => {
+      assert.equal(table, 'shipments');
+      const query = { select: () => query, eq: (name, value) => { assert.equal(name, 'organization_id'); requestedTenant = value; return query; }, in: () => query, is: async () => ({ data: [shipment], error: null }) };
+      return query;
+    } }) },
+  });
+  const form = new FormData(); form.set('file', new File(['example'], 'batch.csv'));
+  const result = await previewAction.previewBroadReachBulk({ status: 'idle', message: '', rows: [] }, form);
+  assert.equal(requestedTenant, 'tenant'); assert.deepEqual(result.rows.map(row => row.status), ['ready', 'invalid']);
+  assert.match(result.rows[1].message, /not found/);
+  authenticated = false;
+  await assert.rejects(previewAction.previewBroadReachBulk({}, form), /denied/);
+});
+
+test('result CSV neutralizes spreadsheet formulas and preserves tracking plus recovery detail', () => {
+  const csv = bulk.broadReachResultsCsv([{ awb: '=1+1', rows: [2, 3], status: 'error', message: 'Review "booking"', tracking: 'TRACK1' }]);
+  assert.match(csv, /"'=1\+1"/); assert.match(csv, /"2 \/ 3"/); assert.match(csv, /Review ""booking""/); assert.match(csv, /TRACK1/);
+});
+
+test('shared upload reader accepts quoted CSV and XLSX content without losing text HS codes', async () => {
+  const fileReader = loadTs('src/lib/bulk-shipments.ts', { '@/lib/shipments': loadTs('src/lib/shipments.ts') });
+  const csv = await fileReader.readBulkFileRows(new File(['awb,description\r\nFD1,"Shirt, cotton"'], 'contents.csv'));
+  assert.deepEqual(csv[1], ['FD1', 'Shirt, cotton']);
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet('Bulk Upload');
+  sheet.addRow(bulk.broadReachBulkHeaders); sheet.addRow(itemRow('FD1', { sku: 'SKU', origin: 'CN', hscode: '0109100012' }));
+  const rows = await fileReader.readBulkFileRows(new File([await workbook.xlsx.writeBuffer()], 'contents.xlsx'));
+  assert.equal(bulkParser.parseBroadReachBulkRows(rows)[0].options.items[0].hscode, '0109100012');
+});
+
+test('server booking enforces live activation and explicit charge confirmation before database access', async () => {
+  const action = loadTs('src/app/(portal)/courier-integrations/broadreach/actions.ts', {
+    'next/cache': { revalidatePath: () => {} },
+    '@/lib/auth': { requireProfile: async () => ({ organization_id: 'tenant' }) },
+    '@/lib/broadreach': core,
+    '@/lib/broadreach-server': { getBroadReachConfig: () => ({ liveEnabled: false }) },
+    '@/lib/supabase/admin': { createAdminClient: () => { throw Error('must not reach database'); } },
+    '@/lib/supabase/server': { createClient: () => { throw Error('must not reach database'); } },
+  });
+  const form = new FormData(); form.set('mode', 'live'); form.set('confirm_live', 'on');
+  const result = await action.generateBroadReachAwb({}, form);
+  assert.equal(result.status, 'error'); assert.match(result.message, /Live booking must be enabled/);
 });

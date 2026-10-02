@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/lib/shipments";
 
-export type BroadReachState = { status: "idle" | "success" | "error"; message: string; bookingId?: string; tracking?: string; test?: boolean };
+export type BroadReachState = { status: "idle" | "success" | "error"; message: string; bookingId?: string; tracking?: string; test?: boolean; haltBatch?: boolean };
 const roles = ["super_admin", "operations_admin", "dispatcher"] as const;
 const field = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
@@ -62,13 +62,13 @@ export async function generateBroadReachAwb(_state: BroadReachState, form: FormD
     const failure = safeBroadReachError(issue);
     console.error("broadreach.booking.failed", { bookingId, ...failure.diagnostic });
     await admin.from("broadreach_bookings").update({ status: "needs_review", response_metadata: { diagnostic: failure.diagnostic } }).eq("id", bookingId).eq("organization_id", profile.organization_id);
-    return fail(`${failure.message} Check BroadReach using the FastDrop AWB reference before retrying; duplicate booking remains blocked.`);
+    return { ...fail(`${failure.message} Check BroadReach using the FastDrop AWB reference before retrying; duplicate booking remains blocked.`), haltBatch: true };
   }
   const { error: saveError } = await admin.from("broadreach_bookings").update({
     status: "generated", partner_tracking_number: result.tracking, label_base64: result.label, label_format: result.format,
     response_metadata: { carrier: result.carrier, service: result.service, alternate_tracking: result.alternateTracking, scn: result.scn, rate: result.rate, currency: result.currency },
   }).eq("id", bookingId).eq("organization_id", profile.organization_id);
-  if (saveError) return fail(`BroadReach generated AWB ${result.tracking}, but the label could not be saved. Recover it from the BroadReach portal. Do not book again.`);
+  if (saveError) return { ...fail(`BroadReach generated AWB ${result.tracking}, but the label could not be saved. Recover it from the BroadReach portal. Do not book again.`), haltBatch: true };
   return finish({ id: bookingId, partner_tracking_number: result.tracking });
 }
 
