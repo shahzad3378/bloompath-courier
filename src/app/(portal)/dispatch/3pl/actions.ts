@@ -209,6 +209,19 @@ export async function handoverToCarrierAction(
     return { status: "error", message: "Selected 3PL carrier is not active." };
   }
 
+  // Carrier labels can be booked before physical warehouse handover.
+  const { data: existingLink, error: existingLinkError } = await supabase
+    .from("third_party_shipment_links")
+    .select("carrier_id, partner_tracking_number, handed_over_at")
+    .eq("organization_id", profile.organization_id)
+    .eq("shipment_id", shipment.id)
+    .maybeSingle();
+  if (existingLinkError || (existingLink && (existingLink.carrier_id !== carrier.id
+    || existingLink.handed_over_at
+    || (partnerTracking && existingLink.partner_tracking_number !== partnerTracking)))) {
+    return { status: "error", message: "Shipment has a different or already handed-over partner booking." };
+  }
+
   const { error: shipmentError } = await supabase
     .from("shipments")
     .update({
@@ -221,7 +234,7 @@ export async function handoverToCarrierAction(
     return { status: "error", message: "Shipment could not be assigned to 3PL." };
   }
 
-  const { error: linkError } = await supabase
+  const { error: linkError } = existingLink ? { error: null } : await supabase
     .from("third_party_shipment_links")
     .insert({
       organization_id: profile.organization_id,
@@ -441,3 +454,4 @@ export async function bulkUpdateThreePLStatusesAction(
     failedCount,
   };
 }
+
