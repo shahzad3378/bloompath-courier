@@ -98,3 +98,10 @@ test('setup diagnostics identify missing settings, tenant mismatch and invalid U
  process.env.GTA_AIRSKIP_API_KEY='secret\nsecret';assert.match(server.getGtaSetupIssue('org'),/line break/);process.env.GTA_AIRSKIP_API_KEY='secret-api';process.env.GTA_AIRSKIP_BASE_URL='https://evil.example/?secret';assert.match(server.getGtaSetupIssue('org'),/BASE_URL/);assert.ok(!server.getGtaSetupIssue('org').includes('evil.example'));process.env.GTA_AIRSKIP_API_KEY='  ';assert.match(server.getGtaSetupIssue('org'),/Missing deployment settings: GTA_AIRSKIP_API_KEY/);
  }finally{keys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i]);}
 });
+test('credential verification only calls read-only tracking with a fresh synthetic exact filter',async()=>{
+ const old=global.fetch,calls=[];
+ try{global.fetch=async(url,opts)=>{const payload=JSON.parse(opts.body);calls.push(payload);assert.equal(url,server.gtaQaUrl+'/trackings/get');assert.equal(payload.pageSize,1);assert.equal(payload.includeHistory,false);assert.equal(payload.trackingNumbers.length,1);assert.match(payload.trackingNumbers[0],/^CONNECTIONCHECK-[0-9a-f-]{36}$/);return new Response(JSON.stringify({isSuccess:true,data:[]}));};await server.verifyGtaCredentials(config);await server.verifyGtaCredentials(config);assert.notEqual(calls[0].trackingNumbers[0],calls[1].trackingNumbers[0]);
+ global.fetch=async()=>new Response(JSON.stringify({isSuccess:false,errorMessage:'private'}));await assert.rejects(server.verifyGtaCredentials(config),/rejected/);
+ global.fetch=async()=>new Response(JSON.stringify({isSuccess:true,data:null}));await assert.rejects(server.verifyGtaCredentials(config),/unexpected tracking/);
+ }finally{global.fetch=old;}
+});

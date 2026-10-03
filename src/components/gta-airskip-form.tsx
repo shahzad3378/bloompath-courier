@@ -1,6 +1,6 @@
 "use client";
 import {useActionState,useState,useEffect,useRef} from "react";
-import {generateGtaAwb,checkGtaRates,checkGtaTracking,type GtaState} from "@/app/(portal)/courier-integrations/gta-airskip/actions";
+import {generateGtaAwb,checkGtaRates,checkGtaTracking,checkGtaCredentials,type GtaState} from "@/app/(portal)/courier-integrations/gta-airskip/actions";
 const initial: GtaState = {status:"idle",message:""};
 function Result({state}:{state:GtaState}) { const ref = useRef<HTMLParagraphElement>(null); useEffect(() => { if(state.status === "error") ref.current?.focus(); },[state]); return <div aria-live="polite" aria-atomic="true">{state.message ? <p ref={ref} tabIndex={-1} role={state.status === "error" ? "alert" : "status"} className="mt-4 rounded-xl border border-[var(--line)] p-4 text-sm">{state.message}{state.tracking ? <strong className="mt-2 block font-mono">Partner AWB: {state.tracking}</strong> : null}</p> : null}</div>; }
 export function GtaBookingForm({configured,test,liveEnabled,initialAwb}:{configured:boolean;test:boolean;liveEnabled:boolean;initialAwb:string}) {
@@ -43,4 +43,9 @@ export function GtaBookingForm({configured,test,liveEnabled,initialAwb}:{configu
 export function GtaTrackingForm({bookingId}:{bookingId:string}) {
   const [state,action,pending] = useActionState(checkGtaTracking,initial);
   return <form action={action} noValidate className="mt-3"><input type="hidden" name="booking_id" value={bookingId} /><button disabled={pending} className="bp-button-secondary !min-h-11 !text-sm">{pending ? "Checking…" : "Check tracking"}</button><Result state={state} />{state.history ? <div className="mt-3 text-sm"><p>{state.history.status} · {state.history.date} · Status code {state.history.standardStatus ?? "unavailable"}</p><ul className="mt-2 space-y-2">{state.history.events.map((event,i) => <li key={i}>{event.date} — {event.name}{event.location ? ` · ${event.location}` : ""}</li>)}</ul></div> : null}</form>;
+}
+
+export function GtaConnectionForm({configured}:{configured:boolean}) {
+  const [state,action,pending] = useActionState(checkGtaCredentials,initial);
+  return <form action={action} noValidate className="bp-panel p-5 sm:p-6"><h2 className="text-xl font-bold">API connection</h2><p className="mt-2 text-sm text-[var(--muted)]">Verify GTA account/API access with a read-only tracking check. No parcel details, booking or shipping charges.</p><button disabled={!configured || pending} className="bp-button-secondary mt-4 !min-h-11 !text-sm">{pending ? "Checking API keys…" : "Verify API keys"}</button><Result state={state} /></form>;
 }

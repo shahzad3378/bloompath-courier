@@ -45,5 +45,12 @@ export async function requestGtaLabel(payload: unknown, config: Config) {
   try { return parseGtaLabel(body); } catch (issue) { throw new GtaApiError(issue instanceof Error ? issue.message : "GTA label needs review.", gtaKnownTracking(gtaData(body))); }
 }
 export async function requestGtaRates(payload: unknown, config: Config) { return parseGtaRates(await request("/shipment/rate", payload, config)); }
+export async function verifyGtaCredentials(config: Config) {
+  // Read-only exact filter: never query all account shipments or create/reserve a booking.
+  const tracking = `CONNECTIONCHECK-${crypto.randomUUID()}`;
+  const body = await request("/trackings/get", { trackingNumbers: [tracking], includeHistory: false, page: 1, pageSize: 1 }, config);
+  const data = gtaData(body);
+  if (!Array.isArray(data)) throw new GtaApiError("GTA returned an unexpected tracking response. API access could not be verified.");
+}
 export async function requestGtaTracking(tracking: string, config: Config) { return parseGtaTracking(await request("/trackings/get", { trackingNumbers: [tracking], includeHistory: true, page: 1, pageSize: 10 }, config), tracking); }
 export function safeGtaError(issue: unknown) { return issue instanceof GtaApiError ? issue.message : "GTA response could not be verified. Confirm the request with GTA."; }
