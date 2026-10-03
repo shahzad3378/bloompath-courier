@@ -1,5 +1,5 @@
 import "server-only";
-import { gtaData, gtaKnownTracking, parseGtaLabel, parseGtaRates, parseGtaTracking } from "@/lib/gta-airskip";
+import { gtaData, gtaEnvelope, gtaKnownTracking, parseGtaLabel, parseGtaRates, parseGtaTracking } from "@/lib/gta-airskip";
 export const gtaQaUrl = "https://tms-api-qa.gtagsm.com";
 export function getGtaConfig(organizationId: string | null) {
   if (!organizationId || organizationId !== process.env.GTA_AIRSKIP_ORGANIZATION_ID) return null;
@@ -25,8 +25,9 @@ export function getGtaSetupIssue(organizationId: string | null) {
 type Config = NonNullable<ReturnType<typeof getGtaConfig>>;
 export class GtaApiError extends Error { constructor(message: string, public tracking?: string) { super(message); } }
 export function describeGtaRejection(body: unknown) {
-  if (!body || typeof body !== "object" || !("isSuccess" in body) || typeof body.isSuccess !== "boolean") return "GTA returned an undocumented response format: the isSuccess flag is missing or invalid. Ask GTA to confirm the response contract.";
-  const message = "errorMessage" in body && typeof body.errorMessage === "string" ? body.errorMessage.toLowerCase() : "";
+  const envelope = gtaEnvelope(body);
+  if (!envelope) return "GTA returned an undocumented response format: the isSuccess flag is missing or invalid. Ask GTA to confirm the response contract.";
+  const message = typeof envelope.errorMessage === "string" ? envelope.errorMessage.toLowerCase() : "";
   // Only fixed categories leave the server. Never expose arbitrary provider text or PII.
   if (/api.?key|access.?key|account.?key|credential|unauthori|authenticat|authorization/.test(message)) return "GTA could not validate x-account-key / x-api-key. Confirm the account-key format and matching QA/production Access Key with GTA.";
   if (/account|customer.*(?:invalid|not found|inactive)/.test(message)) return "GTA rejected the account or its API access. Ask GTA to confirm the account key and account activation for this environment.";

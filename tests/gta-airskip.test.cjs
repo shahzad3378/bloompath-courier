@@ -113,3 +113,16 @@ test('provider rejection categories distinguish auth, no match and undocumented 
  assert.match(server.describeGtaRejection({success:true,errorMessage:'PRIVATE'}),/undocumented response/);
  assert.ok(!server.describeGtaRejection({isSuccess:false,errorMessage:'Invalid ApiKey: PRIVATE'}).includes('PRIVATE'));
 });
+
+test('verified QA PascalCase envelope succeeds and malformed or failed envelopes stay blocked',async()=>{
+ const actual={Data:[],IsSuccess:true,ErrorMessage:null};
+ assert.deepEqual(core.gtaData(actual),[]);
+ assert.deepEqual(core.gtaData({isSuccess:true,data:[]}),[]);
+ for(const body of [{Data:[],IsSuccess:false},{Data:[],IsSuccess:'true'},{IsSuccess:true},{Data:[],IsSuccess:true,isSuccess:false},{Data:[],isSuccess:true}])assert.throws(()=>core.gtaData(body));
+ assert.match(server.describeGtaRejection({IsSuccess:false,ErrorMessage:'Invalid ApiKey PRIVATE'}),/could not validate/);
+ assert.ok(!server.describeGtaRejection({IsSuccess:false,ErrorMessage:'Invalid ApiKey PRIVATE'}).includes('PRIVATE'));
+ const old=global.fetch;
+ try{global.fetch=async()=>new Response(JSON.stringify(actual));await server.verifyGtaCredentials(config);
+ global.fetch=async()=>new Response(JSON.stringify({Data:[],IsSuccess:false,ErrorMessage:'Invalid ApiKey PRIVATE'}));await assert.rejects(server.verifyGtaCredentials(config),/could not validate/);
+ }finally{global.fetch=old;}
+});
