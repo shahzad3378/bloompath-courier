@@ -90,3 +90,11 @@ test('request mapping satisfies the provider snapshot required fields and reject
  const check=(value,schema)=>{for(const key of schema.required||[])assert.ok(Object.hasOwn(value,key),`Missing required ${key}`);for(const key of Object.keys(value))assert.ok(Object.hasOwn(schema.properties,key),`Unknown provider field ${key}`);};
  check(payload,schemas.Shipment);check(payload.packages[0],schemas.Package);check(payload.packages[0].items[0],schemas.Item);
 });
+test('setup diagnostics identify missing settings, tenant mismatch and invalid URL without exposing secrets',()=>{
+ const keys=['GTA_AIRSKIP_ORGANIZATION_ID','GTA_AIRSKIP_ACCOUNT_KEY','GTA_AIRSKIP_API_KEY','GTA_AIRSKIP_BASE_URL']; const old=keys.map(k=>process.env[k]);
+ try{ keys.forEach(k=>delete process.env[k]);assert.match(server.getGtaSetupIssue('org'),/GTA_AIRSKIP_ORGANIZATION_ID, GTA_AIRSKIP_ACCOUNT_KEY, GTA_AIRSKIP_API_KEY/);
+ process.env.GTA_AIRSKIP_ORGANIZATION_ID='different';process.env.GTA_AIRSKIP_ACCOUNT_KEY='secret-account';process.env.GTA_AIRSKIP_API_KEY='secret-api';assert.match(server.getGtaSetupIssue('org'),/Expected value: org/);assert.ok(!server.getGtaSetupIssue('org').includes('secret'));
+ process.env.GTA_AIRSKIP_ORGANIZATION_ID='org';process.env.GTA_AIRSKIP_BASE_URL=server.gtaQaUrl;assert.equal(server.getGtaSetupIssue('org'),null);
+ process.env.GTA_AIRSKIP_API_KEY='secret\nsecret';assert.match(server.getGtaSetupIssue('org'),/line break/);process.env.GTA_AIRSKIP_API_KEY='secret-api';process.env.GTA_AIRSKIP_BASE_URL='https://evil.example/?secret';assert.match(server.getGtaSetupIssue('org'),/BASE_URL/);assert.ok(!server.getGtaSetupIssue('org').includes('evil.example'));process.env.GTA_AIRSKIP_API_KEY='  ';assert.match(server.getGtaSetupIssue('org'),/Missing deployment settings: GTA_AIRSKIP_API_KEY/);
+ }finally{keys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i]);}
+});
