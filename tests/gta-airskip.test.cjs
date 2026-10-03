@@ -64,7 +64,7 @@ test('transport sends both auth headers, correct endpoints and persisted idempot
 });
 test('carrier error text is never exposed; known tracking survives invalid label',async()=>{
  const old=global.fetch;
- try {global.fetch=async()=>new Response(JSON.stringify({isSuccess:false,errorMessage:'secret PII'}));await assert.rejects(server.requestGtaRates({},config),error=>!error.message.includes('secret') && /rejected/.test(error.message));
+ try {global.fetch=async()=>new Response(JSON.stringify({isSuccess:false,errorMessage:'secret PII'}));await assert.rejects(server.requestGtaRates({},config),error=>!error.message.includes('secret') && /unsuccessful/.test(error.message));
  global.fetch=async()=>new Response(JSON.stringify({isSuccess:true,data:{...response.data,packages:[{trackingNumber:['GTA10001'],labelBase64:'BAD'}]}}));await assert.rejects(server.requestGtaLabel({},config),error=>error.tracking==='GTA10001');
  global.fetch=async()=>new Response('',{status:401});await assert.rejects(server.requestGtaLabel({},config),/HTTP 401/);
  }finally{global.fetch=old;}
@@ -101,7 +101,15 @@ test('setup diagnostics identify missing settings, tenant mismatch and invalid U
 test('credential verification only calls read-only tracking with a fresh synthetic exact filter',async()=>{
  const old=global.fetch,calls=[];
  try{global.fetch=async(url,opts)=>{const payload=JSON.parse(opts.body);calls.push(payload);assert.equal(url,server.gtaQaUrl+'/trackings/get');assert.equal(payload.pageSize,1);assert.equal(payload.includeHistory,false);assert.equal(payload.trackingNumbers.length,1);assert.match(payload.trackingNumbers[0],/^CONNECTIONCHECK-[0-9a-f-]{36}$/);return new Response(JSON.stringify({isSuccess:true,data:[]}));};await server.verifyGtaCredentials(config);await server.verifyGtaCredentials(config);assert.notEqual(calls[0].trackingNumbers[0],calls[1].trackingNumbers[0]);
- global.fetch=async()=>new Response(JSON.stringify({isSuccess:false,errorMessage:'private'}));await assert.rejects(server.verifyGtaCredentials(config),/rejected/);
+ global.fetch=async()=>new Response(JSON.stringify({isSuccess:false,errorMessage:'private'}));await assert.rejects(server.verifyGtaCredentials(config),/unsuccessful/);
  global.fetch=async()=>new Response(JSON.stringify({isSuccess:true,data:null}));await assert.rejects(server.verifyGtaCredentials(config),/unexpected tracking/);
  }finally{global.fetch=old;}
+});
+
+test('provider rejection categories distinguish auth, no match and undocumented response without leaking text',()=>{
+ assert.match(server.describeGtaRejection({isSuccess:false,errorMessage:'Invalid ApiKey: PRIVATE'}),/could not validate/);
+ assert.match(server.describeGtaRejection({isSuccess:false,errorMessage:'Account inactive PRIVATE'}),/rejected the account/);
+ assert.match(server.describeGtaRejection({isSuccess:false,errorMessage:'No tracking numbers found PRIVATE'}),/no matching/);
+ assert.match(server.describeGtaRejection({success:true,errorMessage:'PRIVATE'}),/undocumented response/);
+ assert.ok(!server.describeGtaRejection({isSuccess:false,errorMessage:'Invalid ApiKey: PRIVATE'}).includes('PRIVATE'));
 });
