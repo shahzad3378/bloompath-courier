@@ -1,0 +1,512 @@
+{
+  "Shipment": {
+    "type": "object",
+    "description": "Request model for creating a shipment",
+    "additionalProperties": false,
+    "required": [
+      "fromAddress1",
+      "fromCity",
+      "fromState",
+      "fromPostalCode",
+      "fromCountry",
+      "fromTerminal",
+      "toCity",
+      "toState",
+      "toPostalCode",
+      "toCountry",
+      "signatureRequired",
+      "insuranceRequired",
+      "packages"
+    ],
+    "properties": {
+      "idempotencyKey": {
+        "type": "string",
+        "description": "Optional id to avoid shipment duplicates",
+        "example": "482426848cb34836953c9f3f9d4cb"
+      },
+      "service": {
+        "type": "string",
+        "description": "Optional. Service level for the shipment. May be omitted or left blank;\nGTA AirSkip will apply the appropriate service when not provided."
+      },
+      "reference1": {
+        "type": "string",
+        "description": "Reference 1",
+        "example": "#1111--22-33"
+      },
+      "reference2": {
+        "type": "string",
+        "description": "Reference 2",
+        "example": "#order-1234"
+      },
+      "reference3": {
+        "type": "string",
+        "description": "Reference 3",
+        "example": "SS01-158532"
+      },
+      "reference4": {
+        "type": "string",
+        "description": "Reference 4",
+        "example": "B1009"
+      },
+      "pickup": {
+        "type": "string",
+        "description": "Expected date/time of the pickup. Optional value",
+        "format": "date-time",
+        "nullable": true,
+        "example": "2023-05-10T09:43:38"
+      },
+      "from": {
+        "type": "string",
+        "description": "Shipper name",
+        "example": "GTA GSM"
+      },
+      "fromContactName": {
+        "type": "string",
+        "description": "Shipper contact name",
+        "example": "JohnDoe"
+      },
+      "fromPhone": {
+        "type": "string",
+        "description": "Shipper contact phone",
+        "example": "+1111119999"
+      },
+      "fromEmail": {
+        "type": "string",
+        "description": "Shipper contact email",
+        "example": "john.doe@company.com"
+      },
+      "fromAddress1": {
+        "type": "string",
+        "description": "Induction address line 1",
+        "minLength": 1,
+        "example": "address line 1"
+      },
+      "fromAddress2": {
+        "type": "string",
+        "description": "Induction address line 2",
+        "example": "address line 2"
+      },
+      "fromAddress3": {
+        "type": "string",
+        "description": "Induction address line 3",
+        "example": "address line 3"
+      },
+      "fromCity": {
+        "type": "string",
+        "description": "Induction city",
+        "minLength": 1,
+        "example": "Missisauga"
+      },
+      "fromState": {
+        "type": "string",
+        "description": "Induction state/province code",
+        "minLength": 1,
+        "example": "ON"
+      },
+      "fromPostalCode": {
+        "type": "string",
+        "description": "Induction postal code",
+        "minLength": 1,
+        "example": "L5T 2H7"
+      },
+      "fromCountry": {
+        "type": "string",
+        "description": "Induction country code",
+        "minLength": 1,
+        "example": "CA"
+      },
+      "fromTerminal": {
+        "type": "string",
+        "description": "Induction terminal - optional: only available Ground service rates will be returned, if not set",
+        "minLength": 1,
+        "example": "YYZ"
+      },
+      "pickupAccessorials": {
+        "type": "string",
+        "description": "Pickup accessorials. Optional comma-separated string with the accessorial names . The list of the possible values is provided by the service provider",
+        "example": "Thermal Wrap, Inside Delivery"
+      },
+      "deliver": {
+        "type": "string",
+        "description": "Expected delivery date/time. Optional value",
+        "format": "date-time",
+        "nullable": true,
+        "example": "2023-05-12T09:43:38"
+      },
+      "to": {
+        "type": "string",
+        "description": "Consignee name",
+        "example": "John Doe"
+      },
+      "toContactName": {
+        "type": "string",
+        "description": "Consignee contact name",
+        "example": "John Doe"
+      },
+      "toPhone": {
+        "type": "string",
+        "description": "Consignee contact phone",
+        "example": "+1111119999"
+      },
+      "toEmail": {
+        "type": "string",
+        "description": "Consignee contact email",
+        "example": "john.doe@company.com"
+      },
+      "toAddress1": {
+        "type": "string",
+        "description": "Consignee address line 1",
+        "example": "address line 1"
+      },
+      "toAddress2": {
+        "type": "string",
+        "description": "Consignee address line 2",
+        "example": "address line 2"
+      },
+      "toAddress3": {
+        "type": "string",
+        "description": "Consignee address line 3",
+        "example": "address line 3"
+      },
+      "toCity": {
+        "type": "string",
+        "description": "Consignee city",
+        "minLength": 1,
+        "example": "Surrey"
+      },
+      "toState": {
+        "type": "string",
+        "description": "Consignee state/province code",
+        "minLength": 1,
+        "example": "BC"
+      },
+      "toPostalCode": {
+        "type": "string",
+        "description": "Consignee postal code",
+        "minLength": 1,
+        "example": "V6X 2X9"
+      },
+      "toCountry": {
+        "type": "string",
+        "description": "Consignee country code",
+        "minLength": 1,
+        "example": "CA"
+      },
+      "toTerminal": {
+        "type": "string",
+        "description": "Destination terminal - required only if the only middle mile (AirSkip or ZoneSkip) service rate is expected",
+        "example": "YVR"
+      },
+      "deliveryAccessorials": {
+        "type": "string",
+        "description": "Delivery accessorials. Optional comma-separated string with the accessorial names . The list of the possible values is provided by the service provider",
+        "example": "Thermal Wrap, Inside Delivery"
+      },
+      "instruction": {
+        "type": "string",
+        "description": "Instructions"
+      },
+      "signatureRequired": {
+        "type": "boolean",
+        "description": "Signature required flag"
+      },
+      "insuranceRequired": {
+        "type": "boolean",
+        "description": "Insurance required flag"
+      },
+      "sortingCode": {
+        "type": "string",
+        "description": "Optional: Your sorting code.\nYYZ-1"
+      },
+      "packages": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Package"
+        }
+      }
+    }
+  },
+  "Package": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "sizeLength",
+      "sizeWidth",
+      "sizeHeight",
+      "sizeType",
+      "weight",
+      "weightType",
+      "pieces",
+      "piecesType"
+    ],
+    "properties": {
+      "customerTrackingReference1": {
+        "type": "string",
+        "description": "Reference 1",
+        "example": "#order-1234"
+      },
+      "customerTrackingReference2": {
+        "type": "string",
+        "description": "Reference 2",
+        "example": "#order-1234"
+      },
+      "description": {
+        "type": "string",
+        "description": "Package description",
+        "example": "package"
+      },
+      "sizeLength": {
+        "type": "number",
+        "description": "Package length ",
+        "format": "decimal",
+        "example": 10
+      },
+      "sizeWidth": {
+        "type": "number",
+        "description": "Package width ",
+        "format": "decimal",
+        "example": 8
+      },
+      "sizeHeight": {
+        "type": "number",
+        "description": "Package height ",
+        "format": "decimal",
+        "example": 4
+      },
+      "sizeType": {
+        "description": "Dimensions unit type - possible values: 0 - cm, 1- inches ",
+        "example": 1,
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SizeType"
+          }
+        ]
+      },
+      "weight": {
+        "type": "number",
+        "description": "Package weight ",
+        "format": "decimal",
+        "example": 5
+      },
+      "weightType": {
+        "description": "Weight unit type - possible values: 0 - kg, 1- lbs",
+        "example": 1,
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WeightType"
+          }
+        ]
+      },
+      "pieces": {
+        "type": "integer",
+        "description": "Number of packages ",
+        "format": "int32",
+        "example": 1
+      },
+      "customerTrackingNumbers": {
+        "type": "array",
+        "description": "Custom tracking numbers. Optional. Usage should be approved by the service provider",
+        "example": [
+          "tracknum1111",
+          "tracknum2222"
+        ],
+        "items": {
+          "type": "string"
+        }
+      },
+      "piecesType": {
+        "type": "string",
+        "description": "Package type. The list of the possible values is provided by the service provider",
+        "minLength": 1,
+        "example": "Box"
+      },
+      "tempFrom": {
+        "type": "integer",
+        "description": "Allowed temperature regime. Optional",
+        "format": "int32",
+        "nullable": true,
+        "example": 15
+      },
+      "tempTo": {
+        "type": "integer",
+        "description": "Allowed temperature regime. Optional",
+        "format": "int32",
+        "nullable": true,
+        "example": 25
+      },
+      "tempType": {
+        "description": "Temperature unit type - possible values: 0 - Celsius, 1- Fahrenheit",
+        "nullable": true,
+        "example": 0,
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TempType"
+          }
+        ]
+      },
+      "insuranceDeclaredValue": {
+        "type": "number",
+        "description": "Insurance declared value. Optional. Required to calculate insurance cost when InsuranceRequired = true ",
+        "format": "decimal",
+        "nullable": true,
+        "example": 100.0
+      },
+      "comment": {
+        "type": "string",
+        "description": "Comments. Optional"
+      },
+      "items": {
+        "type": "array",
+        "description": "The items inside the package. Must be used with USPS.",
+        "items": {
+          "$ref": "#/components/schemas/Item"
+        }
+      }
+    }
+  },
+  "Item": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "description",
+      "weight",
+      "weightType",
+      "hsCode",
+      "declaredValue",
+      "currency",
+      "quantity"
+    ],
+    "properties": {
+      "description": {
+        "type": "string",
+        "description": "Item description",
+        "minLength": 1,
+        "example": "Blue t-shirt, 100% cotton"
+      },
+      "weight": {
+        "type": "number",
+        "description": "Item weight ",
+        "format": "decimal",
+        "example": 5
+      },
+      "weightType": {
+        "description": "Weight unit type - possible values: 0 - kg, 1- lbs",
+        "example": 1,
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WeightType"
+          }
+        ]
+      },
+      "hsCode": {
+        "type": "string",
+        "description": "The HS Code of the item. Needs to be at least 4 digits long (HS Heading)",
+        "minLength": 1,
+        "example": 1234
+      },
+      "declaredValue": {
+        "type": "number",
+        "description": "The declared value of the item",
+        "format": "decimal",
+        "example": 15
+      },
+      "currency": {
+        "type": "string",
+        "description": "The currency that is used in ISO 4217 currency codes (https://taxsummaries.pwc.com/glossary/currency-codes)",
+        "minLength": 1,
+        "example": "USD"
+      },
+      "quantity": {
+        "type": "integer",
+        "description": "The quantity of this item inside the package",
+        "format": "int32",
+        "example": 2
+      }
+    }
+  },
+  "TrackingFilters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "pageSize": {
+        "type": "integer",
+        "description": "Page size. Optional. Maximum - 1000 records. Default - 10 records",
+        "format": "int32",
+        "nullable": true,
+        "example": 10
+      },
+      "page": {
+        "type": "integer",
+        "description": "Page number. Optional. Default - 1",
+        "format": "int32",
+        "nullable": true,
+        "example": 1
+      },
+      "trackingNumbers": {
+        "type": "array",
+        "description": "An array of the tracking numbers to be filtered. Optional.",
+        "example": [
+          "track1",
+          "track2"
+        ],
+        "items": {
+          "type": "string"
+        }
+      },
+      "toPostalCodes": {
+        "type": "array",
+        "description": "The destination postal code, not mandatory.",
+        "example": [
+          "L3Z0P3",
+          "0H0H0H"
+        ],
+        "items": {
+          "type": "string"
+        }
+      },
+      "loadNumber": {
+        "type": "string",
+        "description": "Shipment load number filter. Optional",
+        "example": "L2307-QWL1FE82"
+      },
+      "masterBol": {
+        "type": "string",
+        "description": "Shipment master BOL filter. Optional",
+        "example": "BOL123456789"
+      },
+      "mawb": {
+        "type": "string",
+        "description": "Shipment master AWB filter. Optional",
+        "example": "AWB987654321"
+      },
+      "trackingCreatedFrom": {
+        "type": "string",
+        "description": "The start of the date range to be filtered. Format: YYYY-MM-DD",
+        "format": "date-time",
+        "nullable": true,
+        "example": "2023-05-01T00:00:00"
+      },
+      "trackingCreatedTo": {
+        "type": "string",
+        "description": "The end of the date range to be filtered. Format: YYYY-MM-DD",
+        "format": "date-time",
+        "nullable": true,
+        "example": "2023-05-31T23:59:59"
+      },
+      "dateFilterType": {
+        "description": "Date range type. 0 - Tracking create date/time. 1 - Tracking last change date/time",
+        "example": 0,
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DateFilterType"
+          }
+        ]
+      },
+      "includeHistory": {
+        "type": "boolean",
+        "description": "Option to include tracking history in the response",
+        "example": true
+      }
+    }
+  }
+}
