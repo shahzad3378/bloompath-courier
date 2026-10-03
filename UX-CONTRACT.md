@@ -95,3 +95,7 @@ This contract records observable workflow behavior for the authenticated courier
 - Rate check is read-only, explicit account-currency copy; paid booking has charge confirmation and live-enable gate. QA preserves partner/custody.
 - Recent booking rows expose protected labels, pending review and tenant-bound tracking. No webhook/public tracking claim.
 - Verification: TypeScript/build, carrier schema/transport tests and migration inspection. Browser runtime unavailable; authenticated visual acceptance remains pending.
+
+### GTA account/API connection check
+- Internal tenant/role-authorized read-only tracking request with a fresh synthetic exact filter; no booking reservation, addresses or account-wide shipment listing.
+- Independent connection panel uses canonical BP controls, pending disable and announced inline results. Successful credentials do not imply shipping route coverage or booking acceptance.

@@ -3,7 +3,7 @@ import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { buildGtaShipment, type GtaOptions } from "@/lib/gta-airskip";
-import { getGtaConfig, requestGtaLabel, requestGtaRates, requestGtaTracking, safeGtaError, GtaApiError } from "@/lib/gta-airskip-server";
+import { getGtaConfig, verifyGtaCredentials, requestGtaLabel, requestGtaRates, requestGtaTracking, safeGtaError, GtaApiError } from "@/lib/gta-airskip-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/lib/shipments";
@@ -78,4 +78,15 @@ export async function checkGtaTracking(_state: GtaState, form: FormData): Promis
     if(error || !data?.partner_tracking_number || data.base_url !== config.baseUrl) return fail("Tracking is unavailable for this booking in the configured API environment.");
     return {status:"success",message:"Latest GTA tracking received. FastDrop shipment custody is unchanged.",history:await requestGtaTracking(data.partner_tracking_number,config)};
   } catch(issue) { return fail(safeGtaError(issue)); }
+}
+
+export async function checkGtaCredentials(_state: GtaState): Promise<GtaState> {
+  void _state;
+  const profile = await requireProfile(roles);
+  const config = getGtaConfig(profile.organization_id);
+  if (!config) return fail("GTA settings are unavailable for this courier company. Review the setup message above.");
+  try {
+    await verifyGtaCredentials(config);
+    return { status: "success", message: `GTA ${config.test ? "QA" : "production"} tracking API accepted the account/API keys. No shipment or label was created. Shipping rates and booking fields still need a parcel check.` };
+  } catch (issue) { return fail(safeGtaError(issue) + " No shipment or label was created by this check."); }
 }
