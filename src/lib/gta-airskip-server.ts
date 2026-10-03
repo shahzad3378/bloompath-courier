@@ -24,6 +24,16 @@ export function getGtaSetupIssue(organizationId: string | null) {
 }
 type Config = NonNullable<ReturnType<typeof getGtaConfig>>;
 export class GtaApiError extends Error { constructor(message: string, public tracking?: string) { super(message); } }
+export function describeGtaRejection(body: unknown) {
+  if (!body || typeof body !== "object" || !("isSuccess" in body) || typeof body.isSuccess !== "boolean") return "GTA returned an undocumented response format: the isSuccess flag is missing or invalid. Ask GTA to confirm the response contract.";
+  const message = "errorMessage" in body && typeof body.errorMessage === "string" ? body.errorMessage.toLowerCase() : "";
+  // Only fixed categories leave the server. Never expose arbitrary provider text or PII.
+  if (/api.?key|access.?key|account.?key|credential|unauthori|authenticat|authorization/.test(message)) return "GTA could not validate x-account-key / x-api-key. Confirm the account-key format and matching QA/production Access Key with GTA.";
+  if (/account|customer.*(?:invalid|not found|inactive)/.test(message)) return "GTA rejected the account or its API access. Ask GTA to confirm the account key and account activation for this environment.";
+  if (/(?:tracking|shipment|package).*(?:not found|not exist|no record)|(?:no|not found).*?(?:tracking|shipment|package)/.test(message)) return "GTA found no matching verification tracking reference. This lookup cannot conclusively verify credentials; a real parcel rate check is needed.";
+  if (/permission|access denied|not allowed|forbidden/.test(message)) return "GTA denied access to this API operation. Ask GTA to verify endpoint permissions for this account.";
+  return "GTA reported an unsuccessful API operation. Ask GTA to confirm the request contract and account access.";
+}
 async function request(path: string, payload: unknown, config: Config) {
   let response: Response;
   try { response = await fetch(config.baseUrl + path, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", "x-account-key": config.accountKey, "x-api-key": config.apiKey }, body: JSON.stringify(payload), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(25000) }); }
@@ -36,7 +46,7 @@ async function request(path: string, payload: unknown, config: Config) {
   catch (issue) { if (issue instanceof GtaApiError) throw issue; throw new GtaApiError("GTA response could not be read."); }
   let body: unknown;
   try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new GtaApiError("GTA returned invalid JSON."); }
-  try { gtaData(body); } catch { throw new GtaApiError("GTA rejected the request or returned an invalid response. Verify fields and account access with GTA."); }
+  try { gtaData(body); } catch { throw new GtaApiError(describeGtaRejection(body)); }
   return body;
 }
 export async function requestGtaLabel(payload: unknown, config: Config) {
