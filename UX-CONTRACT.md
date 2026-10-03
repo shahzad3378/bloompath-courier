@@ -85,3 +85,13 @@ This contract records observable workflow behavior for the authenticated courier
 - Starting a batch checks rates before reservation, keeps invalid parcels excluded and repeats authorization for each parcel. Live charges require activation and explicit confirmation. Batch mode locks after the first parcel is processed.
 - Stop finishes the current request. Carrier uncertainty or interrupted transport stops subsequent parcels; continue sends only waiting rows and never auto-retries an attempted row. Leaving/unmounting stops subsequent dispatch. Results/labels are downloadable and saved bookings survive reload; the preview/report should be exported before navigation.
 - Shared green form/table/button tokens and native platform-owned selects match single booking. Inline live regions announce validation, counts and stop outcomes; the results table scrolls within its panel on narrow screens. Bulk forms own validation with `noValidate` and focus file errors. See `docs/broadreach-setup.md` for provider limits, billing and recovery sources.
+
+
+## GTA AirSkip booking (2026-10-03)
+- Entry: Courier Partner API → GTA AirSkip; internal administrators/dispatchers only, scoped to configured organization.
+- Shared BP panels, inputs and buttons; responsive two/three-column forms, visible labels, server-owned validation with announced errors, pending controls disabled.
+- Configured API environment owns QA/live mode; required induction confirmation, terminal/package type and dimensions, optional service. No fake default terminal.
+- Domestic CA items may be empty; cross-border/USPS requires customs items. Add/remove item controls retain remaining rows.
+- Rate check is read-only, explicit account-currency copy; paid booking has charge confirmation and live-enable gate. QA preserves partner/custody.
+- Recent booking rows expose protected labels, pending review and tenant-bound tracking. No webhook/public tracking claim.
+- Verification: TypeScript/build, carrier schema/transport tests and migration inspection. Browser runtime unavailable; authenticated visual acceptance remains pending.
