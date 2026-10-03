@@ -58,9 +58,22 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     }],
   };
 }
+// Swagger documents camelCase; the verified QA response uses PascalCase.
+// Accept either envelope without changing request fields or nested response data.
+export function gtaEnvelope(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const row = body as Record<string, unknown>;
+  const pascal = Object.hasOwn(row, "IsSuccess");
+  if (pascal && Object.hasOwn(row, "isSuccess")) return null;
+  const success = row[pascal ? "IsSuccess" : "isSuccess"];
+  if (typeof success !== "boolean") return null;
+  const dataKey = pascal ? "Data" : "data";
+  return { success, hasData: Object.hasOwn(row, dataKey), data: row[dataKey], errorMessage: row[pascal ? "ErrorMessage" : "errorMessage"] };
+}
 export function gtaData(body: unknown): unknown {
-  if (!body || typeof body !== "object" || !("isSuccess" in body) || body.isSuccess !== true || !("data" in body)) throw new Error("GTA rejected the request or returned an invalid response. Verify fields and account access with GTA.");
-  return body.data;
+  const envelope = gtaEnvelope(body);
+  if (!envelope?.success || !envelope.hasData) throw new Error("GTA rejected the request or returned an invalid response. Verify fields and account access with GTA.");
+  return envelope.data;
 }
 export function gtaKnownTracking(data: unknown): string | undefined {
   if (!data || typeof data !== "object" || !("packages" in data) || !Array.isArray(data.packages)) return;
