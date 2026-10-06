@@ -3,14 +3,16 @@
 import { useActionState, useState } from "react";
 import { checkBroadReachConnection, generateBroadReachAwb, type BroadReachState } from "@/app/(portal)/courier-integrations/broadreach/actions";
 
+import {useCarrierBusy} from "@/components/carrier-workspace";
 const initialState: BroadReachState = { status: "idle", message: "" };
 export function BroadReachBookingForm({ configured, liveEnabled, initialAwb }: { configured: boolean; liveEnabled: boolean; initialAwb: string }) {
   const [state, action, pending] = useActionState(generateBroadReachAwb, initialState);
   const [connection, checkAction, checking] = useActionState(checkBroadReachConnection, initialState);
   const busy = pending || checking;
+  useCarrierBusy(busy);
   const [mode, setMode] = useState("test");
   const [items, setItems] = useState([0]);
-  return <form action={action} className="bp-panel p-5 sm:p-6">
+  return <form action={action} noValidate className="space-y-5">
     <h2 className="text-xl font-bold">Generate BroadReach AWB</h2>
     <p className="mt-2 text-sm text-[var(--muted)]">Canada uses ca_rateshop. USA uses us_rateshop. One shipment must represent one physical parcel.</p>
     <fieldset disabled={busy || !configured} className="mt-5 space-y-5 disabled:opacity-70">

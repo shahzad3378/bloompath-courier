@@ -103,3 +103,11 @@ This contract records observable workflow behavior for the authenticated courier
 ## GTA booking recovery
 
 The existing carrier booking form uses configured warehouse induction by default when available, with explicit pickup and live-charge confirmations. Original shipment sender details remain unchanged. A failed create remains reserved; recovery verifies the carrier tracking/reference before fetching an existing label and never sends another creation request. Recent bookings offer PDF reprint and stored-label downloads. Tracking callbacks are untrusted hints; only provider API verification populates the internal cached tracking view, and the manual tracking check is retained as fallback.
+
+## Carrier desk and GTA batch booking
+
+The courier integrations hub and legacy carrier routes share `CarrierWorkspace`: a native partner Select, URL-addressable Single shipment / Bulk upload / Bookings & labels navigation, and retained mounted panels. Switching partners with edited form or preview state uses an app-owned native dialog; active requests disable partner and tab changes. Configuration badges mean settings exist, not that the carrier accepted credentials.
+
+GTA bulk imports existing tenant-scoped FastDrop AWBs, using saved weights and addresses plus server-configured warehouse induction. New shipment address imports remain at `/shipments/import`. CSV/XLSX files are capped at 2 MB, 100 parcels and 1,000 item rows. Domestic CA parcels need no customs fields; cross-border parcels require validated customs items. Repeated AWBs group only customs items with identical dimensions. Preview performs no carrier call or booking reservation.
+
+Booking requires pickup confirmation and explicit production consent, verifies read-only account access, then invokes the existing authorized per-parcel reservation/idempotency action sequentially. It never retries an uncertain create. Unconfirmed outcomes, save/link failures and thrown requests halt the batch; continuing processes only untouched waiting parcels. Saved labels persist in booking storage. Local batch reports are transient and export as formula-safe CSV. ZIP downloads use protected stored labels with a 50 MB limit; individual PDF links use the authenticated reprint route.

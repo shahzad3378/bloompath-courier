@@ -5,6 +5,7 @@ import { checkBroadReachConnection, generateBroadReachAwb } from "@/app/(portal)
 import { previewBroadReachBulk } from "@/app/(portal)/courier-integrations/broadreach/bulk-actions";
 import { broadReachBulkMaxBytes, broadReachResultsCsv, processBroadReachBatch, type BroadReachBulkPreview, type BroadReachBulkResult } from "@/lib/broadreach-bulk";
 
+import {useCarrierBusy} from "@/components/carrier-workspace";
 const idle: BroadReachBulkPreview = { status: "idle", message: "", rows: [] };
 const button = "bp-button-secondary !min-h-11 !text-sm focus-visible:outline-2 focus-visible:outline-offset-2";
 
@@ -29,6 +30,7 @@ export function BroadReachBulkBooking({ configured, liveEnabled }: { configured:
   const fileRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLParagraphElement>(null);
   const busy = validating || running || downloading;
+  useCarrierBusy(busy);
   const started = results.some(row => !["waiting", "invalid"].includes(row.status));
   const waiting = results.filter(row => row.status === "waiting").length;
   const successful = results.filter(row => row.status === "success" && row.bookingId);

@@ -7,11 +7,11 @@ import { getGtaConfig, getGtaBookingConfig, getGtaPickup, requestGtaReprint, req
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/lib/shipments";
-export type GtaState = { status: "idle" | "success" | "error"; message: string; bookingId?: string; tracking?: string; rates?: {service: string; cost: number; tax: number | null}[]; history?: { status: string; standardStatus: number | null; date: string; events: {name: string; location: string; date: string}[] } };
+export type GtaState = { status: "idle" | "success" | "error"; message: string; haltBatch?: boolean; bookingId?: string; tracking?: string; rates?: {service: string; cost: number; tax: number | null}[]; history?: { status: string; standardStatus: number | null; date: string; events: {name: string; location: string; date: string}[] } };
 const roles = ["super_admin", "operations_admin", "dispatcher"] as const;
 const field = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const number = (form: FormData, key: string) => field(form,key) ? Number(field(form,key)) : NaN;
-const fail = (message: string): GtaState => ({ status: "error", message });
+const fail = (message: string, haltBatch = false): GtaState => ({ status: "error", message, haltBatch });
 function options(form: FormData, organizationId: string | null): GtaOptions {
   const count = number(form, "item_count");
   if (!Number.isSafeInteger(count) || count < 0 || count > 100) throw new Error("Use zero to 100 customs items.");
@@ -45,8 +45,8 @@ export async function generateGtaAwb(_state: GtaState, form: FormData): Promise<
   try { admin = createAdminClient(); } catch { return fail("Carrier storage is not configured. No booking was sent."); }
   const finish = async (booking: {id:string; partner_tracking_number:string}) => {
     const {error} = await admin.rpc("finalize_gta_airskip_booking",{p_booking_id:booking.id,p_organization_id:profile.organization_id});
-    if(error) return fail(`GTA AWB ${booking.partner_tracking_number} is saved, but the local partner link needs attention. Submit again to retry linking without another carrier request.`);
-    revalidatePath("/courier-integrations/gta-airskip"); revalidatePath(`/shipments/${shipment.id}`);
+    if(error) return fail(`GTA AWB ${booking.partner_tracking_number} is saved, but the local partner link needs attention. Submit again to retry linking without another carrier request.`, true);
+    revalidatePath("/courier-integrations"); revalidatePath("/courier-integrations/gta-airskip"); revalidatePath(`/shipments/${shipment.id}`);
     return {status:"success" as const,message:`${config.test ? "QA" : "Production"} label is ready.`,bookingId:booking.id,tracking:booking.partner_tracking_number};
   };
   const {data:existing,error:readError} = await admin.from("gta_airskip_bookings").select("id,status,partner_tracking_number,base_url").eq("organization_id",profile.organization_id!).eq("shipment_id",shipment.id).eq("is_test",config.test).maybeSingle();
@@ -54,7 +54,7 @@ export async function generateGtaAwb(_state: GtaState, form: FormData): Promise<
   if(existing) {
     if(existing.base_url !== config.baseUrl) return fail("This booking belongs to a different API environment. Ask the administrator to review it.");
     if(["generated","ready"].includes(existing.status) && existing.partner_tracking_number) return finish(existing);
-    return fail("This parcel already has an unconfirmed GTA booking. Check GTA with the FastDrop reference. Duplicate booking is blocked.");
+    return fail("This parcel already has an unconfirmed GTA booking. Check GTA with the FastDrop reference. Duplicate booking is blocked.", true);
   }
   let payload: ReturnType<typeof buildGtaShipment>;
   try { payload = buildGtaShipment(shipment,options(form,ctx.profile.organization_id)); } catch(issue) { unstable_rethrow(issue); return fail(issue instanceof Error ? issue.message : "Review shipment details."); }
@@ -64,11 +64,11 @@ export async function generateGtaAwb(_state: GtaState, form: FormData): Promise<
   try { result = await requestGtaLabel({...payload,IdempotencyKey:bookingId},config); }
   catch(issue) {
     await admin.from("gta_airskip_bookings").update({status:"needs_review",...(issue instanceof GtaApiError && issue.tracking ? {partner_tracking_number:issue.tracking} : {})}).eq("id",bookingId).eq("organization_id",profile.organization_id!);
-    revalidatePath("/courier-integrations/gta-airskip");
-    return fail(safeGtaError(issue) + " Check GTA with the FastDrop reference before retrying. Duplicate booking remains blocked.");
+    revalidatePath("/courier-integrations"); revalidatePath("/courier-integrations/gta-airskip");
+    return fail(safeGtaError(issue) + " Check GTA with the FastDrop reference before retrying. Duplicate booking remains blocked.", true);
   }
   const {error:saveError} = await admin.from("gta_airskip_bookings").update({status:"generated",partner_tracking_number:result.tracking,label_base64:result.label,label_format:result.format,load_number:result.loadNumber,response_metadata:{cost:result.cost}}).eq("id",bookingId).eq("organization_id",profile.organization_id!);
-  if(saveError) return fail(`GTA generated AWB ${result.tracking}, but saving failed. Recover the label from GTA. Do not rebook.`);
+  if(saveError) return fail(`GTA generated AWB ${result.tracking}, but saving failed. Recover the label from GTA. Do not rebook.`, true);
   return finish({id:bookingId,partner_tracking_number:result.tracking});
 }
 export async function checkGtaTracking(_state: GtaState, form: FormData): Promise<GtaState> {
@@ -115,7 +115,7 @@ export async function recoverGtaLabel(_state: GtaState, form: FormData): Promise
     const {data:saved,error:saveError} = await admin.from("gta_airskip_bookings").update({status:"generated",partner_tracking_number:tracking,label_base64:bytes.toString("base64"),label_format:"png",load_number:load}).eq("id",booking.id).eq("organization_id",profile.organization_id).eq("status",booking.status).select("id").maybeSingle();
     if(saveError || !saved) return fail("The booking changed or saving failed. Refresh before recovering again; no new carrier shipment was created.");
     const {error:linkError} = await admin.rpc("finalize_gta_airskip_booking",{p_booking_id:booking.id,p_organization_id:profile.organization_id});
-    revalidatePath("/courier-integrations/gta-airskip");revalidatePath(`/shipments/${booking.shipment_id}`);
+    revalidatePath("/courier-integrations"); revalidatePath("/courier-integrations/gta-airskip");revalidatePath(`/shipments/${booking.shipment_id}`);
     if(linkError) return fail("The label is saved. Local partner linking needs review; no new carrier shipment was created.");
     return {status:"success",message:"Existing GTA label recovered. No new shipment was created.",bookingId:booking.id,tracking};
   } catch(issue) { return fail(safeGtaError(issue)); }
