@@ -1,0 +1,29 @@
+const {test}=require('node:test'), assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
+function loadTs(file,imports={}) { const m=new Module(path.resolve(file));m.filename=path.resolve(file);m.paths=Module._nodeModulePaths(path.dirname(m.filename));const req=m.require.bind(m);m.require=n=>Object.hasOwn(imports,n)?imports[n]:req(n);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,m.filename);return m.exports; }
+const broad=loadTs('src/lib/broadreach-bulk.ts'), bulk=loadTs('src/lib/gta-bulk.ts',{'@/lib/broadreach-bulk':broad});
+const domestic=['FD10001',10,8,4,'','','','','',''], item=['FD10001',10,8,4,'Shirt',0.3,'0610910001',20,'USD',1];
+const parse=rows=>bulk.parseGtaBulkRows([bulk.gtaBulkHeaders,...rows],'ONDM');
+test('Canada domestic import needs no HS code or customs items',()=>{const [p]=parse([domestic]);assert.equal(p.options.items.length,0);assert.deepEqual(p.rows,[2]);assert.equal(p.options.terminal,'ONDM');});
+test('groups cross-border item rows and retains HS leading zero',()=>{const [p]=parse([item,item]);assert.equal(p.options.items.length,2);assert.equal(p.options.items[0].hsCode,'0610910001');assert.deepEqual(p.rows,[2,3]);});
+test('rejects duplicate domestic AWBs, mismatched dimensions, partial customs and unsafe file headers',()=>{
+ assert.throws(()=>parse([domestic,domestic]),/one row/);assert.throws(()=>parse([item,[...item.slice(0,1),20,...item.slice(2)]]),/matching dimensions/);
+ for(const bad of [[...item.slice(0,6),'123',...item.slice(7)],[...domestic.slice(0,4),'Item',...domestic.slice(5)],['=CMD',...domestic.slice(1)],['FD10001',0,...domestic.slice(2)]])assert.throws(()=>parse([bad]));
+ assert.throws(()=>bulk.parseGtaBulkRows([['awb',...bulk.gtaBulkHeaders],domestic],'ONDM'),/column/);assert.throws(()=>bulk.parseGtaBulkRows([bulk.gtaBulkHeaders,domestic],'BAD'),/terminal/);
+});
+test('enforces batch caps',()=>{assert.throws(()=>parse(Array.from({length:101},(_,i)=>['FD'+i,...domestic.slice(1)])),/100 parcels/);assert.throws(()=>parse(Array.from({length:1001},()=>item)),/1,000 rows/);assert.throws(()=>parse(Array.from({length:101},()=>item)),/100 customs/);});
+test('booking form preserves warehouse, dimensions, customs and explicit production consent',()=>{const p=parse([item])[0], form=bulk.gtaParcelForm(p,true);assert.equal(form.get('use_warehouse'),'on');assert.equal(form.get('confirm_induction'),'on');assert.equal(form.get('confirm_live'),'on');assert.equal(form.get('hs_0'),'0610910001');assert.equal(form.get('weight_0'),'0.3');assert.equal(form.get('pieces_type'),'Box');assert.equal(bulk.gtaParcelForm(p,false).get('confirm_live'),null);});
+test('sequential booking halts on uncertain result without sending remaining parcels',async()=>{
+ const parcels=parse([domestic,['FD10002',...domestic.slice(1)],['FD10003',...domestic.slice(1)]]),calls=[],updates=[];
+ const outcome=await bulk.processGtaBatch(parcels,true,async form=>{calls.push(form.get('awb'));return calls.length===1?{status:'success',message:'Saved',bookingId:'id'}:{status:'error',message:'Unconfirmed',haltBatch:true};},r=>updates.push(r),()=>false);
+ assert.equal(outcome,'stopped');assert.deepEqual(calls,['FD10001','FD10002']);assert.equal(updates.at(-1).status,'error');assert.ok(!updates.some(r=>r.awb==='FD10003'));
+});
+test('stops after current parcel and never retries thrown requests',async()=>{let stop=false,calls=0;const parcels=parse([domestic,['FD10002',...domestic.slice(1)]]);assert.equal(await bulk.processGtaBatch(parcels,false,async()=>{calls++;stop=true;return {status:'success',message:'Saved'};},()=>{},()=>stop),'stopped');assert.equal(calls,1);calls=0;assert.equal(await bulk.processGtaBatch(parcels,false,async()=>{calls++;throw Error('network');},()=>{},()=>false),'stopped');assert.equal(calls,1);});
+test('result CSV neutralizes spreadsheet formulas',()=>{assert.match(bulk.gtaResultsCsv([{awb:'FD10001',rows:[2],status:'error',message:'=IMPORTXML("secret")'}]),/"'=IMPORTXML/);});
+test('server preview isolates tenant and performs no booking or rate request',async()=>{
+ const core=loadTs('src/lib/gta-airskip.ts'), logs=[];
+ const shipment={tracking_number:'FD10001',pieces:1,weight_kg:2,payment_type:'prepaid',cod_amount:0,sender_name:'Original',sender_address:'1 Street',sender_city:'Toronto',sender_state_province:'ON',sender_postal_code:'M5V1A1',sender_country_code:'CA',consignee_name:'Receiver',consignee_address:'2 Street',consignee_city:'Toronto',consignee_state_province:'ON',consignee_postal_code:'M5V1A1',consignee_country_code:'CA'};
+ const query={select(){return this},eq(k,v){logs.push([k,v]);return this},in(k,v){logs.push([k,v]);return this},async is(){return {data:[shipment],error:null}}};
+ const action=loadTs('src/app/(portal)/courier-integrations/gta-airskip/bulk-actions.ts',{'@/lib/auth':{requireProfile:async()=>({organization_id:'tenant-A'})},'@/lib/gta-airskip':core,'@/lib/gta-bulk':bulk,'@/lib/gta-airskip-server':{getGtaConfig:()=>({}),getGtaPickup:()=>({name:'Warehouse',phone:'1234567890',address:'500 Street',address2:'Unit 45',city:'Toronto',state:'ON',postalCode:'M5V1A1',country:'CA'})},'@/lib/bulk-shipments':{readBulkFileRows:async()=>[bulk.gtaBulkHeaders,domestic,['FD10002',...domestic.slice(1)]]},'@/lib/supabase/server':{createClient:async()=>({from:()=>query})}});
+ const form=new FormData();form.set('file',new File(['fixture'],'batch.csv'));form.set('terminal','ONDM');const preview=await action.previewGtaBulk({},form);assert.equal(preview.rows[0].status,'ready');assert.equal(preview.rows[1].status,'invalid');assert.ok(logs.some(([k,v])=>k==='organization_id'&&v==='tenant-A'));assert.equal(shipment.sender_name,'Original');
+});
