@@ -22,6 +22,7 @@ export function CarrierWorkspace({ carrier, configured, mode, single, bulk, book
   const dialog = useRef<HTMLDialogElement>(null);
   const busy = Object.values(busySources).some(Boolean);
   const updateBusy = useState(() => (id: string, value: boolean) => setBusySources(current => current[id] === value ? current : { ...current, [id]: value }))[0];
+  useEffect(() => { if (!target) return; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [target]);
   function switchCarrier(value: string) {
     const url = `/courier-integrations?carrier=${value}&tab=${selected}`;
     if (dirty) { setTarget(url); dialog.current?.showModal(); } else router.push(url);
@@ -37,6 +38,6 @@ export function CarrierWorkspace({ carrier, configured, mode, single, bulk, book
       <div className="p-4 sm:p-6" onChangeCapture={() => setDirty(true)}>{notice}<div hidden={selected !== "single"}>{single}</div><div hidden={selected !== "bulk"}>{bulk}</div><div hidden={selected !== "bookings"}>{bookings}</div></div>
     </section>
     {connection ? <details className="bp-panel p-4"><summary className="flex min-h-8 cursor-pointer items-center gap-2 text-sm font-semibold"><Plug size={16} />Connection tools</summary><div className="mt-4">{connection}</div></details> : null}
-    <dialog ref={dialog} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-[var(--line)] bg-white p-6 text-[var(--foreground)] shadow-xl backdrop:bg-black/40" onClose={() => setTarget("")}><h2 className="text-xl font-bold">Switch courier partner?</h2><p className="mt-3 text-sm text-[var(--muted)]">Your form and upload preview will be cleared. Saved bookings and labels will remain available.</p><div className="mt-5 flex flex-wrap gap-3"><button autoFocus type="button" className="bp-button-secondary" onClick={() => dialog.current?.close()}>Keep working</button><button type="button" className="bp-button-primary" onClick={() => { dialog.current?.close(); router.push(target); }}>Switch partner</button></div></dialog>
+    <dialog ref={dialog} aria-labelledby="carrier-switch-heading" className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-[var(--line)] bg-white p-6 text-[var(--foreground)] shadow-xl backdrop:bg-black/40" onClose={() => setTarget("")}><h2 id="carrier-switch-heading" className="text-xl font-bold">Switch courier partner?</h2><p className="mt-3 text-sm text-[var(--muted)]">Your form and upload preview will be cleared. Saved bookings and labels will remain available.</p><div className="mt-5 flex flex-wrap gap-3"><button autoFocus type="button" className="bp-button-secondary" onClick={() => dialog.current?.close()}>Keep working</button><button type="button" className="bp-button-primary" onClick={() => { dialog.current?.close(); router.push(target); }}>Switch partner</button></div></dialog>
   </div></WorkContext.Provider>;
 }

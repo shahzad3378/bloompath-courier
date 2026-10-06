@@ -12,7 +12,7 @@ export function BroadReachBookingForm({ configured, liveEnabled, initialAwb }: {
   useCarrierBusy(busy);
   const [mode, setMode] = useState("test");
   const [items, setItems] = useState([0]);
-  return <form action={action} className="space-y-5">
+  return <form action={action} noValidate className="space-y-5">
     <h2 className="text-xl font-bold">Generate BroadReach AWB</h2>
     <p className="mt-2 text-sm text-[var(--muted)]">Canada uses ca_rateshop. USA uses us_rateshop. One shipment must represent one physical parcel.</p>
     <fieldset disabled={busy || !configured} className="mt-5 space-y-5 disabled:opacity-70">
