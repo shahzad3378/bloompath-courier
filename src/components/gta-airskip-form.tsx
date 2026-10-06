@@ -1,9 +1,9 @@
 "use client";
 import {useActionState,useState,useEffect,useRef} from "react";
-import {generateGtaAwb,checkGtaRates,checkGtaTracking,checkGtaCredentials,type GtaState} from "@/app/(portal)/courier-integrations/gta-airskip/actions";
+import {generateGtaAwb,checkGtaRates,checkGtaTracking,checkGtaCredentials,recoverGtaLabel,type GtaState} from "@/app/(portal)/courier-integrations/gta-airskip/actions";
 const initial: GtaState = {status:"idle",message:""};
 function Result({state}:{state:GtaState}) { const ref = useRef<HTMLParagraphElement>(null); useEffect(() => { if(state.status === "error") ref.current?.focus(); },[state]); return <div aria-live="polite" aria-atomic="true">{state.message ? <p ref={ref} tabIndex={-1} role={state.status === "error" ? "alert" : "status"} className="mt-4 rounded-xl border border-[var(--line)] p-4 text-sm">{state.message}{state.tracking ? <strong className="mt-2 block font-mono">Partner AWB: {state.tracking}</strong> : null}</p> : null}</div>; }
-export function GtaBookingForm({configured,test,liveEnabled,initialAwb}:{configured:boolean;test:boolean;liveEnabled:boolean;initialAwb:string}) {
+export function GtaBookingForm({configured,test,liveEnabled,initialAwb,pickup}:{configured:boolean;test:boolean;liveEnabled:boolean;initialAwb:string;pickup?:{name:string;address:string;address2:string;city:string;state:string;postalCode:string;country:string}|null}) {
   const [state,action,pending] = useActionState(generateGtaAwb,initial);
   const [rates,rateAction,checking] = useActionState(checkGtaRates,initial);
   const [items,setItems] = useState<number[]>([]);
@@ -13,12 +13,13 @@ export function GtaBookingForm({configured,test,liveEnabled,initialAwb}:{configu
     <fieldset disabled={!configured || pending || checking} className="mt-5 space-y-5 disabled:opacity-70">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">FastDrop AWB<input name="awb" defaultValue={initialAwb} className="bp-input mt-2 font-mono" /></label>
-        <label className="text-sm font-semibold">Induction terminal<input name="terminal" placeholder="Provider-confirmed terminal" maxLength={30} className="bp-input mt-2" /></label>
+        <label className="text-sm font-semibold">Induction terminal<select name="terminal" defaultValue="ONDM" className="bp-input mt-2">{["ONDM","MISS2","MISSF","BRA"].map(terminal => <option key={terminal} value={terminal}>{terminal}</option>)}</select></label>
         <label className="text-sm font-semibold">Service (optional)<input name="service" maxLength={100} className="bp-input mt-2" /><span className="mt-1 block font-normal text-[var(--muted)]">Leave blank for GTA to select the appropriate service.</span></label>
         <label className="text-sm font-semibold">Destination terminal (middle-mile services)<input name="destination_terminal" maxLength={30} className="bp-input mt-2" /></label>
-        <label className="text-sm font-semibold">Package type<input name="pieces_type" placeholder="Provider-approved type, e.g. Box" maxLength={50} className="bp-input mt-2" /></label>
+        <label className="text-sm font-semibold">Package type<input name="pieces_type" defaultValue="Box" placeholder="Provider-approved type, e.g. Box" maxLength={50} className="bp-input mt-2" /></label>
       </div>
-      <label className="flex items-start gap-3 text-sm"><input name="confirm_induction" type="checkbox" className="mt-1 size-4" /><span>I confirm the saved sender address is the actual GTA induction location. Review the shipment address before continuing.</span></label>
+      {pickup ? <div className="rounded-xl border border-[var(--line)] p-4 text-sm"><label className="flex items-start gap-3"><input name="use_warehouse" type="checkbox" defaultChecked className="mt-1 size-4" /><span>Use FastDrop warehouse pickup<br /><strong>{pickup.name}</strong><br />{pickup.address}{pickup.address2 ? `, ${pickup.address2}` : ""}<br />{pickup.city}, {pickup.state}, {pickup.postalCode}, {pickup.country}</span></label><p className="mt-2 text-[var(--muted)]">The original shipper stays on the FastDrop shipment. Uncheck to use its saved sender address.</p></div> : null}
+      <label className="flex items-start gap-3 text-sm"><input name="confirm_induction" type="checkbox" className="mt-1 size-4" /><span>I confirm the selected pickup address is the actual GTA induction location.</span></label>
       <div><h3 className="text-sm font-semibold">Required parcel dimensions (cm)</h3><div className="mt-2 grid gap-3 sm:grid-cols-3">{["length","width","height"].map(name => <label key={name} className="text-sm capitalize">{name}<input name={name} type="number" step="any" min="0" className="bp-input mt-2" /></label>)}</div></div>
       <div className="grid gap-4 sm:grid-cols-2"><label className="flex items-center gap-2 text-sm"><input name="signature" type="checkbox" className="size-4" />Signature required</label><label className="flex items-center gap-2 text-sm"><input name="insurance" type="checkbox" className="size-4" />Insurance required</label><label className="text-sm">Insurance declared value (if insured)<input name="insurance_value" type="number" step="any" min="0" className="bp-input mt-2" /></label></div>
       <div className="space-y-4"><h3 className="font-bold">Customs items</h3><p className="text-sm text-[var(--muted)]">Canada domestic shipments do not need HS codes. Add items for cross-border or USPS shipping. Enter actual item weights and declared values in GTA’s agreed units.</p><input name="item_count" type="hidden" value={items.length} />
@@ -48,4 +49,9 @@ export function GtaTrackingForm({bookingId}:{bookingId:string}) {
 export function GtaConnectionForm({configured}:{configured:boolean}) {
   const [state,action,pending] = useActionState(checkGtaCredentials,initial);
   return <form action={action} noValidate className="bp-panel p-5 sm:p-6"><h2 className="text-xl font-bold">API connection</h2><p className="mt-2 text-sm text-[var(--muted)]">Verify GTA account/API access with a read-only tracking check. No parcel details, booking or shipping charges.</p><button disabled={!configured || pending} className="bp-button-secondary mt-4 !min-h-11 !text-sm">{pending ? "Checking API keys…" : "Verify API keys"}</button><Result state={state} /></form>;
+}
+
+export function GtaRecoveryForm({bookingId,tracking}:{bookingId:string;tracking:string|null}) {
+  const [state,action,pending] = useActionState(recoverGtaLabel,initial);
+  return <form action={action} noValidate className="mt-3 space-y-3"><input type="hidden" name="booking_id" value={bookingId} /><label className="block text-sm font-semibold">Tracking number confirmed by GTA<input name="tracking" defaultValue={tracking || ""} maxLength={100} className="bp-input mt-2 font-mono" disabled={pending} /></label><p className="text-sm text-[var(--muted)]">Recover the existing label after GTA confirms the tracking number. This checks the FastDrop reference and creates no new shipment.</p><button disabled={pending} className="bp-button-secondary !min-h-11 !text-sm">{pending ? "Recovering label…" : "Recover existing label"}</button><Result state={state} />{state.bookingId ? <a href={`/api/courier-integrations/gta-airskip/labels/${state.bookingId}`} className="text-[var(--brand)] underline">Download PDF label</a> : null}</form>;
 }

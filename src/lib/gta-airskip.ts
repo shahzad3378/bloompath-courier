@@ -1,7 +1,8 @@
 import type { Shipment } from "@/lib/shipments";
 
 export type GtaItem = { description: string; weight: number; hsCode: string; declaredValue: number; currency: string; quantity: number };
-export type GtaOptions = { terminal: string; destinationTerminal: string; service: string; piecesType: string; length: number; width: number; height: number; signature: boolean; insurance: boolean; insuranceValue: number; items: GtaItem[] };
+export type GtaPickup = { name: string; phone: string; address: string; address2: string; city: string; state: string; postalCode: string; country: string };
+export type GtaOptions = { pickup?: GtaPickup; terminal: string; destinationTerminal: string; service: string; piecesType: string; length: number; width: number; height: number; signature: boolean; insurance: boolean; insuranceValue: number; items: GtaItem[] };
 const text = (value: unknown, name: string, max = 300) => {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max) throw new Error(`Enter ${name} (${max} characters or fewer).`);
   return value.trim();
@@ -11,6 +12,13 @@ const positive = (value: number, name: string) => {
   return value;
 };
 export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempotencyKey?: string) {
+  // A local induction leg can start at the configured warehouse without rewriting the original shipper.
+  if (options.pickup) {
+    const pickup = options.pickup;
+    shipment = { ...shipment, sender_name: pickup.name, sender_phone: pickup.phone, sender_address: pickup.address,
+      sender_address_2: pickup.address2, sender_city: pickup.city, sender_state_province: pickup.state,
+      sender_postal_code: pickup.postalCode, sender_country_code: pickup.country };
+  }
   if (Number(shipment.pieces) !== 1) throw new Error("Use one FastDrop shipment per physical parcel for this connector.");
   if (shipment.payment_type === "cod" && Number(shipment.cod_amount) > 0) throw new Error("GTA COD collection is not configured. A COD shipment cannot be booked as prepaid.");
   const country = (side: "sender" | "consignee") => {
@@ -37,15 +45,15 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     [`${prefix}ContactName`]: text(shipment[`${side}_name`], `${side} name`),
     [`${prefix}Phone`]: shipment[`${side}_phone`]?.trim() || "",
     [`${prefix}Address1`]: text(shipment[`${side}_address`], `${side} street address`),
-    [`${prefix}Address2`]: shipment[`${side}_address_2`]?.trim() || "",
+    ...(prefix === "from" ? { fromAddress2: shipment.sender_address_2?.trim() || "" } : {}),
     [`${prefix}City`]: text(shipment[`${side}_city`], `${side} city`),
     [`${prefix}State`]: text(shipment[`${side}_state_province`], `${side} province/state`, 30),
     [`${prefix}PostalCode`]: text(shipment[`${side}_postal_code`], `${side} postal code`, 30),
   });
   return {
-    ...(idempotencyKey ? { idempotencyKey } : {}), ...(service ? { service } : {}),
+    ...(idempotencyKey ? { IdempotencyKey: idempotencyKey } : {}), ...(service ? { service } : {}),
     reference1: text(shipment.tracking_number, "FastDrop AWB", 100),
-    ...address("sender", "from"), ...address("consignee", "to"), fromCountry, toCountry,
+    ...address("sender", "from"), ...address("consignee", "to"), ToAddress2: shipment.consignee_address_2?.trim() || "", fromCountry, toCountry,
     fromTerminal: text(options.terminal, "GTA induction terminal", 30),
     ...(options.destinationTerminal.trim() ? { toTerminal: options.destinationTerminal.trim() } : {}),
     signatureRequired: options.signature, insuranceRequired: options.insurance,
@@ -59,7 +67,7 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
   };
 }
 // Swagger documents camelCase; the verified QA response uses PascalCase.
-// Accept either envelope without changing request fields or nested response data.
+// Accept either envelope. Known nested fields are read through explicit casing aliases.
 export function gtaEnvelope(body: unknown) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const row = body as Record<string, unknown>;
@@ -75,38 +83,56 @@ export function gtaData(body: unknown): unknown {
   if (!envelope?.success || !envelope.hasData) throw new Error("GTA rejected the request or returned an invalid response. Verify fields and account access with GTA.");
   return envelope.data;
 }
+// Reject ambiguous aliases instead of choosing an attacker-controlled duplicate field.
+export function gtaField(row: unknown, key: string): unknown {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return undefined;
+  const data = row as Record<string, unknown>, pascal = key[0].toUpperCase() + key.slice(1);
+  if (Object.hasOwn(data, key) && Object.hasOwn(data, pascal)) throw new Error("GTA returned conflicting response fields.");
+  return Object.hasOwn(data, pascal) ? data[pascal] : data[key];
+}
 export function gtaKnownTracking(data: unknown): string | undefined {
-  if (!data || typeof data !== "object" || !("packages" in data) || !Array.isArray(data.packages)) return;
-  const tracking = data.packages[0]?.trackingNumber;
+  const packages = gtaField(data, "packages");
+  if (!Array.isArray(packages)) return;
+  const tracking = gtaField(packages[0], "trackingNumber");
   return Array.isArray(tracking) && typeof tracking[0] === "string" && tracking[0].trim().length >= 2 && tracking[0].length <= 100 ? tracking[0].trim() : undefined;
 }
 export function parseGtaLabel(body: unknown) {
-  const data = gtaData(body) as Record<string, unknown>;
-  const tracking = gtaKnownTracking(data);
-  const packages = data?.packages;
-  if (!tracking || !Array.isArray(packages) || packages.length !== 1 || packages[0].trackingNumber.length !== 1) throw new Error("GTA returned unexpected parcel/tracking counts. Review the booking before retrying.");
-  const pkg = packages[0];
-  const label = typeof pkg.labelBase64 === "string" && pkg.labelBase64.trim() ? pkg.labelBase64.replace(/\s/g, "") : typeof pkg.labelZpl === "string" ? Buffer.from(pkg.labelZpl.trim()).toString("base64") : "";
+  const data = gtaData(body), tracking = gtaKnownTracking(data), packages = gtaField(data, "packages");
+  if (!tracking || !Array.isArray(packages) || packages.length !== 1) throw new Error("GTA returned unexpected parcel/tracking counts. Review the booking before retrying.");
+  const numbers = gtaField(packages[0], "trackingNumber");
+  if (!Array.isArray(numbers) || numbers.length !== 1) throw new Error("GTA returned unexpected parcel/tracking counts. Review the booking before retrying.");
+  const base64 = gtaField(packages[0], "labelBase64"), zpl = gtaField(packages[0], "labelZpl");
+  const label = typeof base64 === "string" && base64.trim() ? base64.replace(/\s/g, "") : typeof zpl === "string" ? Buffer.from(zpl.trim()).toString("base64") : "";
   if (!label || label.length > 4 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(label)) throw new Error("GTA returned an invalid or oversized label. Recover it from GTA; do not rebook.");
-  const bytes = Buffer.from(label, "base64");
-  const format = bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "png" : bytes.toString().startsWith("^XA") && bytes.toString().endsWith("^XZ") ? "zpl" : null;
-  if (!format) throw new Error("GTA label is not a supported PNG or ZPL document. Recover it from GTA; do not rebook.");
-  if (typeof data.loadNumber !== "string" || !data.loadNumber.trim() || data.loadNumber.length > 100) throw new Error("GTA did not return a valid load number. Review the booking before retrying.");
-  return { tracking, label, format, loadNumber: data.loadNumber, cost: typeof data.cost === "number" && Number.isFinite(data.cost) ? data.cost : null };
+  const bytes = Buffer.from(label, "base64"), format = gtaLabelFormat(bytes);
+  if (!format || format === "pdf") throw new Error("GTA label is not a supported PNG or ZPL document. Recover it from GTA; do not rebook.");
+  const loadNumber = gtaField(data, "loadNumber"), cost = gtaField(data, "cost");
+  if (typeof loadNumber !== "string" || !loadNumber.trim() || loadNumber.length > 100) throw new Error("GTA did not return a valid load number. Review the booking before retrying.");
+  return { tracking, label, format, loadNumber, cost: typeof cost === "number" && Number.isFinite(cost) ? cost : null };
+}
+export function gtaLabelFormat(bytes: Buffer) {
+  if (bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return "png" as const;
+  if (bytes.subarray(0,5).toString() === "%PDF-") return "pdf" as const;
+  if (bytes.toString().trim().startsWith("^XA") && bytes.toString().trim().endsWith("^XZ")) return "zpl" as const;
+  return null;
 }
 export function parseGtaRates(body: unknown) {
-  const data = gtaData(body);
-  if (!Array.isArray(data) || !data.length || data.length > 100) throw new Error("GTA returned no available rates. Confirm route coverage and terminal settings.");
-  return data.map(rate => {
-    if (!rate || typeof rate.cost !== "number" || !Number.isFinite(rate.cost) || rate.cost < 0) throw new Error("GTA returned invalid rates.");
-    return { service: typeof rate.service === "string" ? rate.service.slice(0,100) : "Automatic service", cost: rate.cost, tax: typeof rate.taxAmount === "number" && Number.isFinite(rate.taxAmount) ? rate.taxAmount : null };
+  const data = gtaData(body), rates = Array.isArray(data) ? data : data && typeof data === "object" ? [data] : [];
+  if (!rates.length || rates.length > 100) throw new Error("GTA returned no available rates. Confirm route coverage and terminal settings.");
+  return rates.map(rate => {
+    const cost = gtaField(rate, "cost"), service = gtaField(rate, "service"), tax = gtaField(rate, "taxAmount");
+    if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0) throw new Error("GTA returned invalid rates.");
+    return { service: typeof service === "string" ? service.slice(0,100) : "Automatic service", cost, tax: typeof tax === "number" && Number.isFinite(tax) ? tax : null };
   });
 }
+export function gtaTrackingRecord(body: unknown, tracking: string) {
+  const data = gtaData(body), matches = Array.isArray(data) ? data.filter(row => gtaField(row, "trackingNumber") === tracking) : [];
+  if (matches.length !== 1) throw new Error("No unique GTA tracking record is available for this saved partner AWB.");
+  return matches[0];
+}
 export function parseGtaTracking(body: unknown, tracking: string) {
-  const data = gtaData(body);
-  const match = Array.isArray(data) ? data.find(row => row?.trackingNumber === tracking) : null;
-  if (!match) throw new Error("No GTA tracking record is available for this saved partner AWB.");
-  const clip = (value: unknown) => typeof value === "string" ? value.slice(0,500) : "";
-  return { status: clip(match.status), standardStatus: Number.isSafeInteger(match.standardStatus) ? match.standardStatus : null,
-    date: clip(match.lastStatusDate), events: (Array.isArray(match.events) ? match.events : []).slice(-30).map((event: Record<string, unknown> | null) => ({ name: clip(event?.name), location: clip(event?.location), date: clip(event?.eventDateTime) })) };
+  const match = gtaTrackingRecord(body, tracking), clip = (value: unknown) => typeof value === "string" ? value.slice(0,500) : "";
+  const status = gtaField(match, "standardStatus"), events = gtaField(match, "events");
+  return { status: clip(gtaField(match, "status")), standardStatus: Number.isSafeInteger(status) ? status as number : null,
+    date: clip(gtaField(match, "lastStatusDate")), events: (Array.isArray(events) ? events : []).slice(-30).map(event => ({ name: clip(gtaField(event, "name")), location: clip(gtaField(event, "location")), date: clip(gtaField(event, "eventDateTime")) })) };
 }
