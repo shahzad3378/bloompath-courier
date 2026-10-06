@@ -99,3 +99,7 @@ This contract records observable workflow behavior for the authenticated courier
 ### GTA account/API connection check
 - Internal tenant/role-authorized read-only tracking request with a fresh synthetic exact filter; no booking reservation, addresses or account-wide shipment listing.
 - Independent connection panel uses canonical BP controls, pending disable and announced inline results. Successful credentials do not imply shipping route coverage or booking acceptance.
+
+## GTA booking recovery
+
+The existing carrier booking form uses configured warehouse induction by default when available, with explicit pickup and live-charge confirmations. Original shipment sender details remain unchanged. A failed create remains reserved; recovery verifies the carrier tracking/reference before fetching an existing label and never sends another creation request. Recent bookings offer PDF reprint and stored-label downloads. Tracking callbacks are untrusted hints; only provider API verification populates the internal cached tracking view, and the manual tracking check is retained as fallback.

@@ -1,15 +1,26 @@
 import "server-only";
-import { gtaData, gtaEnvelope, gtaKnownTracking, parseGtaLabel, parseGtaRates, parseGtaTracking } from "@/lib/gta-airskip";
+import { gtaData, gtaEnvelope, gtaKnownTracking, gtaLabelFormat, gtaTrackingRecord, parseGtaLabel, parseGtaRates, parseGtaTracking, type GtaPickup } from "@/lib/gta-airskip";
 export const gtaQaUrl = "https://tms-api-qa.gtagsm.com";
+export const gtaProductionUrl = "https://tms-api.gtagsm.com";
 export function getGtaConfig(organizationId: string | null) {
   if (!organizationId || organizationId !== process.env.GTA_AIRSKIP_ORGANIZATION_ID) return null;
   const accountKey = process.env.GTA_AIRSKIP_ACCOUNT_KEY, apiKey = process.env.GTA_AIRSKIP_API_KEY;
   if (!accountKey?.trim() || !apiKey?.trim() || /[\r\n]/.test(accountKey + apiKey)) return null;
   let url: URL;
   try { url = new URL(process.env.GTA_AIRSKIP_BASE_URL || gtaQaUrl); } catch { return null; }
-  if (url.protocol !== "https:" || !url.hostname.endsWith(".gtagsm.com") || url.username || url.password || url.port || url.pathname !== "/" || url.search || url.hash) return null;
+  if (url.protocol !== "https:" || ![gtaQaUrl, gtaProductionUrl].includes(url.origin) || url.username || url.password || url.port || url.pathname !== "/" || url.search || url.hash) return null;
   const baseUrl = url.origin, test = baseUrl === gtaQaUrl;
   return { accountKey, apiKey, baseUrl, test, liveEnabled: process.env.GTA_AIRSKIP_LIVE_ENABLED === "true" };
+}
+// Existing QA bookings remain readable after production activation; keys never cross hosts.
+export function getGtaBookingConfig(organizationId: string | null, baseUrl: string) {
+  const active = getGtaConfig(organizationId);
+  if (!active) return null;
+  if (baseUrl === active.baseUrl) return active;
+  if (baseUrl !== gtaQaUrl) return null;
+  const accountKey = process.env.GTA_AIRSKIP_QA_ACCOUNT_KEY, apiKey = process.env.GTA_AIRSKIP_QA_API_KEY;
+  if (!accountKey?.trim() || !apiKey?.trim() || /[\r\n]/.test(accountKey + apiKey)) return null;
+  return { ...active, accountKey, apiKey, baseUrl: gtaQaUrl, test: true, liveEnabled: false };
 }
 // Configuration diagnostics contain setting names only, never API-key values.
 export function getGtaSetupIssue(organizationId: string | null) {
@@ -19,7 +30,7 @@ export function getGtaSetupIssue(organizationId: string | null) {
   if (!organizationId) return "This user is not assigned to a courier company. Contact the administrator.";
   if (organizationId !== process.env.GTA_AIRSKIP_ORGANIZATION_ID) return `GTA_AIRSKIP_ORGANIZATION_ID does not match this courier company. Expected value: ${organizationId}. Update the Production setting and redeploy.`;
   if (/[\r\n]/.test((process.env.GTA_AIRSKIP_ACCOUNT_KEY ?? "") + (process.env.GTA_AIRSKIP_API_KEY ?? ""))) return "GTA_AIRSKIP_ACCOUNT_KEY or GTA_AIRSKIP_API_KEY contains a line break. Paste each complete key on one line and redeploy.";
-  if (!getGtaConfig(organizationId)) return "GTA_AIRSKIP_BASE_URL is invalid. For QA, use https://tms-api-qa.gtagsm.com with no documentation path, query string or credentials, then redeploy.";
+  if (!getGtaConfig(organizationId)) return "GTA_AIRSKIP_BASE_URL is invalid. Use https://tms-api-qa.gtagsm.com for QA or https://tms-api.gtagsm.com for production with no documentation path, query string or credentials, then redeploy.";
   return null;
 }
 type Config = NonNullable<ReturnType<typeof getGtaConfig>>;
@@ -39,7 +50,7 @@ async function request(path: string, payload: unknown, config: Config) {
   let response: Response;
   try { response = await fetch(config.baseUrl + path, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", "x-account-key": config.accountKey, "x-api-key": config.apiKey }, body: JSON.stringify(payload), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(25000) }); }
   catch { throw new GtaApiError("GTA could not be reached or timed out."); }
-  if (!response.ok) throw new GtaApiError([401,403].includes(response.status) ? `GTA rejected the API keys or account access. HTTP ${response.status}.` : `GTA rejected the request. HTTP ${response.status}. Verify fields and route coverage with GTA.`);
+  if (!response.ok) throw new GtaApiError([401,403].includes(response.status) ? `GTA rejected the API keys or account access. HTTP ${response.status}.` : path.startsWith("/shipment?") ? `GTA returned HTTP ${response.status}. A shipment may already be stored. Verify the existing booking and recover its label before any new creation.` : `GTA rejected the request. HTTP ${response.status}. Verify fields and route coverage with GTA.`);
   const reader = response.body?.getReader();
   if (!reader) throw new GtaApiError("GTA returned an empty response.");
   const chunks: Uint8Array[] = []; let size = 0;
@@ -65,3 +76,37 @@ export async function verifyGtaCredentials(config: Config) {
 }
 export async function requestGtaTracking(tracking: string, config: Config) { return parseGtaTracking(await request("/trackings/get", { trackingNumbers: [tracking], includeHistory: true, page: 1, pageSize: 10 }, config), tracking); }
 export function safeGtaError(issue: unknown) { return issue instanceof GtaApiError ? issue.message : "GTA response could not be verified. Confirm the request with GTA."; }
+
+export async function requestGtaTrackingRecord(tracking: string, config: Config) {
+  return gtaTrackingRecord(await request("/trackings/get", { trackingNumbers: [tracking], includeHistory: false, page: 1, pageSize: 10 }, config), tracking);
+}
+export async function requestGtaReprint(tracking: string, format: "PDF" | "PNG" | "ZPL", config: Config) {
+  if (!/^[A-Za-z0-9-]{2,100}$/.test(tracking)) throw new GtaApiError("Invalid saved tracking number.");
+  let response: Response;
+  try {
+    response = await fetch(`${config.baseUrl}/label/format?${new URLSearchParams({trackingNumber: tracking, format})}`, {
+      headers: { "x-account-key": config.accountKey, "x-api-key": config.apiKey, Accept: "application/pdf, image/png, text/plain" },
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(25000),
+    });
+  } catch { throw new GtaApiError("GTA label reprint could not be reached. No new shipment was created."); }
+  if (!response.ok) throw new GtaApiError(`GTA label reprint failed. HTTP ${response.status}. No new shipment was created.`);
+  const reader = response.body?.getReader();
+  if (!reader) throw new GtaApiError("GTA returned no label.");
+  const chunks: Uint8Array[] = []; let size = 0;
+  try { while (true) { const {value,done} = await reader.read(); if(done) break; size += value.length; if(size > 3*1024*1024) { await reader.cancel(); throw new GtaApiError("GTA label is oversized."); } chunks.push(value); } }
+  catch(issue) { if(issue instanceof GtaApiError) throw issue; throw new GtaApiError("GTA label could not be read."); }
+  const bytes = Buffer.concat(chunks);
+  if (gtaLabelFormat(bytes) !== format.toLowerCase()) throw new GtaApiError("GTA returned an invalid label document.");
+  return bytes;
+}
+
+export function getGtaPickup(organizationId: string | null): GtaPickup | null {
+  if (!getGtaConfig(organizationId)) return null;
+  try {
+    const pickup = JSON.parse(process.env.GTA_AIRSKIP_PICKUP_ADDRESS || "null");
+    const fields = ["name", "phone", "address", "address2", "city", "state", "postalCode", "country"] as const;
+    if (!pickup || fields.some(key => typeof pickup[key] !== "string" || pickup[key].length > 300)) return null;
+    if (["name", "address", "city", "state", "postalCode"].some(key => !pickup[key].trim()) || !["CA", "US"].includes(pickup.country)) return null;
+    return Object.fromEntries(fields.map(key => [key, pickup[key].trim()])) as GtaPickup;
+  } catch { return null; }
+}

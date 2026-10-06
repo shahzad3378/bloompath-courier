@@ -19,11 +19,6 @@
       "packages"
     ],
     "properties": {
-      "idempotencyKey": {
-        "type": "string",
-        "description": "Optional id to avoid shipment duplicates",
-        "example": "482426848cb34836953c9f3f9d4cb"
-      },
       "service": {
         "type": "string",
         "description": "Optional. Service level for the shipment. May be omitted or left blank;\nGTA AirSkip will apply the appropriate service when not provided."
@@ -158,11 +153,6 @@
         "description": "Consignee address line 1",
         "example": "address line 1"
       },
-      "toAddress2": {
-        "type": "string",
-        "description": "Consignee address line 2",
-        "example": "address line 2"
-      },
       "toAddress3": {
         "type": "string",
         "description": "Consignee address line 3",
@@ -223,6 +213,16 @@
         "items": {
           "$ref": "#/components/schemas/Package"
         }
+      },
+      "IdempotencyKey": {
+        "type": "string",
+        "description": "Optional id to avoid shipment duplicates",
+        "example": "482426848cb34836953c9f3f9d4cb"
+      },
+      "ToAddress2": {
+        "type": "string",
+        "description": "Consignee address line 2",
+        "example": "address line 2"
       }
     }
   },
