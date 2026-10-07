@@ -42,10 +42,10 @@ Product app for drivers working through assigned deliveries. User-approved visua
 Bundle DM Sans regular and Merriweather bold locally via Expo Font before rendering. The display font is reserved for login/profile titles; shared operational text stays sans. Font load failures fall back to the platform font. No remote font fetch on device.
 
 ## Layout
-Phone-first, 22px content gutters, vertically scrolling cards, fixed bottom navigation outside the list and inside safe-area bounds. Home, Routes, Scan and Profile are real destinations. Search filters already assigned stops locally and retains route order; it is transient to avoid putting recipient data in URLs.
+Phone-first, 22px content gutters, vertically scrolling cards, fixed bottom navigation outside the list and inside safe-area bounds. Tasks, Route, Scan, Cash and Profile are real destinations; History and Support are task/profile shortcuts. Search filters already assigned stops locally and retains route order; it is transient to avoid putting recipient data in URLs.
 
 ## Elevation & Depth
-White cards on warm pink with quiet borders. Black scan action is the navigation signature. Avoid ornamental gradients and fabricated route maps.
+White cards on warm pink with quiet borders. Black scan action is the navigation signature. Avoid ornamental gradients. Route maps use only saved coordinates and label missing-location states.
 
 ## Shapes
 Shared buttons are 52px high with 16px corners, cards 22px corners and circular stop-sequence badges. Long addresses and names wrap.
@@ -54,4 +54,4 @@ Shared buttons are 52px high with 16px corners, cards 22px corners and circular 
 Theme → `src/ui.tsx` shared ActionButton/Banner/BottomNav/styles → login, routes, scan and stop screens. Pressable actions expose names, selected/disabled states and pressed feedback. Native scrolling and focus are platform-owned. Input, button and card dimensions remain stable while busy.
 
 ## Do's and Don'ts
-Keep actual assignments, tenant currency and delivery proof requirements. Do not add fictional totals, customer booking, notifications, offline queues or tracking history just because the reference kit includes them. Camera/POD verification needs a physical Android device.
+Keep actual assignments, tenant currency and delivery proof requirements. Do not add fictional totals, customer booking, notifications, offline queues or fake history just because the reference kit includes them. Recorded custody, cash, history and support data are now connected to authorized backend workflows. Camera/POD verification needs a physical Android device.

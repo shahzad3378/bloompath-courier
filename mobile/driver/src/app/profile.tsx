@@ -1,24 +1,26 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Redirect } from 'expo-router';
-import { ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Redirect,router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { ScrollView,Text,TextInput,View } from 'react-native';
 import { supabase } from '../courier';
 import { useDriver } from '../driver-context';
+import { useDriverQuery } from '../use-driver-query';
+import { loadProfileDetails,saveBank,saveDocument } from '../driver-features';
 import { colors } from '../theme';
-import { Banner, BottomNav, ActionButton, styles } from '../ui';
-export default function ProfileScreen() {
-  const { session, profile, routes, stops, routeError, loading, refresh } = useDriver();
-  if (!session) return <Redirect href="/login" />;
-  if (!profile) return <Redirect href="/" />;
-  return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.page}>
-    <Text style={styles.eyebrow}>FAST DROP · DRIVER</Text><Text style={styles.title}>My profile</Text>
-    <View style={[styles.card, { backgroundColor: colors.paleGreen, alignItems: 'center', paddingVertical: 30 }]}>
-      <View style={[styles.sequence, { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surface, marginRight: 0 }]}><Text style={[styles.sequenceText, { fontSize: 28 }]}>{profile.full_name.trim().slice(0, 1).toUpperCase()}</Text></View>
-      <Text style={[styles.person, { marginTop: 14 }]}>{profile.full_name}</Text><Text style={styles.muted}>{session.user.email}</Text>
-      <Text style={styles.collect}>Delivery driver</Text>
-    </View>
-    <View style={styles.card}><Text style={styles.person}>Your assignments</Text><Text style={styles.muted}>{routes.length} active routes · {stops.length} pending stops</Text>
-      <ActionButton label={loading ? 'Refreshing…' : 'Refresh assignments'} outline disabled={loading} onPress={() => { void refresh(); }} /><Banner text={routeError} error /></View>
-    <View style={styles.card}><Text style={styles.person}>Need help with a delivery?</Text><Text style={styles.muted}>Contact your dispatch team for assignment or address changes.</Text></View>
-    <ActionButton label="Sign out" outline onPress={() => { void supabase?.auth.signOut(); }} />
-  </ScrollView><BottomNav /></SafeAreaView>;
+import { Banner,BottomNav,ActionButton,styles } from '../ui';
+export default function ProfileScreen(){
+ const {session,profile}=useDriver();const q=useDriverQuery(loadProfileDetails);const [bankName,setBankName]=useState('');const [holder,setHolder]=useState('');const [account,setAccount]=useState('');const [editing,setEditing]=useState(false);const [showAccount,setShowAccount]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);const [notice,setNotice]=useState<string|null>(null);
+ if(!session)return <Redirect href="/login"/>;if(!profile)return <Redirect href="/"/>;
+ async function bank(){if(!profile||busy)return;setBusy(true);setError(null);setNotice(null);try{await saveBank(profile,bankName,holder,account);setEditing(false);setAccount('');setShowAccount(false);setNotice('Bank details saved.');await q.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ async function document(kind:string){if(!profile||busy)return;setBusy(true);setError(null);setNotice(null);try{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],quality:0.7,base64:true});if(result.canceled)return;const a=result.assets[0];if(!a?.base64||a.mimeType!=='image/jpeg')throw new Error('Choose a JPG document photo of 5 MB or less.');await saveDocument(profile,kind,a.base64);setNotice('Document uploaded privately.');await q.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled"><Text style={styles.eyebrow}>FAST DROP · DRIVER</Text><Text style={styles.title}>My profile</Text>
+ <View style={[styles.card,{backgroundColor:colors.paleGreen,alignItems:'center',paddingVertical:28}]}><View style={[styles.sequence,{width:72,height:72,borderRadius:36,backgroundColor:colors.surface,marginRight:0}]}><Text style={[styles.sequenceText,{fontSize:28}]}>{profile.full_name.trim().slice(0,1).toUpperCase()}</Text></View><Text style={[styles.person,{marginTop:14}]}>{profile.full_name}</Text><Text style={styles.muted}>{session.user.email}</Text><Text style={styles.collect}>Delivery driver</Text></View>
+ <Banner text={q.error||error} error/><Banner text={notice}/><ActionButton label="Refresh profile" outline disabled={q.loading||busy||editing} onPress={()=>{void q.refresh();}}/>
+ {q.data?<View style={styles.card}><Text style={styles.person}>Delivery performance</Text><Text style={styles.money}>{q.data.total?Math.round(q.data.delivered/q.data.total*100)+'%':'—'}</Text><Text style={styles.muted}>{q.data.delivered} successful deliveries / {q.data.total} recorded attempts</Text><Text style={styles.mutedSmall}>All recorded attempts, including reattempts. This is not a customer rating.</Text></View>:null}
+ <View style={styles.card}><Text style={styles.person}>Vehicle & licence</Text><Text style={styles.muted}>Vehicle: {q.data?.vehicle?.vehicle_number||'Not recorded'}</Text><Text style={styles.muted}>Plate: {q.data?.vehicle?.plate_number||'Not recorded'}</Text><Text style={styles.muted}>Licence: {q.data?.vehicle?.driving_licence_number||'Not recorded'}</Text><Text style={styles.muted}>Expiry: {q.data?.vehicle?.licence_expiry||'Not recorded'}</Text><Text style={styles.mutedSmall}>Admin maintains verified vehicle and licence details.</Text></View>
+ <View style={styles.card}><Text style={styles.person}>Private documents</Text><Text style={styles.muted}>Upload JPG photos of identity/CNIC, licence and vehicle papers. Dispatch administrators can review these.</Text>{(['identity','licence','vehicle'] as const).map(kind=><View key={kind}><ActionButton label={busy?'Working…':'Upload '+(kind==='identity'?'identity / CNIC':kind==='licence'?'driving licence':'vehicle papers')} outline disabled={busy||editing} onPress={()=>{void document(kind);}}/><Text style={styles.mutedSmall}>{q.data?.documents.find(d=>d.kind===kind)?'Uploaded '+new Date(q.data.documents.find(d=>d.kind===kind)!.created_at).toLocaleDateString():'No upload yet'}</Text></View>)}</View>
+ <View style={styles.card}><Text style={styles.person}>Bank details</Text>{editing?<><Text style={styles.label}>Bank</Text><TextInput accessibilityLabel="Bank name" value={bankName} onChangeText={setBankName} maxLength={100} editable={!busy} style={styles.input}/><Text style={styles.label}>Account holder</Text><TextInput accessibilityLabel="Account holder" value={holder} onChangeText={setHolder} maxLength={120} editable={!busy} style={styles.input}/><Text style={styles.label}>Account number / IBAN</Text><TextInput accessibilityLabel="Bank account number" secureTextEntry={!showAccount} value={account} onChangeText={setAccount} maxLength={80} autoCapitalize="characters" editable={!busy} style={styles.input}/><ActionButton label={showAccount?'Hide account number':'Show account number'} outline disabled={busy} onPress={()=>setShowAccount(!showAccount)}/><ActionButton label={busy?'Saving…':'Save bank details'} disabled={busy} onPress={()=>{void bank();}}/><ActionButton label="Discard edits" outline disabled={busy} onPress={()=>{setEditing(false);setAccount('');setError(null);}}/></>:<><Text style={styles.muted}>{q.data?.bank?.bank_name||'No bank details saved'}</Text>{q.data?.bank?<Text style={styles.muted}>Account ending {q.data.bank.account_number.slice(-4)}</Text>:null}<ActionButton label="Edit bank details" outline disabled={busy||!q.data} onPress={()=>{setBankName(q.data?.bank?.bank_name??'');setHolder(q.data?.bank?.account_holder??'');setAccount(q.data?.bank?.account_number??'');setEditing(true);}}/></>}</View>
+ <ActionButton label="Delivery history" outline disabled={busy||editing} onPress={()=>router.push('/history')}/><ActionButton label="Dispatch support" outline disabled={busy||editing} onPress={()=>router.push('/support')}/><ActionButton label="Sign out" outline disabled={busy||editing} onPress={()=>{void supabase?.auth.signOut();}}/>{editing?<Text style={styles.mutedSmall}>Save or discard bank edits before leaving.</Text>:null}
+ </ScrollView>{!editing&&!busy?<BottomNav/>:null}</SafeAreaView>;
 }

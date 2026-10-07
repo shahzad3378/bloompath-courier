@@ -8,7 +8,7 @@
         "projectId": "0c577c27-92e9-4409-8c87-d692268acca5"
       }
     },
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,7 +28,7 @@
       "permissions": [
         "CAMERA"
       ],
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       [

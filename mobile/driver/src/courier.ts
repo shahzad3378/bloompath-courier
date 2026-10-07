@@ -43,6 +43,9 @@ export type Shipment = {
   currency: string | null;
   payment_type: string;
   delivery_attempt_count: number;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  status: string;
 };
 
 export type Stop = {
@@ -100,13 +103,15 @@ export async function loadAssignedStops(profile: Profile): Promise<{ routes: Rou
     .order('handed_over_at', { ascending: true });
   if (routeError) throw new Error('Could not load assigned routes. Retry.');
   const activeRoutes = (routes ?? []) as Route[];
-  if (!activeRoutes.length) return { routes: [], stops: [], currency: '' };
+  const { data: settings } = await supabase.from('organization_settings').select('currency').eq('organization_id', profile.organization_id).maybeSingle();
+  const currency = String(settings?.currency ?? '');
+  if (!activeRoutes.length) return { routes: [], stops: [], currency };
 
   const stops: Stop[] = [];
   for (let offset = 0; ; offset += 200) {
     const { data, error } = await supabase
       .from('dispatch_run_items')
-      .select('id, run_id, shipment_id, stop_sequence, completed_at, shipments(id, tracking_number, consignee_name, consignee_phone, consignee_alt_phone, consignee_address, consignee_area, consignee_city, consignee_country_code, consignee_landmark, delivery_instructions, cod_amount, currency, payment_type, delivery_attempt_count)')
+      .select('id, run_id, shipment_id, stop_sequence, completed_at, shipments(id, tracking_number, consignee_name, consignee_phone, consignee_alt_phone, consignee_address, consignee_area, consignee_city, consignee_country_code, consignee_landmark, delivery_instructions, cod_amount, currency, payment_type, delivery_attempt_count, delivery_latitude, delivery_longitude, status)')
       .in('run_id', activeRoutes.map((route) => route.id))
       .is('completed_at', null)
       .order('run_id', { ascending: true })
@@ -118,12 +123,7 @@ export async function loadAssignedStops(profile: Profile): Promise<{ routes: Rou
     stops.push(...page);
     if (page.length < 200) break;
   }
-  const { data: settings } = await supabase
-    .from('organization_settings')
-    .select('currency')
-    .eq('organization_id', profile.organization_id)
-    .maybeSingle();
-  return { routes: activeRoutes, stops, currency: String(settings?.currency ?? '') };
+  return { routes: activeRoutes, stops, currency };
 }
 
 export async function saveDeliveryResult(input: {
@@ -184,3 +184,4 @@ export async function saveDeliveryResult(input: {
     throw new Error('Delivery result was not saved. Check the details and retry.');
   }
 }
+

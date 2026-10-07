@@ -17,6 +17,11 @@ export default function RootLayout() {
     contentStyle: { backgroundColor: colors.background },
     headerBackTitle: 'Route',
   }}>
+    <Stack.Screen name="wallet" options={{ title: 'Cash & earnings', headerShown: false }} />
+    <Stack.Screen name="history" options={{ title: 'My history' }} />
+    <Stack.Screen name="support" options={{ title: 'Dispatch support' }} />
+    <Stack.Screen name="pickup/[id]" options={{ title: 'Pickup parcels' }} />
+    <Stack.Screen name="chat/[id]" options={{ title: 'Dispatch chat' }} />
     <Stack.Screen name="index" options={{ title: 'Fast Drop', headerShown: false }} />
     <Stack.Screen name="routes" options={{ title: 'My routes', headerShown: false }} />
     <Stack.Screen name="profile" options={{ title: 'Driver profile', headerShown: false }} />

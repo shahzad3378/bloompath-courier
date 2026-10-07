@@ -90,11 +90,15 @@ export const styles = StyleSheet.create({
 export function BottomNav() {
   const path = usePathname();
   return <View style={{ backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
-    {([{ label: 'Home', symbol: 'home', href: '/' }, { label: 'Routes', symbol: 'package', href: '/routes' }, { label: 'Scan', symbol: 'maximize', href: '/scan' }, { label: 'Profile', symbol: 'user', href: '/profile' }] as const).map(item =>
+    {([{ label: 'Tasks', symbol: 'check-square', href: '/' }, { label: 'Route', symbol: 'map', href: '/routes' }, { label: 'Scan', symbol: 'maximize', href: '/scan' }, { label: 'Cash', symbol: 'credit-card', href: '/wallet' }, { label: 'Profile', symbol: 'user', href: '/profile' }] as const).map(item =>
       <Pressable key={item.href} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{ selected: path === item.href }}
         onPress={() => router.navigate(item.href)} style={({ pressed }) => ({ flex: 1, minHeight: 52, justifyContent: 'center', alignItems: 'center', borderRadius: 18, backgroundColor: item.label === 'Scan' ? colors.darkGreen : path === item.href ? colors.paleGreen : colors.surface, opacity: pressed ? 0.7 : 1 })}>
         <Feather name={item.symbol} size={22} color={item.label === 'Scan' ? '#fff' : path === item.href ? colors.green : colors.muted} />
         <Text style={{ fontSize: 11, fontWeight: '700', color: item.label === 'Scan' ? '#fff' : path === item.href ? colors.green : colors.muted }}>{item.label}</Text>
       </Pressable>)}
   </View>;
+}
+
+export function Pager({page,count,onChange}: {page:number;count:number;onChange:(page:number)=>void}) {
+ return <View style={[styles.rowGap,{alignItems:'center',justifyContent:'space-between',marginBottom:20}]}><ActionButton label="Previous" outline disabled={page===0} onPress={()=>onChange(page-1)} /><Text style={styles.mutedSmall}>Page {page+1} · {count} records</Text><ActionButton label="Next" outline disabled={(page+1)*25>=count} onPress={()=>onChange(page+1)} /></View>;
 }

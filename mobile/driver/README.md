@@ -1,27 +1,28 @@
-# BloomPath Courier Driver for Android
+# BloomPath Courier Driver for Android — 1.2.0
 
-Expo SDK 57 app connected to the existing BloomPath Courier Supabase project.
-The web portal remains the dispatcher and admin workspace.
+Expo SDK 57 app connected to the existing Courier Supabase project. The web portal is the admin, warehouse and dispatcher workspace. Never use a service-role key in the app.
 
-## First release
+## Operational features
 
-- Existing driver email/password login; only an active `driver` profile can open the app.
-- Handed-over routes and pending delivery stops, paged in route order.
-- Code 39, Code 128 and QR scan, plus manual AWB entry. A scan only opens a stop already assigned to the signed-in driver.
-- Customer call and Google Maps directions.
-- Delivered or undelivered result, required reason for undelivered, required JPG proof photo (max 5 MB), optional notes.
-- The same `delivery_attempts` insert and database trigger as the web portal update the shipment and dispatch run.
+- Active driver login and tenant-scoped assignments. Tasks separates pickup manifests and handed-over delivery runs; dispatch assigns pickups from the manifest detail page.
+- Pickup and hub-handover AWB scans record custody. Pickup completion requires every parcel scanned. Hub handover does not grant warehouse receiving authority.
+- Route map displays saved delivery coordinates with OpenStreetMap attribution. A nearest-stop suggestion uses straight-line distance; it does not calculate road traffic or change dispatch order. Google Maps provides external navigation. Addresses without coordinates remain in Tasks.
+- Assigned-only Code 39/128/QR and manual scanning. Delivered/undelivered outcomes, mandatory JPG proof photo (5 MB maximum), failure reasons and notes use the existing delivery-attempt workflow.
+- Cash tab separates COD cash/deposit receipts and personal earnings. Admin selects per-delivery, fixed or mixed terms and currency in Users & Roles → driver edit. Future confirmed deliveries generate commission; fixed pay, bonuses, deductions and payouts require an authorized finance record. This records payouts and does not transfer funds.
+- Paginated delivery/failed/return history. Profile shows recorded vehicle/licence information, actual delivery-attempt success rate, private identity/licence/vehicle JPG uploads and editable masked bank details.
+- Support creates damage/dispute/address/reattempt issues and stored dispatch conversations. Dispatch replies in Rider Support. Refresh checks for replies; no push/realtime notification is claimed. The phone action uses the organization's configured contact number.
 
-Returns, background GPS, push notifications and offline result queues are outside this first release. A result is only shown as saved after the server confirms it. Never use a Supabase secret/service-role key in this app.
+## Boundaries
 
-## Configure and run
+Photo POD is supported; OTP verification and signature capture are not implemented. Reattempt requests require dispatch approval and the existing reattempt workflow. Delivery runs are assigned at handover, so accept/reject is not offered. Active return completion, offline queues, background GPS, ratings and automatic salary accrual are outside this release. Device testing is still required for camera, private uploads and native map interaction.
 
-1. Copy `.env.example` to `.env` for local development. The preview and production build profiles already use the **Courier UAE** project URL and publishable key. Do not point the app at the separate BloomPath catalog database.
-2. Run `npm ci` and `npx expo start --android`.
-3. Sign in with an existing active driver account.
-4. For an internal Android APK, run `npx eas-cli build --platform android --profile preview` after linking your Expo account. Production uses an AAB.
+## Configure and build
 
-The app requires network access for sign-in, route loading, proof upload and result submission. If the database is paused, resume it before testing. Test camera scanning and photo upload on a physical Android device; simulator bundling cannot prove those paths.
+1. Run from `mobile/driver`. Copy `.env.example` to `.env` for local development; preview/production profiles already contain the Courier public connection settings.
+2. Run `npm ci`, then `node -p "require('./app.json').expo.version"` and verify **1.2.0**.
+3. Use `npx expo start --android` for development or `npx eas-cli build --platform android --profile preview` for a new APK. EAS needs your Expo login. Production generates an AAB.
+4. Install the new APK on an Android phone. An existing APK or a Vercel redeploy does not update native source.
 
-The native app now follows `mobile/driver/DESIGN.md` and `UX-CONTRACT.md`: Fast Courier-inspired coral/white cards, DM Sans and Merriweather, Home/Routes/Scan/Profile navigation. The desktop portal keeps its existing green identity. App version 1.1.0 requires a new Android build; a Vercel redeploy does not update installed APKs.
+Backend migrations: `driver_mobile_operations`, `driver_mobile_wallet_summary` and `driver_pickup_read_access`. Auth/assignment checks and RLS remain authoritative. The app shows a saved state only after server confirmation. No historical commissions are backfilled.
 
+Design contracts: DESIGN.md and UX-CONTRACT.md. Verification evidence and outstanding device acceptance: UI-VERIFICATION.md.

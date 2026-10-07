@@ -1,6 +1,6 @@
 {
   "name": "bloompath-courier-driver",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
@@ -24,7 +24,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

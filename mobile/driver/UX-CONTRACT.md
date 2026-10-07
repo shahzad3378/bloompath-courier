@@ -1,23 +1,29 @@
-# Driver UX contract
+# Driver UX contract — 1.2.0
 
-Visual decisions: DESIGN.md. Business and authorization sources: README.md and src/courier.ts (loadDriverProfile, loadAssignedStops, saveDeliveryResult); backend authorization remains authoritative.
+Visual owner: DESIGN.md → src/theme.ts → src/ui.tsx. Data and authorization: src/courier.ts, src/driver-features.ts, DriverProvider, private database helpers and RLS.
 
 ## Canonical UI Map
-| Capability | Canonical owner | Source of truth | Allowed variants | Verification |
+
+| Capability | Owner | Source of truth | Variants | Verification |
 |---|---|---|---|---|
-| Form | Native TextInput and shared ActionButton in src/ui.tsx | Existing login/stop validation | Sign in, AWB entry, result | Typecheck, lint, Android export |
-| Toast | Shared Banner in src/ui.tsx | Driver context notice/errors | Error, success | Static review and browser preview |
-| CRUD | src/courier.ts and DriverProvider | Existing role/assignment gates | Read pending stops, save result | Source preservation; device acceptance required |
-| Scrollbar | Platform ScrollView/FlatList | Native React Native behavior | Route list, detail form | Phone-width preview |
+| Form | Native TextInput, ActionButton, Banner | Typed API + server validation | Auth, scan, proof, bank, support | Typecheck, lint, Android export |
+| Feedback | Shared Banner + server-confirmed state | Query/provider state | Busy, empty, error/retry, success | Source review; device acceptance |
+| CRUD | driver-features/courier modules | RLS and tenant/assignment guards | Own driver reads and permitted writes | Rollback SQL permission tests |
+| Navigation | Shared BottomNav + native detail stack | Expo routes | Tasks, Route, Scan, Cash, Profile; History/Support shortcuts | Android export |
+| Scrollbar | Native ScrollView/FlatList | Platform | Lists, detail forms, conversation | Device acceptance |
 
-## Navigation and states
-Home and Routes use one assigned-stop list implementation. Home greets the driver; Routes emphasizes the route workspace. Search is local, has Clear, and keeps route sequence. No-results offers a correction; unassigned routes explain dispatch handover. Refresh retains existing assignments on network errors with explicit retry. Profile shows the authenticated identity and actual assignment counts. Bottom navigation is shared, with textual labels and accessibility states.
+## Tasks and custody
 
-## Delivery flow
-Scan opens only a pending assigned stop. Detail offers customer call/map, tenant-aware collection amount, delivery result, required reason for undelivered, required JPG proof photo up to 5MB and optional notes. Save disables duplicate submission; only confirmed server success clears the pending stop and returns Home with a notice. Existing driver and organization access gates remain unchanged. No carrier identity is introduced into driver or customer tracking by this UI.
+Pickup and delivery sections use real assignments. Unassigned/empty states explain dispatch assignment. Delivery scan opens only an assigned pending stop. Pickup and hub scans use authenticated idempotent RPCs; completion requires all pickup scans. Warehouse receipt remains a warehouse action. No customer/carrier identity is added to public tracking.
 
-## Authentication and recovery
-Passwords are masked initially with Show/Hide. Invalid or unavailable login preserves email and explains retry. Unauthorized driver accounts use the established access-error view. Sign out ends the current session. No credentials are put into URLs or logs.
+## Money
 
-## Platform and acceptance
-English interface with international names/addresses. Native keyboard/scroll/accessibility semantics; touch controls at least 44px. Network is required: no optimistic saved status or offline queue. Physical Android acceptance must cover barcode camera, proof camera, permissions denied, authenticated routes and actual delivery save; web export cannot prove device permissions.
+Admin owns pay terms. Currency-grouped all-time summaries are distinct from paginated records. COD deposits belong to the company cash ledger; personal salary/commission belongs to the earnings ledger. Finance confirmation is required for manual entries in the admin UI. No invented rate, automatic fixed accrual or funds transfer is presented. New delivery commission is prospective and duplicate-safe.
+
+## Map, history and support
+
+Only saved valid coordinates become map markers. Straight-line nearest-stop suggestions are advisory; dispatch order is preserved. Google Maps opens directions externally. History and money lists page records. Support has stored issue threads and manual refresh; latest 200 messages are shown. Reattempt is a request, not an approved schedule. Driver documents are private JPG uploads and bank numbers start masked.
+
+## Authentication, recovery and boundaries
+
+Shared query/provider sequence guards discard stale identity/assignment responses. Unauthorized driver profiles use access-error handling. Passwords start masked. Failed writes retain input and enable retry; busy controls prevent duplicate submissions. No offline/optimistic saved result is claimed. Photo POD is required; OTP and signatures are pending. Native platform owns keyboard, select semantics and scrolling. Physical Android acceptance is required for camera permissions, scans, proof/document uploads, WebView map and authenticated end-to-end saves.

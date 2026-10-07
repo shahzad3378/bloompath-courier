@@ -1,15 +1,13 @@
-# Driver UI 1.1.0 verification
+# Driver operations 1.2.0 verification
 
-Reference inspected: Fast Courier App UI8 gallery (coral/white rounded cards, black scan navigation, DM Sans/Merriweather).
+- Native TypeScript/Expo ESLint and Android Hermes export pass. This verifies compilation, not a signed APK or physical camera behavior.
+- Route tests cover invalid coordinates, nearest-stop order, immutable dispatch order, antimeridian distance, address URL encoding and map injection escaping.
+- Hosted rollback-only SQL fixtures passed: assigned pickup reads, all-scan gate, duplicate scan idempotency, driver pickup, warehouse authority boundary, mixed pay commission, self-credit/rate-change denial and cross-driver support/bank/document/earnings privacy. No test salaries, financial entries or shipments persist.
+- Main web TypeScript and production build pass for admin pay terms, finance ledger recording, pickup assignment and dispatch support pages.
+- Authenticated custody RPCs intentionally use security-definer execution with explicit active-driver/organization/assignment validation. Anonymous execution is revoked. Supabase advisors still report their inherent security-definer surface alongside older unrelated warnings.
+- Existing repository icon assets are preserved on GitHub. Temporary local placeholder icons were used only for export resolution and are not committed.
+- No EAS authenticated session is available in this workspace; a new APK must be built using the user's Expo account.
 
-- TypeScript and Expo ESLint pass.
-- Expo Android export succeeds, producing a Hermes bundle with bundled fonts/icons.
-- Expo web export succeeds.
-- Frontend premium strict static audit: zero findings. Native ActionButton handlers use onPress; its previous generic Button name caused HTML-auditor false positives, so it was renamed to clarify native ownership.
-- DESIGN.md lint: zero errors; runtime-owned palette tokens have informational orphan warnings because React Native consumers are documented in prose rather than generated component references.
-- No changes to src/courier.ts or src/driver-context.tsx business/auth/storage behavior.
-- Local browser preview blocked by cloud-browser localhost policy; final visual/browser acceptance is outstanding.
-- No signed APK is produced in this workspace: Expo authentication is unavailable. Existing repository icon assets are preserved; local placeholder icons were used only to satisfy export resolution and are not committed.
+## Required physical Android acceptance
 
-## Device acceptance before distribution
-Build using the existing preview profile and verify sign-in, Home/Routes/Profile navigation, local search/Clear, loading/empty/error/retry, assigned-only manual AWB and camera scan, call/map, camera permission denial, required proof/reason, and confirmed result save on a physical Android phone. A new build is required; Vercel deployment does not update the installed driver app.
+Verify 1.2.0 sign-in; pickup assignment/scan/complete/hub handover; delivery scan and mandatory photo/failure reason; map missing-coordinate and navigation states; cash/earnings/history pagination; private JPG documents; masked bank editing; issue creation and dispatch reply; denied permissions and retry/network failures. Runtime screenshots of the native app are not available here. OTP/signature capture, offline queues, push/realtime replies and automatic salary accrual are not implemented.
