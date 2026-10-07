@@ -16,7 +16,7 @@ function options(form: FormData, organizationId: string | null): GtaOptions {
   const count = number(form, "item_count");
   if (!Number.isSafeInteger(count) || count < 0 || count > 100) throw new Error("Use zero to 100 customs items.");
   const pickup = field(form, "use_warehouse") === "on" ? getGtaPickup(organizationId) : null;
-  if (field(form, "use_warehouse") === "on" && !pickup) throw new Error("The GTA drop-off address is not configured.");
+  if (field(form, "use_warehouse") === "on" && !pickup) throw new Error("The FastDrop sender address is not configured.");
   return { ...(pickup ? {pickup} : {}), terminal: field(form,"terminal"), destinationTerminal: field(form,"destination_terminal"), service: field(form,"service"), piecesType: field(form,"pieces_type"),
     length: number(form,"length"), width: number(form,"width"), height: number(form,"height"), signature: field(form,"signature") === "on", insurance: field(form,"insurance") === "on", insuranceValue: number(form,"insurance_value"),
     items: Array.from({length:count}, (_,i) => ({ description: field(form,`description_${i}`), weight: number(form,`weight_${i}`), hsCode: field(form,`hs_${i}`), declaredValue: number(form,`value_${i}`), currency: field(form,`currency_${i}`), quantity: number(form,`quantity_${i}`) })) };
@@ -27,7 +27,7 @@ async function context(form: FormData) {
   if (!config || !profile.organization_id) throw new Error("GTA API keys and environment are not configured for this courier company.");
   const { data, error } = await (await createClient()).from("shipments").select("*").eq("organization_id",profile.organization_id).eq("tracking_number",field(form,"awb").toUpperCase()).is("deleted_at",null).maybeSingle();
   if (error || !data) throw new Error("FastDrop AWB was not found in this courier company.");
-  if (field(form,"confirm_induction") !== "on") throw new Error("Confirm the GTA drop-off address before continuing.");
+  if (field(form,"confirm_induction") !== "on") throw new Error("Confirm the sender address before continuing.");
   return { profile, config, shipment: data as Shipment };
 }
 export async function checkGtaRates(_state: GtaState, form: FormData): Promise<GtaState> {

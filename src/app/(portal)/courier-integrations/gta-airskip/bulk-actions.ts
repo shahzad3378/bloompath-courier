@@ -11,7 +11,7 @@ export async function previewGtaBulk(_state: GtaBulkPreview, form: FormData): Pr
   const fail = (message: string): GtaBulkPreview => ({ status: "error", message, rows: [] });
   if (!profile.organization_id || !getGtaConfig(profile.organization_id)) return fail("GTA is not configured for this courier company.");
   const pickup = getGtaPickup(profile.organization_id);
-  if (!pickup) return fail("Configure the GTA drop-off address before bulk booking.");
+  if (!pickup) return fail("Configure the FastDrop sender address before bulk booking.");
   const file = form.get("file");
   if (!(file instanceof File) || !file.size || file.size > gtaBulkMaxBytes) return fail("Choose a non-empty CSV or Excel file, 2 MB or smaller.");
   let parcels;

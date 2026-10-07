@@ -3,6 +3,8 @@ import type { Shipment } from "@/lib/shipments";
 export type GtaItem = { description: string; weight: number; hsCode: string; declaredValue: number; currency: string; quantity: number };
 // GTA requires the complete account terminal list for rate shopping.
 export const gtaSenderTerminals = "ONDM,MISS2,MISSF,BRA";
+// Physical handover instructions only; never use this as the shipment sender.
+export const gtaDropoffAddress = "GTA AIRSKIP LTD, 2710 Britannia Road East, Cargo 2, Entrance 6, Mississauga, ON, L4W 2P7, CA";
 export function normalizeGtaSenderTerminals(value: string): string {
   const terminal = value.trim();
   if (terminal === gtaSenderTerminals || ["ONDM", "MISS2", "MISSF", "BRA"].includes(terminal)) return gtaSenderTerminals;
@@ -32,7 +34,7 @@ const positive = (value: number, name: string) => {
   return value;
 };
 export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempotencyKey?: string) {
-  // A local induction leg can start at the configured warehouse without rewriting the original shipper.
+  // The carrier leg uses the configured FastDrop sender without rewriting the original shipper.
   if (options.pickup) {
     const pickup = options.pickup;
     shipment = { ...shipment, sender_name: pickup.name, sender_phone: pickup.phone, sender_address: pickup.address,

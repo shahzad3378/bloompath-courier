@@ -81,7 +81,7 @@ test('server action blocks production without activation/confirmation before res
  try{process.env.GTA_AIRSKIP_ORGANIZATION_ID='org';process.env.GTA_AIRSKIP_ACCOUNT_KEY='key';process.env.GTA_AIRSKIP_API_KEY='api';process.env.GTA_AIRSKIP_BASE_URL='https://tms-api.gtagsm.com';process.env.GTA_AIRSKIP_LIVE_ENABLED='false';
  const form=new FormData();form.set('awb','FD10001');form.set('confirm_induction','on');form.set('confirm_live','on');assert.match((await actions.generateGtaAwb({},form)).message,/must be enabled/);assert.equal(adminCalls,0);
  process.env.GTA_AIRSKIP_LIVE_ENABLED='true';form.delete('confirm_live');assert.match((await actions.generateGtaAwb({},form)).message,/explicitly confirmed/);assert.equal(adminCalls,0);
- form.delete('confirm_induction');assert.match((await actions.generateGtaAwb({},form)).message,/drop-off address/);
+ form.delete('confirm_induction');assert.match((await actions.generateGtaAwb({},form)).message,/sender address/);
  }finally{keys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i]);}
 });
 test('request mapping satisfies the provider snapshot required fields and rejects unknown-property drift',()=>{
@@ -192,12 +192,12 @@ test('all authorized sender terminals are sent together in rate and label reques
   assert.throws(()=>core.buildGtaShipment(shipment,{...options,terminal:'ONDM,BAD'}),/sender terminals/);
  } finally {global.fetch=old;}
 });
-test('confirmed GTA drop-off address is used without changing the original sender',()=>{
+test('FastDrop is the carrier sender while GTA drop-off stays separate and original sender is preserved',()=>{
  const original={...shipment,sender_country_code:'NP'}, before={...original};
- const pickup={name:'GTA AIRSKIP LTD',phone:'',address:'2710 Britannia Road East',address2:'Cargo 2, Entrance 6',city:'Mississauga',state:'ON',postalCode:'L4W 2P7',country:'CA'};
+ const pickup={name:'Fast Drop Worldwide Logistics Inc.',phone:'+14383081520',address:'5004 Timberlea Rd',address2:'Unit 45',city:'Mississauga',state:'ON',postalCode:'L4W5C5',country:'CA'};
  const payload=core.buildGtaShipment(original,{...options,pickup});
  assert.equal(payload.from,pickup.name);assert.equal(payload.fromAddress1,pickup.address);assert.equal(payload.fromAddress2,pickup.address2);
- assert.equal(payload.fromCity,'Mississauga');assert.equal(payload.fromState,'ON');assert.equal(payload.fromPostalCode,'L4W 2P7');assert.equal(payload.fromCountry,'CA');assert.deepEqual(original,before);
+ assert.equal(payload.fromCity,'Mississauga');assert.equal(payload.fromState,'ON');assert.equal(payload.fromPostalCode,'L4W5C5');assert.equal(payload.fromPhone,'+14383081520');assert.ok(core.gtaDropoffAddress.includes('2710 Britannia Road East'));assert.ok(!JSON.stringify(payload).includes('GTA AIRSKIP LTD'));assert.ok(!JSON.stringify(payload).includes('2710 Britannia'));assert.equal(payload.fromCountry,'CA');assert.deepEqual(original,before);
 });
 
 test('saved Canadian postal codes resolve missing province for GTA without mutating shipment',()=>{
