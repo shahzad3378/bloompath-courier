@@ -35,7 +35,7 @@ export default async function NewShipmentPage() {
 
     supabase
       .from("organization_countries")
-      .select("country_code")
+      .select("country_code, is_primary")
       .eq("organization_id", profile.organization_id)
       .eq("is_active", true),
 
@@ -85,6 +85,11 @@ export default async function NewShipmentPage() {
     postal_code_label:
       country.postal_code_label || "Postal Code",
   }));
+
+  // Keep the tenant primary market first; the form uses the first option as its default.
+  const primaryCountryCode = organizationCountries?.find((country) => country.is_primary)?.country_code;
+  const primaryIndex = markets.findIndex((market) => market.code === primaryCountryCode);
+  if (primaryIndex > 0) markets.unshift(...markets.splice(primaryIndex, 1));
 
   const currency =
     baseCurrencyData?.currency_code ||
