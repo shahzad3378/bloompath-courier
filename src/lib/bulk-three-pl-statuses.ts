@@ -4,6 +4,7 @@ import { readSheet, type CellValue } from "read-excel-file/node";
 
 export const threePLUpdateStatuses = [
   "in_transit",
+  "out_for_delivery",
   "delivered",
   "undelivered",
   "return_initiated",
@@ -156,8 +157,8 @@ async function readRows(file: File): Promise<BulkCell[][]> {
 }
 
 export function validateThreePLStatusInput(input: ThreePLStatusInput) {
-  if (!/^BP[A-Z0-9-]+$/i.test(input.trackingNumber) || input.trackingNumber.length > 80) {
-    return "Enter a valid BloomPath tracking number.";
+  if (!/^[A-Z0-9][A-Z0-9-]{1,79}$/i.test(input.trackingNumber) || input.trackingNumber.length > 80) {
+    return "Enter a valid courier AWB.";
   }
   if (!(threePLUpdateStatuses as readonly string[]).includes(input.status)) {
     return "Select a valid 3PL status.";
@@ -280,3 +281,4 @@ export async function parseBulkThreePLStatusFile(file: File): Promise<BulkThreeP
   }
   return { ok: true, rows: parsedRows };
 }
+

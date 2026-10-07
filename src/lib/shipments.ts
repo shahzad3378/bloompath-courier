@@ -27,6 +27,7 @@ export type Shipment = {
   created_by: string;
   assigned_driver_id: string | null;
   status: ShipmentStatus;
+  customer_tracking_status?: "in_transit" | "out_for_delivery" | "delivered" | "undelivered" | null;
   service_type: ServiceType;
   payment_type: PaymentType;
   sender_name: string;
@@ -137,3 +138,4 @@ export function formatDubaiDate(value: string, includeTime = true) {
     ...(includeTime ? { hour: "2-digit", minute: "2-digit" } : {}),
   }).format(new Date(value));
 }
+

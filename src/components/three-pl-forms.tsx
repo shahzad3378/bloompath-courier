@@ -26,6 +26,7 @@ const initialBulkState: BulkThreePLState = {
 
 const statusOptions = [
   ["in_transit", "In transit"],
+  ["out_for_delivery", "Out for delivery"],
   ["delivered", "Delivered"],
   ["undelivered", "Undelivered"],
   ["return_initiated", "Return initiated"],
@@ -105,7 +106,7 @@ export function CreateCarrierForm() {
   );
 
   return (
-    <form action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
+    <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Add 3PL partner</h2>
       <p className="mt-1 text-xs text-[#87938d]">
         Internal carrier information. Shippers cannot see these details.
@@ -169,7 +170,7 @@ export function ThreePLHandoverForm({
   );
 
   return (
-    <form action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
+    <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Transfer shipment to 3PL</h2>
       <p className="mt-1 text-xs text-[#87938d]">
         Our AWB remains the customer-facing reference.
@@ -228,7 +229,7 @@ export function ThreePLStatusForm() {
   const canAddReturnReason = needsReturnReason || status === "returned_to_shipper";
 
   return (
-    <form action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
+    <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Update one 3PL shipment</h2>
       <p className="mt-1 text-xs text-[#87938d]">
         Partner status automatically syncs the BloomPath shipment lifecycle.
@@ -296,7 +297,7 @@ export function ThreePLStatusForm() {
           maxLength={1000}
           rows={3}
           placeholder="Internal notes (optional)"
-          className="rounded-xl border border-[#dce5e0] px-3 py-3 text-sm outline-none focus:border-[#188459] sm:col-span-2"
+          className="resize-none rounded-xl border border-[#dce5e0] px-3 py-3 text-sm outline-none focus:border-[#188459] sm:col-span-2"
         />
       </div>
 
@@ -316,7 +317,7 @@ export function BulkThreePLStatusForm() {
   const [fileName, setFileName] = useState("");
 
   return (
-    <form action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
+    <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-bold text-[#26372f]">Bulk 3PL status update</h2>
@@ -376,3 +377,4 @@ export function BulkThreePLStatusForm() {
     </form>
   );
 }
+

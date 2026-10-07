@@ -24,6 +24,8 @@ export const metadata = {
 };
 
 type ViewKey =
+  | "transit"
+  | "undelivered"
   | "all"
   | "pickup"
   | "picked_up"
@@ -74,6 +76,8 @@ export default async function ShipperPage({
   const requestedView = params.view ?? "all";
 
   const view: ViewKey = [
+    "transit",
+    "undelivered",
     "all",
     "pickup",
     "picked_up",
@@ -106,6 +110,7 @@ export default async function ShipperPage({
         payment_type,
         service_type,
         status,
+        customer_tracking_status,
         booked_at,
         delivered_at,
         delivery_attempt_count
@@ -169,6 +174,7 @@ export default async function ShipperPage({
 
   const shipments = (shipmentData ?? []).map((row) => ({
     ...row,
+    status: row.customer_tracking_status || row.status,
     latestProof: latestProofByShipment.get(Number(row.id)) ?? null,
   }));
   const invoiceRows = invoices ?? [];
@@ -184,6 +190,7 @@ export default async function ShipperPage({
   const toBeDelivered = shipments.filter((row) =>
     [
       "at_warehouse",
+      "in_transit",
       "out_for_delivery",
       "undelivered",
     ].includes(row.status),
@@ -205,7 +212,11 @@ export default async function ShipperPage({
     (row) => row.status === "cancelled",
   );
 
+  const inTransit = shipments.filter(row => row.status === "in_transit");
+  const undelivered = shipments.filter(row => row.status === "undelivered");
   const cards = [
+    { key: "transit", label: "In transit", value: inTransit.length, icon: Truck, href: "/shipper?view=transit#shipments", description: "Shipment on its way" },
+    { key: "undelivered", label: "Undelivered", value: undelivered.length, icon: CircleX, href: "/shipper?view=undelivered#shipments", description: "Delivery not completed" },
     {
       key: "all",
       label: "All Shipments",
@@ -273,7 +284,7 @@ export default async function ShipperPage({
   ] as const;
 
   const filteredShipments =
-    view === "pickup"
+    view === "transit" ? inTransit : view === "undelivered" ? undelivered : view === "pickup"
       ? toBePickedUp
       : view === "picked_up"
         ? pickedUp
@@ -290,7 +301,7 @@ export default async function ShipperPage({
                   : shipments;
 
   const selectedCard =
-    cards.find((card) => card.key === view) ?? cards[0];
+    cards.find((card) => card.key === view) ?? cards.find(card => card.key === "all")!;
 
   const openInvoices = invoiceRows.filter(
     (row) => row.status !== "paid",
@@ -694,3 +705,4 @@ export default async function ShipperPage({
     </div>
   );
 }
+
