@@ -14,7 +14,7 @@ export function CreateThreePLManifestForm({ requestId, carriers, shipments }: { 
   const [state, action, pending] = useActionState(createThreePLManifestAction, initial);
   const [carrier, setCarrier] = useState("");
   const visible = carrier ? shipments.filter((s) => !s.carrier_id || s.carrier_id === carrier) : [];
-  return <form action={action} noValidate className="bp-panel">
+  return <form action={action} onReset={(event) => event.preventDefault()} noValidate className="bp-panel">
     <div className="bp-panel-header"><h2 className="text-lg font-bold">Create 3PL Manifest</h2><p className="mt-1 text-sm text-[#66756e]">Select warehouse parcels or scan/paste their FastDrop AWBs. Creating a draft keeps parcels at warehouse.</p></div>
     <fieldset disabled={pending} className="min-w-0 space-y-5 p-5">
       <input type="hidden" name="request_id" value={requestId} />
