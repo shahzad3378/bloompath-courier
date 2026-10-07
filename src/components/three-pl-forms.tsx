@@ -78,7 +78,7 @@ function downloadStatusTemplate() {
   const url = URL.createObjectURL(new Blob([[headers.join(","), ""].join("\n")], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "bloompath-3pl-status-template.csv";
+  anchor.download = "3pl-status-template.csv";
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -161,8 +161,10 @@ export function CreateCarrierForm() {
 
 export function ThreePLHandoverForm({
   carriers,
+  awbBrandName,
 }: {
   carriers: Array<{ id: string; name: string; code: string }>;
+  awbBrandName: string;
 }) {
   const [state, action, pending] = useActionState(
     handoverToCarrierAction,
@@ -173,14 +175,15 @@ export function ThreePLHandoverForm({
     <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Transfer shipment to 3PL</h2>
       <p className="mt-1 text-xs text-[#87938d]">
-        Our AWB remains the customer-facing reference.
+        {awbBrandName} AWB remains the customer-facing reference.
       </p>
 
       <div className="mt-5 space-y-3">
         <input
           name="tracking_number"
           required
-          placeholder="Scan / enter our AWB"
+          placeholder={`Scan / enter ${awbBrandName} AWB`}
+          aria-label={`${awbBrandName} AWB for transfer`}
           className="h-11 w-full rounded-xl border border-[#dce5e0] px-3 font-mono text-sm uppercase outline-none focus:border-[#188459]"
         />
 
@@ -220,7 +223,7 @@ export function ThreePLHandoverForm({
   );
 }
 
-export function ThreePLStatusForm() {
+export function ThreePLStatusForm({ awbBrandName }: { awbBrandName: string }) {
   const [state, action, pending] = useActionState(updateThreePLStatusAction, initialState);
   const [status, setStatus] = useState("");
   const needsAttempt = status === "undelivered" || status === "delivered";
@@ -232,14 +235,15 @@ export function ThreePLStatusForm() {
     <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Update one 3PL shipment</h2>
       <p className="mt-1 text-xs text-[#87938d]">
-        Partner status automatically syncs the BloomPath shipment lifecycle.
+        Saved partner status updates the {awbBrandName} shipment lifecycle.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <input
           name="tracking_number"
           required
-          placeholder="BloomPath AWB"
+          placeholder={`${awbBrandName} AWB`}
+          aria-label={`${awbBrandName} AWB for status update`}
           className="h-11 rounded-xl border border-[#dce5e0] px-3 font-mono text-sm uppercase outline-none focus:border-[#188459] sm:col-span-2"
         />
 
@@ -377,4 +381,5 @@ export function BulkThreePLStatusForm() {
     </form>
   );
 }
+
 

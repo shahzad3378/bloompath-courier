@@ -10,12 +10,12 @@ function Feedback({ state }: { state: ManifestState }) {
   useEffect(() => { if (state.status === "error") ref.current?.focus(); }, [state]);
   return <p ref={ref} tabIndex={-1} role={state.status === "error" ? "alert" : "status"} className={`min-h-6 text-sm ${state.status === "error" ? "text-red-700" : "text-[#13734b]"}`}>{state.message}</p>;
 }
-export function CreateThreePLManifestForm({ requestId, carriers, shipments }: { requestId: string; carriers: { id: string; name: string }[]; shipments: ManifestCandidate[] }) {
+export function CreateThreePLManifestForm({ requestId, carriers, shipments, awbBrandName }: { awbBrandName: string; requestId: string; carriers: { id: string; name: string }[]; shipments: ManifestCandidate[] }) {
   const [state, action, pending] = useActionState(createThreePLManifestAction, initial);
   const [carrier, setCarrier] = useState("");
   const visible = carrier ? shipments.filter((s) => !s.carrier_id || s.carrier_id === carrier) : [];
   return <form action={action} onReset={(event) => event.preventDefault()} noValidate className="bp-panel">
-    <div className="bp-panel-header"><h2 className="text-lg font-bold">Create 3PL Manifest</h2><p className="mt-1 text-sm text-[#66756e]">Select warehouse parcels or scan/paste their FastDrop AWBs. Creating a draft keeps parcels at warehouse.</p></div>
+    <div className="bp-panel-header"><h2 className="text-lg font-bold">Create 3PL Manifest</h2><p className="mt-1 text-sm text-[#66756e]">Select warehouse parcels or scan/paste their {awbBrandName} AWBs. Creating a draft keeps parcels at warehouse.</p></div>
     <fieldset disabled={pending} className="min-w-0 space-y-5 p-5">
       <input type="hidden" name="request_id" value={requestId} />
       <label className="block text-sm font-semibold" htmlFor="manifest-carrier">Delivery partner</label>
@@ -25,14 +25,14 @@ export function CreateThreePLManifestForm({ requestId, carriers, shipments }: { 
       <p id="manifest-carrier-help" className="text-sm text-[#66756e]">Changing partner clears table selection. Existing bookings must match the selected partner.</p>
       <div key={carrier} className="overflow-hidden rounded-xl border border-[#dfe7e3]">
         <SelectableTable visibleCount={visible.length}>
-          <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr><th className="p-3">Select</th><th className="p-3">FastDrop AWB</th><th className="p-3">Consignee / city</th><th className="p-3">Partner AWB</th></tr></thead><tbody>
+          <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr><th className="p-3">Select</th><th className="p-3">{awbBrandName} AWB</th><th className="p-3">Consignee / city</th><th className="p-3">Partner AWB</th></tr></thead><tbody>
             {visible.map((s) => <tr className="bp-table-row border-t border-[#dfe7e3]" key={s.tracking_number}><td className="p-3"><input data-table-row-select name="tracking_number" value={s.tracking_number} type="checkbox" aria-label={`Select ${s.tracking_number}`} className="size-4 accent-[#13734b]" /></td><td className="p-3 font-mono font-bold">{s.tracking_number}</td><td className="p-3">{s.consignee_name}<p className="text-[#66756e]">{s.consignee_city}</p></td><td className="p-3 font-mono">{s.partner_tracking_number || "Not booked"}</td></tr>)}
           </tbody></table>
           {!visible.length && <p className="p-5 text-sm text-[#66756e]">{carrier ? "No available warehouse parcels in this list. Scan/paste AWBs below, or receive parcels at warehouse first." : "Select a delivery partner to see available parcels."}</p>}
         </SelectableTable>
       </div>
       <p className="text-sm text-[#66756e]">Showing available parcels from the latest 100 warehouse shipments. Use the AWB field for other parcels; up to 500 per manifest.</p>
-      <label className="block text-sm font-semibold" htmlFor="manifest-awbs">Scan / paste additional FastDrop AWBs</label>
+      <label className="block text-sm font-semibold" htmlFor="manifest-awbs">Scan / paste additional {awbBrandName} AWBs</label>
       <textarea id="manifest-awbs" name="awbs" rows={5} maxLength={50500} className="bp-input resize-none font-mono" placeholder="One AWB per line" aria-describedby="manifest-awbs-help" />
       <p id="manifest-awbs-help" className="text-sm text-[#66756e]">Use one AWB per line or separate with commas. Duplicate AWBs are included once.</p>
       <label className="block text-sm font-semibold" htmlFor="manifest-notes">Internal notes (optional)</label>

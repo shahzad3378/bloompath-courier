@@ -8,6 +8,7 @@ import {
 } from "@/components/three-pl-forms";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveAwbBrandName } from "@/lib/tenant-branding";
 
 export const metadata = { title: "3PL Dispatch" };
 
@@ -44,7 +45,7 @@ export default async function ThreePLDispatchPage() {
 
   const supabase = await createClient();
 
-  const [{ data: carrierData }, { data: shipmentLinks }] = await Promise.all([
+  const [{ data: carrierData }, { data: shipmentLinks }, { data: settings }] = await Promise.all([
     supabase
       .from("third_party_carriers")
       .select("id, name, code, integration_mode")
@@ -76,7 +77,9 @@ export default async function ThreePLDispatchPage() {
       .eq("organization_id", profile.organization_id)
       .order("created_at", { ascending: false })
       .limit(100),
+    supabase.from("organization_settings").select("awb_brand_name,display_name").eq("organization_id", profile.organization_id).maybeSingle(),
   ]);
+  const awbBrandName = resolveAwbBrandName(settings);
 
   const carriers = (carrierData ?? []).map((carrier) => ({
     id: carrier.id,
@@ -135,11 +138,11 @@ export default async function ThreePLDispatchPage() {
 
       <div className="mt-7 grid gap-5 xl:grid-cols-2">
         <CreateCarrierForm />
-        <ThreePLHandoverForm carriers={carriers} />
+        <ThreePLHandoverForm carriers={carriers} awbBrandName={awbBrandName} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <ThreePLStatusForm />
+        <ThreePLStatusForm awbBrandName={awbBrandName} />
         <BulkThreePLStatusForm />
       </div>
 

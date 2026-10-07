@@ -20,7 +20,7 @@ export async function createThreePLManifestAction(_state: ManifestState, formDat
   const notes = String(formData.get("notes") ?? "").trim();
   const awbs = parseManifestAwbs(formData);
   if (!validManifestId(id) || !validManifestId(carrierId)) return { status: "error", message: "Select a delivery partner. Refresh if the request expired." };
-  if (!awbs.length || awbs.length > 500 || awbs.some((a) => !/^[A-Z0-9][A-Z0-9_-]{2,99}$/.test(a))) return { status: "error", message: "Select or scan 1 to 500 valid FastDrop AWBs." };
+  if (!awbs.length || awbs.length > 500 || awbs.some((a) => !/^[A-Z0-9][A-Z0-9_-]{2,99}$/.test(a))) return { status: "error", message: "Select or scan 1 to 500 valid shipment AWBs." };
   if (notes.length > 1000) return { status: "error", message: "Keep notes within 1000 characters." };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("manage_three_pl_manifest", { p_operation: "create", p_id: id, p_carrier_id: carrierId, p_awbs: awbs, p_receiver: null, p_notes: notes || null });

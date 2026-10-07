@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { resolveAwbBrandName } from "@/lib/tenant-branding";
 import { getManifest, manifestStatusLabels } from "@/lib/three-pl-manifests";
 import { formatDubaiDate } from "@/lib/shipments";
 import { ThreePLManifestChangeForm } from "@/components/three-pl-manifest-forms";
@@ -7,6 +8,8 @@ export default async function ThreePLManifestPage({ params, searchParams }: { pa
   const { id } = await params;
   const { manifest: m, items, profile, supabase } = await getManifest(id);
   const query = await searchParams;
+  const { data: settings } = await supabase.from("organization_settings").select("awb_brand_name,display_name").eq("organization_id", profile.organization_id).maybeSingle();
+  const awbBrandName = resolveAwbBrandName(settings);
   const actorIds = [...new Set([m.created_by, m.handed_over_by].filter((v): v is string => Boolean(v)))];
   const { data: actors } = await supabase.from("profiles").select("id,full_name").eq("organization_id", profile.organization_id).in("id", actorIds);
   const actorNames = new Map((actors ?? []).map((a) => [a.id, a.full_name]));
@@ -19,7 +22,7 @@ export default async function ThreePLManifestPage({ params, searchParams }: { pa
       {m.handed_over_at && <><div><dt className="text-[#66756e]">Handed over (Dubai time)</dt><dd className="mt-1">{formatDubaiDate(m.handed_over_at)}<p>{actorNames.get(m.handed_over_by ?? "") || "Operations user"}</p></dd></div><div><dt className="text-[#66756e]">Received by</dt><dd className="mt-1 font-bold">{m.receiver_name}</dd></div></>}
       {m.cancelled_at && <div><dt className="text-[#66756e]">Cancelled (Dubai time)</dt><dd className="mt-1">{formatDubaiDate(m.cancelled_at)}</dd></div>}
     </dl>{m.notes && <p className="mt-5 whitespace-pre-wrap break-words border-t border-[#dfe7e3] pt-4 text-sm">{m.notes}</p>}</section>
-    <section className="bp-panel overflow-hidden"><div className="bp-panel-header"><h2 className="text-lg font-bold">Manifest parcels</h2></div><div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr><th className="p-4">FastDrop AWB</th><th className="p-4">Partner AWB (internal)</th><th className="p-4">Consignee / city</th><th className="p-4">Pieces</th></tr></thead><tbody>{items.map((i) => <tr key={i.shipment_id} className="bp-table-row border-t border-[#dfe7e3]"><td className="p-4"><Link href={`/shipments/${i.shipment_id}`} className="font-mono font-bold text-[#13734b] hover:underline">{i.tracking_number}</Link></td><td className="p-4 font-mono">{i.partner_tracking_number || "Not booked"}</td><td className="p-4">{i.consignee_name}<p className="text-[#66756e]">{i.consignee_city}</p></td><td className="p-4">{i.pieces}</td></tr>)}</tbody></table></div></section>
+    <section className="bp-panel overflow-hidden"><div className="bp-panel-header"><h2 className="text-lg font-bold">Manifest parcels</h2></div><div className="max-h-[620px] overflow-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr><th className="p-4">{awbBrandName} AWB</th><th className="p-4">Partner AWB (internal)</th><th className="p-4">Consignee / city</th><th className="p-4">Pieces</th></tr></thead><tbody>{items.map((i) => <tr key={i.shipment_id} className="bp-table-row border-t border-[#dfe7e3]"><td className="p-4"><Link href={`/shipments/${i.shipment_id}`} className="font-mono font-bold text-[#13734b] hover:underline">{i.tracking_number}</Link></td><td className="p-4 font-mono">{i.partner_tracking_number || "Not booked"}</td><td className="p-4">{i.consignee_name}<p className="text-[#66756e]">{i.consignee_city}</p></td><td className="p-4">{i.pieces}</td></tr>)}</tbody></table></div></section>
     {m.status === "draft" ? <div className="grid items-start gap-5 lg:grid-cols-2"><ThreePLManifestChangeForm id={m.id} count={items.length} operation="confirm" /><ThreePLManifestChangeForm id={m.id} count={items.length} operation="cancel" /></div> : <p role="status" className="rounded-xl bg-[#e7f4ed] p-4 text-sm text-[#13734b]">{m.status === "handed_over" ? "Handover confirmed. The partner has custody; customer tracking changed to In transit at handover." : "Draft cancelled. No shipment status was changed."}</p>}
   </div>;
 }
