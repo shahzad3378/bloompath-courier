@@ -213,6 +213,17 @@ export async function handoverToCarrierAction(
     return { status: "error", message: "Selected 3PL carrier is not active." };
   }
 
+  const { data: reservation, error: reservationError } = await supabase
+    .from("third_party_manifest_items")
+    .select("manifest_id")
+    .eq("organization_id", profile.organization_id)
+    .eq("shipment_id", shipment.id)
+    .eq("reserved", true)
+    .maybeSingle();
+  if (reservationError || reservation) {
+    return { status: "error", message: reservation ? "This AWB belongs to a manifest. Open 3PL Manifests and confirm its handover there." : "Manifest reservations could not be checked. Please retry." };
+  }
+
   // Carrier labels can be booked before physical warehouse handover.
   const { data: existingLink, error: existingLinkError } = await supabase
     .from("third_party_shipment_links")
@@ -460,4 +471,5 @@ export async function bulkUpdateThreePLStatusesAction(
     failedCount,
   };
 }
+
 

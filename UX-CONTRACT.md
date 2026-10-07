@@ -22,6 +22,7 @@ This contract records observable workflow behavior for the authenticated courier
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 |---|---|---|---|---|
+| Table Selection | Shared `SelectableTable` | UX contract | Visible warehouse candidates only; changing partner remounts selection | Scoped markup audit and live selection check |
 | Form | Shared `bp-input`/buttons with server domain validation | DESIGN.md and authorized shipment/booking actions | Single booking / bulk file preview | Scoped ESLint, typecheck, parser and action tests |
 | Select/Listbox | Native select in operational booking forms | DESIGN.md; platform popup geometry is accepted | Single booking / batch mode | Semantic labels, disabled states and typecheck |
 | Scrollbar | `src/app/globals.css` | DESIGN.md runtime mapping | Results table owns horizontal overflow | Responsive source review and static audit |
@@ -130,3 +131,9 @@ Shipper shipment lists, detail timelines and exports use canonical customer stat
 Admin configures per-driver per-delivery, fixed or mixed pay on `/users/[id]`, using native selects and existing BP form primitives. Rates/currency are explicit; no salary is preconfigured. Terms use a stale-update guard. Confirmed future deliveries create one commission; fixed pay/bonus/deduction/payout entries are explicitly confirmed, idempotent ledger records, not money transfers. COD deposits remain separate. Server authorization and tenant filters govern all writes.
 
 Ready pickup manifests can be assigned to an active rider. After custody scans begin reassignment locks. The native app completes collection only after all parcel scans; hub handover does not replace warehouse receipt. `/driver-support` is restricted to authorized dispatch/support roles, lists 25 requests per page, and shows the latest 200 stored messages. Replies/status updates return inline success/error states; the rider manually refreshes replies. Reattempt requests use normal dispatch approval. No automatic rescheduling or push delivery is claimed.
+
+
+
+### 3PL handover manifests
+
+`/dispatch/3pl/manifests` owns draft creation and paginated history (25 per page). Native partner Select and shared SelectableTable select only shown warehouse candidates (latest 100); scanning/pasting accepts other AWBs up to 500. Draft selections are transient form state and reset when partner changes. Creation returns to the manifest detail; errors preserve input and receive focus. Detail confirms physical handover with receiver name and explicit acknowledgement, or cancels only a draft. Both operations are transactional and idempotent. The private authorized database writer locks eligible shipments, preserves existing partner bookings, prevents duplicate reservations and own-fleet conflicts, and reuses canonical custody/customer-status triggers. Draft creation never changes custody; confirmation projects In transit to customer-safe tracking. Cancellation releases reservations without altering shipment status. Partner identities and AWBs are internal-only through role/tenant RLS; print uses protected snapshot rows and a separate shell-free A4 route. Source: `supabase/migrations/20261007200735_three_pl_handover_manifests.sql` and existing customer tracking privacy migration.

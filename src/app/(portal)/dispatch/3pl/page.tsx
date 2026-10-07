@@ -111,7 +111,8 @@ export default async function ThreePLDispatchPage() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/dispatch/3pl/manifests" className="bp-button">Create 3PL Manifest</Link>
           <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">
               Active partners
@@ -231,3 +232,4 @@ export default async function ThreePLDispatchPage() {
     </div>
   );
 }
+

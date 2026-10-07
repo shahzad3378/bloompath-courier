@@ -260,3 +260,9 @@ textarea:focus {
 .bp-route-stop-label::before {
   display: none;
 }
+
+@media print {
+  .three-pl-manifest-print { page: a4-page; }
+  .three-pl-manifest-print thead { display: table-header-group; }
+  .three-pl-manifest-print tr { break-inside: avoid; }
+}
