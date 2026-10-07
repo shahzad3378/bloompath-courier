@@ -8,6 +8,19 @@ export function normalizeGtaSenderTerminals(value: string): string {
   if (terminal === gtaSenderTerminals || ["ONDM", "MISS2", "MISSF", "BRA"].includes(terminal)) return gtaSenderTerminals;
   throw new Error("Use GTA sender terminals ONDM,MISS2,MISSF,BRA.");
 }
+// Canada Post's first postal character identifies these provinces unambiguously.
+// X spans NT and NU, so it still requires a saved province.
+function savedProvince(shipment: Shipment, side: "sender" | "consignee"): string {
+  const saved = shipment[`${side}_state_province`]?.trim();
+  if (saved) return saved;
+  const country = shipment[`${side}_country_code`]?.trim().toUpperCase();
+  const postal = shipment[`${side}_postal_code`]?.trim().toUpperCase().replace(/\s/g, "") || "";
+  if (country === "CA" && /^[ABCEGHJKLMNPRSTVXY]\d[ABCEGHJKLMNPRSTVWXYZ]\d[ABCEGHJKLMNPRSTVWXYZ]\d$/.test(postal)) {
+    const provinces: Record<string, string> = { A: "NL", B: "NS", C: "PE", E: "NB", G: "QC", H: "QC", J: "QC", K: "ON", L: "ON", M: "ON", N: "ON", P: "ON", R: "MB", S: "SK", T: "AB", V: "BC", Y: "YT" };
+    if (provinces[postal[0]]) return provinces[postal[0]];
+  }
+  throw new Error(`Saved ${side} province/state is missing. Update the shipment address before booking.`);
+}
 export type GtaPickup = { name: string; phone: string; address: string; address2: string; city: string; state: string; postalCode: string; country: string };
 export type GtaOptions = { pickup?: GtaPickup; terminal: string; destinationTerminal: string; service: string; piecesType: string; length: number; width: number; height: number; signature: boolean; insurance: boolean; insuranceValue: number; items: GtaItem[] };
 const text = (value: unknown, name: string, max = 300) => {
@@ -54,7 +67,7 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     [`${prefix}Address1`]: text(shipment[`${side}_address`], `${side} street address`),
     ...(prefix === "from" ? { fromAddress2: shipment.sender_address_2?.trim() || "" } : {}),
     [`${prefix}City`]: text(shipment[`${side}_city`], `${side} city`),
-    [`${prefix}State`]: text(shipment[`${side}_state_province`], `${side} province/state`, 30),
+    [`${prefix}State`]: text(savedProvince(shipment, side), `${side} province/state`, 30),
     [`${prefix}PostalCode`]: text(shipment[`${side}_postal_code`], `${side} postal code`, 30),
   });
   return {

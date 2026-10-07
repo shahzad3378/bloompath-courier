@@ -199,3 +199,20 @@ test('confirmed GTA drop-off address is used without changing the original sende
  assert.equal(payload.from,pickup.name);assert.equal(payload.fromAddress1,pickup.address);assert.equal(payload.fromAddress2,pickup.address2);
  assert.equal(payload.fromCity,'Mississauga');assert.equal(payload.fromState,'ON');assert.equal(payload.fromPostalCode,'L4W 2P7');assert.equal(payload.fromCountry,'CA');assert.deepEqual(original,before);
 });
+
+test('saved Canadian postal codes resolve missing province for GTA without mutating shipment',()=>{
+ for(const [postal,province] of [['V5X 2S9','BC'],['m5v1a1','ON'],['H2X 1Y4','QC'],['T2P 1J9','AB'],['Y1A 1A1','YT']]){
+  const saved={...shipment,consignee_state_province:null,consignee_postal_code:postal};
+  const payload=core.buildGtaShipment(saved,options);
+  assert.equal(payload.toState,province);assert.equal(payload.toAddress1,saved.consignee_address);assert.equal(saved.consignee_state_province,null);
+ }
+ const sender={...shipment,sender_state_province:'',sender_postal_code:'V5X2S9'};
+ assert.equal(core.buildGtaShipment(sender,options).fromState,'BC');
+ assert.equal(core.buildGtaShipment({...shipment,consignee_postal_code:'V5X2S9'},options).toState,'ON');
+});
+test('missing province is not guessed for invalid, ambiguous or non-Canadian postal codes',()=>{
+ for(const postal of ['', 'V5X', 'V5X-2S9','D5X2S9','X0A0H0']){
+  assert.throws(()=>core.buildGtaShipment({...shipment,consignee_state_province:null,consignee_postal_code:postal},options),/Saved consignee province/);
+ }
+ assert.throws(()=>core.buildGtaShipment({...shipment,consignee_country_code:'US',consignee_state_province:null,consignee_postal_code:'V5X2S9'},{...options,items:[item]}),/Saved consignee province/);
+});
