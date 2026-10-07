@@ -6,7 +6,7 @@ import { homeForRole, internalRoles, type Profile } from "@/lib/roles";
 const publicRoutes = new Set(["/login", "/forgot-password"]);
 
 function isProtected(pathname: string) {
-  return ["/dashboard", "/users", "/shippers", "/shipper", "/driver"].some(
+  return ["/dashboard", "/users", "/shippers", "/shipper", "/driver", "/driver-support"].some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 }
@@ -69,7 +69,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (
-    ["/dashboard", "/users", "/shippers"].some(
+    ["/dashboard", "/users", "/shippers", "/driver-support"].some(
       (route) => pathname === route || pathname.startsWith(`${route}/`),
     ) &&
     !internalRoles.includes(profile.role)
@@ -84,7 +84,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL(homeForRole(profile.role), request.url));
   }
 
-  if (pathname.startsWith("/driver") && profile.role !== "driver") {
+  if ((pathname === "/driver" || pathname.startsWith("/driver/")) && profile.role !== "driver") {
     return NextResponse.redirect(new URL(homeForRole(profile.role), request.url));
   }
 
