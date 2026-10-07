@@ -1,10 +1,10 @@
 const {test}=require('node:test'), assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
 function loadTs(file,imports={}) { const m=new Module(path.resolve(file));m.filename=path.resolve(file);m.paths=Module._nodeModulePaths(path.dirname(m.filename));const req=m.require.bind(m);m.require=n=>Object.hasOwn(imports,n)?imports[n]:req(n);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,m.filename);return m.exports; }
-const broad=loadTs('src/lib/broadreach-bulk.ts'), bulk=loadTs('src/lib/gta-bulk.ts',{'@/lib/broadreach-bulk':broad});
+const broad=loadTs('src/lib/broadreach-bulk.ts'), bulk=loadTs('src/lib/gta-bulk.ts',{'@/lib/broadreach-bulk':broad,'@/lib/gta-airskip':loadTs('src/lib/gta-airskip.ts')});
 const domestic=['FD10001',10,8,4,'','','','','',''], item=['FD10001',10,8,4,'Shirt',0.3,'0610910001',20,'USD',1];
 const parse=rows=>bulk.parseGtaBulkRows([bulk.gtaBulkHeaders,...rows],'ONDM');
-test('Canada domestic import needs no HS code or customs items',()=>{const [p]=parse([domestic]);assert.equal(p.options.items.length,0);assert.deepEqual(p.rows,[2]);assert.equal(p.options.terminal,'ONDM');});
+test('Canada domestic import needs no HS code or customs items',()=>{const [p]=parse([domestic]);assert.equal(p.options.items.length,0);assert.deepEqual(p.rows,[2]);assert.equal(p.options.terminal,'ONDM,MISS2,MISSF,BRA');});
 test('groups cross-border item rows and retains HS leading zero',()=>{const [p]=parse([item,item]);assert.equal(p.options.items.length,2);assert.equal(p.options.items[0].hsCode,'0610910001');assert.deepEqual(p.rows,[2,3]);});
 test('rejects duplicate domestic AWBs, mismatched dimensions, partial customs and unsafe file headers',()=>{
  assert.throws(()=>parse([domestic,domestic]),/one row/);assert.throws(()=>parse([item,[...item.slice(0,1),20,...item.slice(2)]]),/matching dimensions/);
@@ -26,4 +26,12 @@ test('server preview isolates tenant and performs no booking or rate request',as
  const query={select(){return this},eq(k,v){logs.push([k,v]);return this},in(k,v){logs.push([k,v]);return this},async is(){return {data:[shipment],error:null}}};
  const action=loadTs('src/app/(portal)/courier-integrations/gta-airskip/bulk-actions.ts',{'@/lib/auth':{requireProfile:async()=>({organization_id:'tenant-A'})},'@/lib/gta-airskip':core,'@/lib/gta-bulk':bulk,'@/lib/gta-airskip-server':{getGtaConfig:()=>({}),getGtaPickup:()=>({name:'Warehouse',phone:'1234567890',address:'500 Street',address2:'Unit 45',city:'Toronto',state:'ON',postalCode:'M5V1A1',country:'CA'})},'@/lib/bulk-shipments':{readBulkFileRows:async()=>[bulk.gtaBulkHeaders,domestic,['FD10002',...domestic.slice(1)]]},'@/lib/supabase/server':{createClient:async()=>({from:()=>query})}});
  const form=new FormData();form.set('file',new File(['fixture'],'batch.csv'));form.set('terminal','ONDM');const preview=await action.previewGtaBulk({},form);assert.equal(preview.rows[0].status,'ready');assert.equal(preview.rows[1].status,'invalid');assert.ok(logs.some(([k,v])=>k==='organization_id'&&v==='tenant-A'));assert.equal(shipment.sender_name,'Original');
+});
+
+test('bulk preview and booking forms preserve all GTA sender terminals',()=>{
+ for(const terminal of ['ONDM','MISS2','MISSF','BRA','ONDM,MISS2,MISSF,BRA']){
+  const [parcel]=bulk.parseGtaBulkRows([bulk.gtaBulkHeaders,domestic],terminal);
+  assert.equal(parcel.options.terminal,'ONDM,MISS2,MISSF,BRA');
+  assert.equal(bulk.gtaParcelForm(parcel,true).get('terminal'),'ONDM,MISS2,MISSF,BRA');
+ }
 });

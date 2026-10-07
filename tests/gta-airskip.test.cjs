@@ -8,7 +8,7 @@ function loadTs(filename, imports = {}) {
 const core=loadTs('src/lib/gta-airskip.ts');
 const server=loadTs('src/lib/gta-airskip-server.ts',{'server-only':{},'@/lib/gta-airskip':core});
 const shipment={tracking_number:'FD10001',pieces:1,weight_kg:2,payment_type:'prepaid',cod_amount:0,sender_name:'Sender',sender_address:'1 Street',sender_city:'Toronto',sender_state_province:'ON',sender_postal_code:'M5V 1A1',sender_country_code:'CA',consignee_name:'Receiver',consignee_address:'2 Street',consignee_city:'Toronto',consignee_state_province:'ON',consignee_postal_code:'M5V 1A1',consignee_country_code:'CA'};
-const options={terminal:'YYZ',destinationTerminal:'',service:'',piecesType:'Box',length:10,width:8,height:4,signature:false,insurance:false,insuranceValue:NaN,items:[]};
+const options={terminal:core.gtaSenderTerminals,destinationTerminal:'',service:'',piecesType:'Box',length:10,width:8,height:4,signature:false,insurance:false,insuranceValue:NaN,items:[]};
 const item={description:'Shirt',weight:0.3,hsCode:'6109100012',declaredValue:20,currency:'USD',quantity:1};
 const label=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64');
 const response={isSuccess:true,data:{loadNumber:'LOAD1',cost:5,packages:[{trackingNumber:['GTA10001'],labelBase64:label}]}};
@@ -81,7 +81,7 @@ test('server action blocks production without activation/confirmation before res
  try{process.env.GTA_AIRSKIP_ORGANIZATION_ID='org';process.env.GTA_AIRSKIP_ACCOUNT_KEY='key';process.env.GTA_AIRSKIP_API_KEY='api';process.env.GTA_AIRSKIP_BASE_URL='https://tms-api.gtagsm.com';process.env.GTA_AIRSKIP_LIVE_ENABLED='false';
  const form=new FormData();form.set('awb','FD10001');form.set('confirm_induction','on');form.set('confirm_live','on');assert.match((await actions.generateGtaAwb({},form)).message,/must be enabled/);assert.equal(adminCalls,0);
  process.env.GTA_AIRSKIP_LIVE_ENABLED='true';form.delete('confirm_live');assert.match((await actions.generateGtaAwb({},form)).message,/explicitly confirmed/);assert.equal(adminCalls,0);
- form.delete('confirm_induction');assert.match((await actions.generateGtaAwb({},form)).message,/pickup address/);
+ form.delete('confirm_induction');assert.match((await actions.generateGtaAwb({},form)).message,/drop-off address/);
  }finally{keys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i]);}
 });
 test('request mapping satisfies the provider snapshot required fields and rejects unknown-property drift',()=>{
@@ -177,4 +177,25 @@ test('webhook ignores unknown bookings and cooldown duplicates; verified pulls r
  assert.equal((await route.POST(req())).status,202);assert.equal(pulls,0);assert.equal(claims,0);
  booking={id:'uuid',response_metadata:{webhookPullAttempt:new Date().toISOString()}};await route.POST(req());assert.equal(pulls,0);
  booking={id:'uuid',response_metadata:{cost:10}};await route.POST(req());assert.equal(pulls,1);assert.equal(updates.at(-1).response_metadata.tracking.status,'Created');assert.equal(JSON.stringify(updates).includes('private'),false);assert.equal(updates.at(-1).response_metadata.cost,10);
+});
+
+test('all authorized sender terminals are sent together in rate and label requests', async()=>{
+ const old=global.fetch, calls=[];
+ global.fetch=async(url,opts)=>{calls.push({url,body:JSON.parse(opts.body)});return new Response(JSON.stringify(response));};
+ try {
+  for(const terminal of ['ONDM','MISS2','MISSF','BRA',core.gtaSenderTerminals]){
+   const payload=core.buildGtaShipment(shipment,{...options,terminal},'persisted-uuid');
+   await server.requestGtaRates(payload,config);await server.requestGtaLabel(payload,config);
+  }
+  assert.equal(calls.length,10);
+  for(const call of calls){assert.equal(call.body.fromTerminal,'ONDM,MISS2,MISSF,BRA');assert.equal(call.body.IdempotencyKey,'persisted-uuid');}
+  assert.throws(()=>core.buildGtaShipment(shipment,{...options,terminal:'ONDM,BAD'}),/sender terminals/);
+ } finally {global.fetch=old;}
+});
+test('confirmed GTA drop-off address is used without changing the original sender',()=>{
+ const original={...shipment,sender_country_code:'NP'}, before={...original};
+ const pickup={name:'GTA AIRSKIP LTD',phone:'',address:'2710 Britannia Road East',address2:'Cargo 2, Entrance 6',city:'Mississauga',state:'ON',postalCode:'L4W 2P7',country:'CA'};
+ const payload=core.buildGtaShipment(original,{...options,pickup});
+ assert.equal(payload.from,pickup.name);assert.equal(payload.fromAddress1,pickup.address);assert.equal(payload.fromAddress2,pickup.address2);
+ assert.equal(payload.fromCity,'Mississauga');assert.equal(payload.fromState,'ON');assert.equal(payload.fromPostalCode,'L4W 2P7');assert.equal(payload.fromCountry,'CA');assert.deepEqual(original,before);
 });

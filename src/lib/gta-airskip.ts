@@ -1,6 +1,13 @@
 import type { Shipment } from "@/lib/shipments";
 
 export type GtaItem = { description: string; weight: number; hsCode: string; declaredValue: number; currency: string; quantity: number };
+// GTA requires the complete account terminal list for rate shopping.
+export const gtaSenderTerminals = "ONDM,MISS2,MISSF,BRA";
+export function normalizeGtaSenderTerminals(value: string): string {
+  const terminal = value.trim();
+  if (terminal === gtaSenderTerminals || ["ONDM", "MISS2", "MISSF", "BRA"].includes(terminal)) return gtaSenderTerminals;
+  throw new Error("Use GTA sender terminals ONDM,MISS2,MISSF,BRA.");
+}
 export type GtaPickup = { name: string; phone: string; address: string; address2: string; city: string; state: string; postalCode: string; country: string };
 export type GtaOptions = { pickup?: GtaPickup; terminal: string; destinationTerminal: string; service: string; piecesType: string; length: number; width: number; height: number; signature: boolean; insurance: boolean; insuranceValue: number; items: GtaItem[] };
 const text = (value: unknown, name: string, max = 300) => {
@@ -54,7 +61,7 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     ...(idempotencyKey ? { IdempotencyKey: idempotencyKey } : {}), ...(service ? { service } : {}),
     reference1: text(shipment.tracking_number, "FastDrop AWB", 100),
     ...address("sender", "from"), ...address("consignee", "to"), ToAddress2: shipment.consignee_address_2?.trim() || "", fromCountry, toCountry,
-    fromTerminal: text(options.terminal, "GTA induction terminal", 30),
+    fromTerminal: normalizeGtaSenderTerminals(options.terminal),
     ...(options.destinationTerminal.trim() ? { toTerminal: options.destinationTerminal.trim() } : {}),
     signatureRequired: options.signature, insuranceRequired: options.insurance,
     packages: [{ customerTrackingReference1: shipment.tracking_number, description: shipment.parcel_description || "Parcel",

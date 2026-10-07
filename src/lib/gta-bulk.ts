@@ -1,4 +1,4 @@
-import type { GtaOptions } from "@/lib/gta-airskip";
+import { normalizeGtaSenderTerminals, type GtaOptions } from "@/lib/gta-airskip";
 import type { GtaState } from "@/app/(portal)/courier-integrations/gta-airskip/actions";
 import { broadReachResultsCsv, type BroadReachBulkResult } from "@/lib/broadreach-bulk";
 export const gtaBulkHeaders = ["awb", "length", "width", "height", "description", "weight", "hscode", "value", "currency", "qty"] as const;
@@ -12,7 +12,7 @@ export function parseGtaBulkRows(raw: unknown[][], terminal: string): GtaBulkPar
   const text = (value: unknown) => String(value ?? "").trim();
   const headers = (raw[0] ?? []).map(v => text(v).replace(/^\uFEFF/, "").toLowerCase());
   if (gtaBulkHeaders.some(h => headers.filter(v => v === h).length !== 1) || headers.some(h => h && !(gtaBulkHeaders as readonly string[]).includes(h))) throw new Error("Keep the GTA template column names unchanged, with no duplicate or extra columns.");
-  if (!["ONDM", "MISS2", "MISSF", "BRA"].includes(terminal)) throw new Error("Choose an available induction terminal.");
+  terminal = normalizeGtaSenderTerminals(terminal);
   const data = raw.slice(1).map((cells, i) => ({ cells, row: i + 2 })).filter(({ cells }) => cells.some(v => text(v)));
   if (!data.length || data.length > 1000) throw new Error("Upload 1–1,000 rows and no more than 100 parcels.");
   const parcels = new Map<string, GtaBulkParcel>();
