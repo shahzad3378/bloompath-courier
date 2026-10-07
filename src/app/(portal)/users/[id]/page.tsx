@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { DriverPayForms } from '@/components/driver-admin-forms';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Save, Truck, UserRoundCog } from "lucide-react";
@@ -33,6 +35,8 @@ export default async function EditStaffPage({ params, searchParams }: {
         .maybeSingle()
     : { data: null };
 
+  const { data: payTerms } = staff.role === 'driver' ? await supabase.from('driver_pay_terms').select('mode,delivery_rate,fixed_rate,fixed_period,currency,updated_at').eq('driver_id',id).eq('organization_id',actor.organization_id).maybeSingle() : {data:null};
+  const {data:orgSettings}=await supabase.from('organization_settings').select('currency').eq('organization_id',actor.organization_id).maybeSingle();
   const errors: Record<string, string> = {
     invalid: "Review the name, email and date fields.",
     email: "Sign-in email could not be updated. It may already be in use.",
@@ -74,5 +78,7 @@ export default async function EditStaffPage({ params, searchParams }: {
       </div>
       <button className="bp-button-primary inline-flex items-center gap-2"><Save className="size-4" /> Save driver details</button>
     </form> : null}
+    {staff.role==='driver'?<DriverPayForms driverId={id} terms={payTerms} currency={orgSettings?.currency??''} entryKey={randomUUID()}/>:null}
   </div>;
 }
+

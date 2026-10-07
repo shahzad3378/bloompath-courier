@@ -1,3 +1,4 @@
+import { AssignDriverPickupForm } from '@/components/driver-admin-forms';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, ClipboardCheck, PackageCheck, Trash2, Truck, Warehouse } from "lucide-react";
@@ -74,6 +75,7 @@ export default async function PickupManifestDetailsPage({
         </div>
 
         <aside className="space-y-5">
+          {manifest.status==='ready_for_pickup'&&canConfirmPickup?<AssignDriverPickupForm manifestId={manifest.id} drivers={drivers}/>:null}
           <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#eeeaf8] text-[#6952a0]"><ClipboardCheck className="size-5" /></span><div><p className="text-xs text-[#819088]">Operational flow</p><h2 className="font-bold text-[#26372f]">Manifest progress</h2></div></div><div className="mt-6 space-y-5">{[
             { label: "Draft & AWB scanning", done: true, icon: ClipboardCheck },
             { label: "Ready for pickup", done: manifest.status !== "draft", icon: PackageCheck },
@@ -88,3 +90,4 @@ export default async function PickupManifestDetailsPage({
     </div>
   );
 }
+
