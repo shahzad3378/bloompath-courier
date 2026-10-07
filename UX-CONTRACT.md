@@ -22,7 +22,7 @@ This contract records observable workflow behavior for the authenticated courier
 
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 |---|---|---|---|---|
-| Table Selection | Shared `SelectableTable` | UX contract | Visible warehouse candidates only; changing partner remounts selection | Scoped markup audit and live selection check |
+| Table Selection | Shared `SelectableTable` | UX contract | Checkbox or native Selection dropdown; visible candidates only; changing partner remounts selection | Scoped markup audit and live selection check |
 | Form | Shared `bp-input`/buttons with server domain validation | DESIGN.md and authorized shipment/booking actions | Single booking / bulk file preview | Scoped ESLint, typecheck, parser and action tests |
 | Select/Listbox | Native select in operational booking forms | DESIGN.md; platform popup geometry is accepted | Single booking / batch mode | Semantic labels, disabled states and typecheck |
 | Scrollbar | `src/app/globals.css` | DESIGN.md runtime mapping | Results table owns horizontal overflow | Responsive source review and static audit |
@@ -137,3 +137,10 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 ### 3PL handover manifests
 
 `/dispatch/3pl/manifests` owns draft creation and paginated history (25 per page). Native partner Select and shared SelectableTable select only shown warehouse candidates (latest 100); scanning/pasting accepts other AWBs up to 500. Draft selections are transient form state and reset when partner changes. Creation returns to the manifest detail; errors preserve input and receive focus. Detail confirms physical handover with receiver name and explicit acknowledgement, or cancels only a draft. Both operations are transactional and idempotent. The private authorized database writer locks eligible shipments, preserves existing partner bookings, prevents duplicate reservations and own-fleet conflicts, and reuses canonical custody/customer-status triggers. Draft creation never changes custody; confirmation projects In transit to customer-safe tracking. Cancellation releases reservations without altering shipment status. Partner identities and AWBs are internal-only through role/tenant RLS; print uses protected snapshot rows and a separate shell-free A4 route. Source: `supabase/migrations/20261007200735_three_pl_handover_manifests.sql` and existing customer tracking privacy migration.
+
+### 3PL manifest exports
+
+- Assigned 3PL shipments can be selected individually or through the shared native Selection dropdown (Select all visible / Clear selection).
+- PDF and Excel downloads include the tenant AWB, partner AWB and saved partner load number; a single-load export uses that load number as its reference. Multiple loads remain separate row values.
+- Saved handover manifests offer the same file formats. Export is read-only and never creates a booking or changes custody.
+- Role and tenant checks protect every export. Missing or archived selected shipments fail the whole download. Export failures remain inline and allow retry.

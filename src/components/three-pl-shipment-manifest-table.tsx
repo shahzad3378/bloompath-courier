@@ -1,0 +1,13 @@
+"use client";
+import Link from "next/link";
+import { useState } from "react";
+import { SelectableTable } from "@/components/selectable-table";
+import { ManifestExportButtons } from "@/components/manifest-export-buttons";
+export type ThreePLManifestRow = { shipment_id: number; tracking_number: string; consignee_name: string; consignee_city: string; partner_name: string; partner_tracking_number: string | null; load_number: string | null };
+export function ThreePLShipmentManifestTable({ rows, awbBrandName }: { rows: ThreePLManifestRow[]; awbBrandName: string }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const params = new URLSearchParams(); selected.forEach((id) => params.append("shipment_id", id));
+  return <section id="assigned-3pl-manifest" className="bp-panel mt-5 overflow-hidden"><div className="bp-panel-header flex flex-wrap items-start justify-between gap-4"><div><h2 className="font-bold">3PL shipment manifest</h2><p className="mt-1 text-sm text-[#66756e]">Select assigned shipments to export their saved partner load numbers. This export does not change handover status.</p><p className="mt-1 text-xs text-[#66756e]">Latest 100 assigned shipments · partner details are internal only.</p></div><ManifestExportButtons href={`/dispatch/3pl/export/{format}?${params}`} disabled={!selected.length} /></div>
+    <SelectableTable visibleCount={rows.length} selectionMode="dropdown" onSelectionChange={setSelected}><table className="w-full min-w-[950px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr>{["Select", `${awbBrandName} AWB`, "Partner", "Load number", "Partner AWB", "Consignee / city"].map((label) => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.shipment_id} className="bp-table-row border-t border-[#dfe7e3]"><td className="p-3"><input data-table-row-select type="checkbox" value={row.shipment_id} aria-label={`Select ${row.tracking_number}`} className="size-4 accent-[#13734b]" /></td><td className="p-3"><Link className="font-mono font-bold text-[#13734b] hover:underline" href={`/shipments/${row.shipment_id}`}>{row.tracking_number}</Link></td><td className="p-3">{row.partner_name}</td><td className="p-3 font-mono">{row.load_number || "Not provided"}</td><td className="p-3 font-mono">{row.partner_tracking_number || "Not booked"}</td><td className="p-3">{row.consignee_name}<p className="text-[#66756e]">{row.consignee_city}</p></td></tr>)}</tbody></table>{!rows.length && <p className="p-5 text-sm text-[#66756e]">No assigned 3PL shipments to export yet.</p>}</SelectableTable>
+  </section>;
+}

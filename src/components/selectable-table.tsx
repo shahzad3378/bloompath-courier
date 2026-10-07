@@ -10,9 +10,13 @@ import {
 export function SelectableTable({
   children,
   visibleCount,
+  selectionMode = "checkbox",
+  onSelectionChange,
 }: {
   children: ReactNode;
   visibleCount: number;
+  selectionMode?: "checkbox" | "dropdown";
+  onSelectionChange?: (values: string[]) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [selectedCount, setSelectedCount] = useState(0);
@@ -26,9 +30,9 @@ export function SelectableTable({
   }
 
   function updateCount() {
-    setSelectedCount(
-      checkboxes().filter((checkbox) => checkbox.checked).length,
-    );
+    const selected = checkboxes().filter((checkbox) => checkbox.checked);
+    setSelectedCount(selected.length);
+    onSelectionChange?.(selected.map((checkbox) => checkbox.value));
   }
 
   function toggleAll(event: ChangeEvent<HTMLInputElement>) {
@@ -51,7 +55,13 @@ export function SelectableTable({
       }}
     >
       <div className="flex flex-wrap items-center gap-4 border-b border-[#e8eeeb] bg-white px-4 py-3">
-        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-black text-[#405048]">
+        {selectionMode === "dropdown" ? <label className="flex items-center gap-2 text-xs font-bold text-[#405048]">
+          Selection
+          <select aria-label="Shipment selection" value="" disabled={visibleCount === 0} className="h-9 rounded-lg border border-[#dce5e0] bg-white px-3" onChange={(event) => {
+            checkboxes().forEach((checkbox) => { checkbox.checked = event.target.value === "all"; });
+            updateCount();
+          }}><option value="">Select shipments…</option><option value="all">Select all visible ({visibleCount.toLocaleString()})</option><option value="none">Clear selection</option></select>
+        </label> : <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-black text-[#405048]">
           <input
             type="checkbox"
             checked={visibleCount > 0 && selectedCount === visibleCount}
@@ -60,7 +70,7 @@ export function SelectableTable({
             className="size-4 accent-[#13734b]"
           />
           Select all visible ({visibleCount.toLocaleString()})
-        </label>
+        </label>}
 
         <span className="text-xs font-semibold text-[#87938d]">
           {selectedCount.toLocaleString()} selected
@@ -77,3 +87,4 @@ export function SelectableTable({
     </div>
   );
 }
+

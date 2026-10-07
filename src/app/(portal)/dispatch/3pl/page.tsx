@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getThreePLLoadNumbers } from "@/lib/three-pl-load-numbers";
+import { ThreePLShipmentManifestTable } from "@/components/three-pl-shipment-manifest-table";
 import { ArrowLeft, Building2, PackageCheck, Truck } from "lucide-react";
 import {
   BulkThreePLStatusForm,
@@ -21,6 +23,7 @@ const roles = [
 
 type ShipmentLinkRow = {
   id: number;
+  shipment_id: number;
   partner_tracking_number: string | null;
   partner_status: string | null;
   shipments: {
@@ -45,7 +48,7 @@ export default async function ThreePLDispatchPage() {
 
   const supabase = await createClient();
 
-  const [{ data: carrierData }, { data: shipmentLinks }, { data: settings }] = await Promise.all([
+  const [{ data: carrierData }, { data: shipmentLinks }, { data: settings }, { data: warehouseShipments }] = await Promise.all([
     supabase
       .from("third_party_carriers")
       .select("id, name, code, integration_mode")
@@ -57,6 +60,7 @@ export default async function ThreePLDispatchPage() {
       .from("third_party_shipment_links")
       .select(`
         id,
+        shipment_id,
         partner_tracking_number,
         partner_status,
         handed_over_at,
@@ -67,7 +71,8 @@ export default async function ThreePLDispatchPage() {
           consignee_name,
           consignee_city,
           status,
-          delivery_attempt_count
+          delivery_attempt_count,
+          deleted_at
         ),
         third_party_carriers!inner(
           name,
@@ -75,9 +80,11 @@ export default async function ThreePLDispatchPage() {
         )
       `)
       .eq("organization_id", profile.organization_id)
+      .is("shipments.deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(100),
     supabase.from("organization_settings").select("awb_brand_name,display_name").eq("organization_id", profile.organization_id).maybeSingle(),
+    supabase.from("shipments").select("tracking_number,consignee_name,consignee_city").eq("organization_id", profile.organization_id).eq("status", "at_warehouse").is("deleted_at", null).is("assigned_driver_id", null).order("created_at", { ascending: false }).limit(100),
   ]);
   const awbBrandName = resolveAwbBrandName(settings);
 
@@ -87,6 +94,7 @@ export default async function ThreePLDispatchPage() {
     code: carrier.code,
   }));
   const linkedShipments = (shipmentLinks ?? []) as unknown as ShipmentLinkRow[];
+  const loads = await getThreePLLoadNumbers(profile.organization_id, linkedShipments);
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -115,7 +123,8 @@ export default async function ThreePLDispatchPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/dispatch/3pl/manifests" className="bp-button">Create 3PL Manifest</Link>
+          <Link href="/dispatch/3pl/manifests" className="bp-button-primary">Create 3PL Manifest</Link>
+          <Link href="#assigned-3pl-manifest" className="bp-button-secondary">Export assigned manifest</Link>
           <div className="rounded-xl border border-[#d9e7df] bg-white px-5 py-3">
             <p className="text-[10px] font-bold uppercase tracking-wide text-[#7f8d86]">
               Active partners
@@ -138,13 +147,15 @@ export default async function ThreePLDispatchPage() {
 
       <div className="mt-7 grid gap-5 xl:grid-cols-2">
         <CreateCarrierForm />
-        <ThreePLHandoverForm carriers={carriers} awbBrandName={awbBrandName} />
+        <ThreePLHandoverForm carriers={carriers} awbBrandName={awbBrandName} shipments={warehouseShipments ?? []} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <ThreePLStatusForm awbBrandName={awbBrandName} />
         <BulkThreePLStatusForm />
       </div>
+
+      <ThreePLShipmentManifestTable awbBrandName={awbBrandName} rows={linkedShipments.map((row) => ({ shipment_id: row.shipment_id, tracking_number: row.shipments.tracking_number, consignee_name: row.shipments.consignee_name, consignee_city: row.shipments.consignee_city, partner_name: row.third_party_carriers.name, partner_tracking_number: row.partner_tracking_number, load_number: loads.get(row.shipment_id) || null }))} />
 
       <section className="mt-5 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white">
         <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">

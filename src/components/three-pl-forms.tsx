@@ -162,25 +162,36 @@ export function CreateCarrierForm() {
 export function ThreePLHandoverForm({
   carriers,
   awbBrandName,
+  shipments,
 }: {
   carriers: Array<{ id: string; name: string; code: string }>;
   awbBrandName: string;
+  shipments: { tracking_number: string; consignee_name: string; consignee_city: string }[];
 }) {
   const [state, action, pending] = useActionState(
     handoverToCarrierAction,
     initialState,
   );
 
+  const [awb, setAwb] = useState("");
   return (
-    <form noValidate action={action} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
+    <form noValidate action={action} onReset={(event) => event.preventDefault()} className="rounded-2xl border border-[#e0e8e4] bg-white p-5">
       <h2 className="font-bold text-[#26372f]">Transfer shipment to 3PL</h2>
       <p className="mt-1 text-xs text-[#87938d]">
         {awbBrandName} AWB remains the customer-facing reference.
       </p>
 
       <div className="mt-5 space-y-3">
-        <input
-          name="tracking_number"
+        <input type="hidden" name="tracking_number" value={awb} />
+        <label htmlFor="three-pl-shipment" className="block text-sm font-semibold">Select warehouse shipment</label>
+        <select id="three-pl-shipment" value={awb} onChange={(event) => setAwb(event.target.value)} disabled={pending} className="bp-input">
+          <option value="">Select shipment…</option>
+          {shipments.map((shipment) => <option key={shipment.tracking_number} value={shipment.tracking_number}>{shipment.tracking_number} · {shipment.consignee_name} · {shipment.consignee_city}</option>)}
+          {awb && !shipments.some((shipment) => shipment.tracking_number === awb) && <option value={awb}>{awb} (scanned)</option>}
+        </select>
+        {!shipments.length && <p className="text-xs text-[#66756e]">No warehouse shipments in this list. Receive parcels at warehouse before transferring.</p>}
+        <label htmlFor="three-pl-scan" className="block text-sm font-semibold">Or scan / enter AWB</label>
+        <input id="three-pl-scan" value={awb} onChange={(event) => setAwb(event.target.value.toUpperCase())} disabled={pending}
           required
           placeholder={`Scan / enter ${awbBrandName} AWB`}
           aria-label={`${awbBrandName} AWB for transfer`}

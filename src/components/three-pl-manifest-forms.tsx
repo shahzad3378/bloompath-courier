@@ -24,7 +24,7 @@ export function CreateThreePLManifestForm({ requestId, carriers, shipments, awbB
       </select>
       <p id="manifest-carrier-help" className="text-sm text-[#66756e]">Changing partner clears table selection. Existing bookings must match the selected partner.</p>
       <div key={carrier} className="overflow-hidden rounded-xl border border-[#dfe7e3]">
-        <SelectableTable visibleCount={visible.length}>
+        <SelectableTable visibleCount={visible.length} selectionMode="dropdown">
           <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-[#f4f7f6]"><tr><th className="p-3">Select</th><th className="p-3">{awbBrandName} AWB</th><th className="p-3">Consignee / city</th><th className="p-3">Partner AWB</th></tr></thead><tbody>
             {visible.map((s) => <tr className="bp-table-row border-t border-[#dfe7e3]" key={s.tracking_number}><td className="p-3"><input data-table-row-select name="tracking_number" value={s.tracking_number} type="checkbox" aria-label={`Select ${s.tracking_number}`} className="size-4 accent-[#13734b]" /></td><td className="p-3 font-mono font-bold">{s.tracking_number}</td><td className="p-3">{s.consignee_name}<p className="text-[#66756e]">{s.consignee_city}</p></td><td className="p-3 font-mono">{s.partner_tracking_number || "Not booked"}</td></tr>)}
           </tbody></table>
@@ -38,7 +38,7 @@ export function CreateThreePLManifestForm({ requestId, carriers, shipments, awbB
       <label className="block text-sm font-semibold" htmlFor="manifest-notes">Internal notes (optional)</label>
       <textarea id="manifest-notes" name="notes" rows={3} maxLength={1000} className="bp-input resize-none" />
       <Feedback state={state} />
-      <button type="submit" disabled={pending || !carrier} className="bp-button min-w-48 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Creating…" : "Create 3PL Manifest"}</button>
+      <button type="submit" disabled={pending || !carrier} className="bp-button-primary min-w-48 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Creating…" : "Create 3PL Manifest"}</button>
     </fieldset>
   </form>;
 }
@@ -53,10 +53,10 @@ export function ThreePLManifestChangeForm({ id, count, operation }: { id: string
       {operation === "confirm" && <><label htmlFor="manifest-receiver" className="block text-sm font-semibold">Receiver name</label><input id="manifest-receiver" name="receiver_name" maxLength={120} className="bp-input" autoComplete="off" /></>}
       <label className="flex cursor-pointer items-start gap-3 text-sm"><input type="checkbox" name="acknowledge" value="yes" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1 size-4 shrink-0 accent-[#13734b]" />{operation === "confirm" ? `I have physically handed over all ${count} listed shipments to this delivery partner.` : `I want to cancel this draft containing ${count} shipments.`}</label>
       <Feedback state={state} />
-      <button type="submit" disabled={pending || !acknowledged} className={`${operation === "confirm" ? "bp-button" : "bp-button-secondary"} min-w-48 disabled:cursor-not-allowed disabled:opacity-50`}>{pending ? "Saving…" : operation === "confirm" ? "Confirm Handover" : "Cancel draft"}</button>
+      <button type="submit" disabled={pending || !acknowledged} className={`${operation === "confirm" ? "bp-button-primary" : "bp-button-secondary"} min-w-48 disabled:cursor-not-allowed disabled:opacity-50`}>{pending ? "Saving…" : operation === "confirm" ? "Confirm Handover" : "Cancel draft"}</button>
     </fieldset>
   </form>;
 }
 export function ManifestPrintButton({ backHref }: { backHref: string }) {
-  return <div className="print-controls mb-5 flex gap-3"><Link className="bp-button-secondary" href={backHref}>Back to manifest</Link><button type="button" onClick={() => window.print()} className="bp-button">Print manifest</button></div>;
+  return <div className="print-controls mb-5 flex gap-3"><Link className="bp-button-secondary" href={backHref}>Back to manifest</Link><button type="button" onClick={() => window.print()} className="bp-button-primary">Print manifest</button></div>;
 }

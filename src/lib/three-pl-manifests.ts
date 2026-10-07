@@ -1,3 +1,4 @@
+import { getThreePLLoadNumbers } from "@/lib/three-pl-load-numbers";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +13,7 @@ export type Manifest = {
 };
 export type ManifestItem = {
   shipment_id: number; tracking_number: string; consignee_name: string;
-  consignee_city: string; pieces: number; partner_tracking_number: string | null;
+  consignee_city: string; pieces: number; partner_tracking_number: string | null; load_number: string | null;
 };
 export function validManifestId(id: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id); }
 export function parseManifestAwbs(formData: FormData) {
@@ -31,5 +32,7 @@ export async function getManifest(id: string) {
     .select("shipment_id,tracking_number,consignee_name,consignee_city,pieces,partner_tracking_number")
     .eq("organization_id", profile.organization_id).eq("manifest_id", id).order("tracking_number");
   if (itemError) throw new Error("Manifest parcels could not be loaded. Please retry.");
-  return { manifest: manifest as Manifest, items: (items ?? []) as ManifestItem[], profile, supabase };
+  const loads = await getThreePLLoadNumbers(profile.organization_id, items ?? []);
+  const parcels: ManifestItem[] = (items ?? []).map((item) => ({ ...item, load_number: loads.get(item.shipment_id) || null }));
+  return { manifest: manifest as Manifest, items: parcels, profile, supabase };
 }
