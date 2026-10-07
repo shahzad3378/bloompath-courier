@@ -1,0 +1,31 @@
+'use server';
+import { revalidatePath } from 'next/cache';
+import { requireProfile } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+export type DriverAdminState={status:'idle'|'success'|'error';message:string};
+const failure=(message:string):DriverAdminState=>({status:'error',message});
+export async function saveDriverPayTerms(_state:DriverAdminState,form:FormData):Promise<DriverAdminState>{
+ const actor=await requireProfile(['super_admin']);const id=String(form.get('driver_id')??'');const mode=String(form.get('mode')??'');const currency=String(form.get('currency')??'').trim().toUpperCase();const period=String(form.get('fixed_period')??'');const expected=String(form.get('expected_updated_at')??'');
+ const rate=(key:string)=>{const value=String(form.get(key)??'').trim();return /^\d{1,8}(\.\d{1,2})?$/.test(value)?Number(value):null;};const delivery=rate('delivery_rate');const fixed=rate('fixed_rate');
+ if(!/^[0-9a-f-]{36}$/i.test(id)||!['per_delivery','fixed','mixed'].includes(mode)||!/^[A-Z]{3}$/.test(currency)||(mode!=='fixed'&&delivery===null)||(mode!=='per_delivery'&&(fixed===null||!['day','week','month'].includes(period))))return failure('Review the payment model, rates, pay period and currency.');
+ const db=await createClient();const {data:driver}=await db.from('profiles').select('id').eq('id',id).eq('organization_id',actor.organization_id).eq('role','driver').maybeSingle();if(!driver)return failure('Driver not found.');
+ const values={driver_id:id,organization_id:actor.organization_id,mode,currency,delivery_rate:mode==='fixed'?null:delivery,fixed_rate:mode==='per_delivery'?null:fixed,fixed_period:mode==='per_delivery'?null:period};
+ const result=expected?await db.from('driver_pay_terms').update(values).eq('driver_id',id).eq('organization_id',actor.organization_id).eq('updated_at',expected).select('driver_id').maybeSingle():await db.from('driver_pay_terms').insert(values).select('driver_id').maybeSingle();
+ if(result.error||!result.data)return failure('Payment terms changed or could not be saved. Reload the page and review them.');revalidatePath('/users/'+id);return {status:'success',message:'Payment terms saved. Delivery rates apply to future confirmed deliveries; fixed pay is recorded separately by finance.'};
+}
+export async function recordDriverEarning(_state:DriverAdminState,form:FormData):Promise<DriverAdminState>{
+ const actor=await requireProfile(['super_admin']);const id=String(form.get('driver_id')??'');const key=String(form.get('entry_key')??'');const kind=String(form.get('kind')??'');const amount=String(form.get('amount')??'');const currency=String(form.get('currency')??'').trim().toUpperCase();const description=String(form.get('description')??'').trim();
+ if(!/^[0-9a-f-]{36}$/i.test(id)||!/^[0-9a-f-]{36}$/i.test(key)||!['fixed','bonus','deduction','payment'].includes(kind)||!/^\d{1,8}(\.\d{1,2})?$/.test(amount)||Number(amount)<=0||!/^[A-Z]{3}$/.test(currency)||description.length<2||description.length>500||form.get('confirm')!=='on')return failure('Enter a positive amount, currency and description, and confirm this ledger record.');
+ const db=await createClient();const {error}=await db.from('driver_earnings').insert({entry_key:key,driver_id:id,organization_id:actor.organization_id,kind,amount:Number(amount),currency,description,recorded_by:actor.id});
+ if(error&&error.code!=='23505')return failure('Ledger entry was not recorded. Check the driver and retry.');revalidatePath('/users/'+id);return {status:'success',message:'Ledger entry recorded. This records an amount; it does not transfer funds.'};
+}
+export async function replyToDriver(_state:DriverAdminState,form:FormData):Promise<DriverAdminState>{
+ const actor=await requireProfile(['super_admin','operations_admin','dispatcher','customer_service']);const ticket=String(form.get('ticket_id')??'');const id=String(form.get('message_id')??'');const body=String(form.get('body')??'').trim();
+ if(!/^[0-9a-f-]{36}$/i.test(ticket)||!/^[0-9a-f-]{36}$/i.test(id)||!body||body.length>2000)return failure('Enter a message of 1–2,000 characters.');const db=await createClient();const {data}=await db.from('driver_support_tickets').select('id').eq('id',ticket).eq('organization_id',actor.organization_id).maybeSingle();if(!data)return failure('Request not found.');const {error}=await db.from('driver_support_messages').insert({id,ticket_id:ticket,author_id:actor.id,body});if(error&&error.code!=='23505')return failure('Reply was not saved. Retry.');revalidatePath('/driver-support');return {status:'success',message:'Reply saved. The driver can refresh the conversation to see it.'};
+}
+export async function updateDriverTicketStatus(_state:DriverAdminState,form:FormData):Promise<DriverAdminState>{
+ const actor=await requireProfile(['super_admin','operations_admin','dispatcher','customer_service']);const ticket=String(form.get('ticket_id')??'');const status=String(form.get('status')??'');if(!/^[0-9a-f-]{36}$/i.test(ticket)||!['open','reviewing','resolved'].includes(status))return failure('Choose a valid request status.');const db=await createClient();const {data,error}=await db.from('driver_support_tickets').update({status}).eq('id',ticket).eq('organization_id',actor.organization_id).select('id').maybeSingle();if(error||!data)return failure('Status could not be saved.');revalidatePath('/driver-support');return {status:'success',message:'Request status saved.'};
+}
+export async function assignMobilePickup(_state:DriverAdminState,form:FormData):Promise<DriverAdminState>{
+ const actor=await requireProfile(['super_admin','operations_admin','warehouse_staff','dispatcher']);const manifest=String(form.get('manifest_id')??'');const driver=String(form.get('driver_id')??'');if(!/^\d+$/.test(manifest)||!/^[0-9a-f-]{36}$/i.test(driver))return failure('Choose a driver.');const db=await createClient();const {data,error}=await db.from('pickup_manifests').update({assigned_driver_id:driver}).eq('id',manifest).eq('organization_id',actor.organization_id).eq('status','ready_for_pickup').select('id').maybeSingle();if(error||!data)return failure('Pickup could not be assigned. Check the driver, pickup state and existing custody scans.');revalidatePath('/pickup-manifests/'+manifest);return {status:'success',message:'Pickup assigned. The rider can refresh Tasks and scan the parcels.'};
+}
