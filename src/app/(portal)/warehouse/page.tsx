@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardList, RotateCcw, Truck, Warehouse } from "lucide-react";
+import { ArrowRight, ClipboardList, Truck, Warehouse } from "lucide-react";
+import { WarehouseReceiveForm } from "@/components/warehouse-receive-form";
 import { WarehouseReturnForm } from "@/components/warehouse-return-form";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
@@ -264,14 +265,6 @@ export default async function WarehousePage({
   const lookupShipmentWithAging =
     lookupShipment ? withAging(lookupShipment) : null;
 
-  const pendingPickupAwbs = manifests.reduce(
-    (sum, manifest) =>
-      sum +
-      manifest.pickup_manifest_items.filter((item) => !item.received_at)
-        .length,
-    0,
-  );
-
   const canReceiveReturns = warehouseRoles.includes(
     profile.role as (typeof warehouseRoles)[number],
   );
@@ -415,6 +408,7 @@ export default async function WarehousePage({
           <form
             action="/warehouse"
             method="get"
+            noValidate
             className="flex w-full max-w-xl gap-2"
           >
             <input type="hidden" name="view" value={view} />
@@ -581,10 +575,13 @@ export default async function WarehousePage({
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[360px_1fr]">
         {canReceiveReturns ? (
-          <WarehouseReturnForm />
+          <div className="space-y-5">
+            <WarehouseReceiveForm />
+            <WarehouseReturnForm autoFocus={false} />
+          </div>
         ) : (
           <div className="rounded-2xl border border-[#e4d5b8] bg-[#fffaf1] p-5 text-sm font-semibold text-[#8a651f]">
-            Warehouse receipt access is required to scan driver returns.
+            Warehouse receipt access is required to scan inbound parcels and driver returns.
           </div>
         )}
 

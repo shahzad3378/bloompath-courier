@@ -33,7 +33,7 @@ This contract records observable workflow behavior for the authenticated courier
 ### Warehouse custody
 
 - Shipment starts as Booked and is not counted as physically in warehouse.
-- Warehouse receive scan moves an eligible shipment to At Warehouse.
+- `/warehouse` exposes Warehouse receive scan separately from Driver return scan. Authorized warehouse roles can receive a booked, unassigned new parcel directly; pickup-manifest parcels reuse the existing manifest receipt action and database guards. Duplicate scans and changed/ineligible custody are rejected. The scanner resets and refocuses after successful receipt.\n- Warehouse receive scan moves an eligible shipment to At Warehouse.
 - Header count shows exact physical-custody scope.
 - A separate system summary shows total shipments and other major statuses.
 
