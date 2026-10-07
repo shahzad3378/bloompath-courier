@@ -91,8 +91,8 @@ export default async function DispatchPage() {
   const drivers = driverData ?? [];
   const runs = ((runData ?? []) as unknown as DispatchListRow[]).flatMap((run) => {
     const items = run.dispatch_run_items.filter((item) => item.shipments && !item.shipments.deleted_at);
-    // Keep newly created empty drafts, but hide runs whose parcels are all archived.
-    if (run.dispatch_run_items.length > 0 && items.length === 0) return [];
+    // Empty and archived-only runs do not belong in the operational route list.
+    if (items.length === 0) return [];
     return [{ ...run, dispatch_run_items: items }];
   });
   const warehouseRows = (warehouseData ?? []) as WarehouseZoneRow[];

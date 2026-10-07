@@ -78,7 +78,7 @@ export default async function RouteOptimizationPage() {
       .eq("organization_id", profile.organization_id),
     supabase
       .from("dispatch_runs")
-      .select("id,run_number,route_name,driver_id,status,profiles!dispatch_runs_driver_id_fkey(full_name,employee_code),dispatch_run_items(id)")
+      .select("id,run_number,route_name,driver_id,status,profiles!dispatch_runs_driver_id_fkey(full_name,employee_code)")
       .eq("organization_id", profile.organization_id)
       .in("status", ["draft", "handed_over"])
       .order("created_at", { ascending: false })
@@ -147,7 +147,7 @@ export default async function RouteOptimizationPage() {
 
   const runsWithLiveItems = new Set(activeItems.map((item) => Number(item.run_id)));
   const visibleRuns = activeRuns.filter((run) =>
-    runsWithLiveItems.has(Number(run.id)) || run.dispatch_run_items?.length === 0,
+    runsWithLiveItems.has(Number(run.id)),
   );
   const routes: OptimizationRoute[] = visibleRuns.map((run, index) => {
     const items = activeItems.filter((item) => Number(item.run_id) === Number(run.id));
