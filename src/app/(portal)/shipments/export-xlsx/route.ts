@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { customerStatusLabel } from "@/lib/customer-tracking";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { shipmentStatuses, type ShipmentStatus } from "@/lib/shipments";
@@ -24,8 +25,8 @@ export async function GET(request: Request) {
 
   const statusValue = url.searchParams.get("status") ?? "";
   const status = shipmentStatuses.includes(statusValue as ShipmentStatus)
-    ? (statusValue as ShipmentStatus)
-    : "";
+    ? statusValue as ShipmentStatus
+    : profile.role === "shipper" && statusValue === "in_transit" ? "in_transit" : "";
 
   const q = (url.searchParams.get("q") ?? "")
     .trim()
@@ -60,9 +61,9 @@ export async function GET(request: Request) {
     query = query.eq("assigned_driver_id", driver);
   }
 
-  if (status) {
-    query = query.eq("status", status);
-  }
+  if (status) query = profile.role === "shipper"
+    ? query.or(`customer_tracking_status.eq.${status}${status === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${status})`}`)
+    : query.eq("status", status);
 
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
     query = query.gte(
@@ -165,7 +166,7 @@ export async function GET(request: Request) {
       weight_kg: Number(row.weight_kg ?? 0),
       cod_amount: Number(row.cod_amount ?? 0),
       currency: row.currency ?? "",
-      status: String(row.status ?? "").replaceAll("_", " "),
+      status: profile.role === "shipper" ? customerStatusLabel(row) : String(row.status ?? "").replaceAll("_", " "),
       delivery_attempt_count: Number(row.delivery_attempt_count ?? 0),
       last_undelivered_reason: String(
         row.last_undelivered_reason ?? "",
@@ -215,3 +216,4 @@ export async function GET(request: Request) {
     },
   });
 }
+

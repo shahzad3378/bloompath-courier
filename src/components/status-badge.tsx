@@ -1,3 +1,4 @@
+import { customerTrackingLabels } from "@/lib/customer-tracking";
 import { statusLabels, type ShipmentStatus } from "@/lib/shipments";
 
 const tones: Record<ShipmentStatus, string> = {
@@ -13,10 +14,11 @@ const tones: Record<ShipmentStatus, string> = {
   cancelled: "bg-[#ecefee] text-[#64716b]",
 };
 
-export function StatusBadge({ status }: { status: ShipmentStatus }) {
+export function StatusBadge({ status, customerStatus }: { status: ShipmentStatus; customerStatus?: "in_transit" | "out_for_delivery" | "delivered" | "undelivered" | null }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${tones[status]}`}>
-      {statusLabels[status]}
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${customerStatus === "in_transit" ? tones.picked_up : tones[customerStatus || status]}`}>
+      {customerStatus ? customerTrackingLabels[customerStatus] : statusLabels[status]}
     </span>
   );
 }
+

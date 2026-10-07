@@ -75,6 +75,8 @@ function revalidateThreePLPages() {
   revalidatePath("/dispatch");
   revalidatePath("/dispatch/3pl");
   revalidatePath("/shipments");
+  revalidatePath("/shipper");
+  revalidatePath("/shipper/returns");
   revalidatePath("/shipments/[id]", "page");
 }
 
@@ -121,6 +123,8 @@ export async function createCarrierAction(
   const contactName = value(formData, "contact_name") || null;
   const contactPhone = value(formData, "contact_phone") || null;
   const contactEmail = value(formData, "contact_email") || null;
+
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return { status: "error", message: "Enter a valid contact email." };
 
   if (name.length < 2 || code.length < 2) {
     return { status: "error", message: "Enter carrier name and code." };
@@ -279,6 +283,8 @@ export async function handoverToCarrierAction(
   revalidatePath("/dispatch");
   revalidatePath("/dispatch/3pl");
   revalidatePath("/shipments");
+  revalidatePath("/shipper");
+  revalidatePath("/shipper/returns");
   revalidatePath(`/shipments/${shipment.id}`);
 
   return {

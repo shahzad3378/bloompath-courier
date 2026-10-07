@@ -47,7 +47,7 @@ export default async function ShipmentsPage({ searchParams }: {
   const mayArchive = canDeleteShipments(profile);
   const showArchived = mayArchive && params.view === "archived";
   const queryText = String(params.q ?? "").trim().toLowerCase().slice(0, 80);
-  const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus) ? params.status as ShipmentStatus : "";
+  const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus) ? params.status as ShipmentStatus : params.status === "in_transit" && profile.role === "shipper" ? "in_transit" : "";
   const supabase = await createClient();
   const isShipper = profile.role === "shipper";
 
@@ -77,7 +77,10 @@ export default async function ShipmentsPage({ searchParams }: {
   async function exactCount(statuses?: ShipmentStatus[]) {
     let countQuery = supabase.from("shipments").select("id", { count: "exact", head: true });
     countQuery = applyCommonFilters(countQuery);
-    if (statuses?.length === 1) countQuery = countQuery.eq("status", statuses[0]);
+    if (isShipper && statuses?.length) {
+      const codes = statuses.join(",");
+      countQuery = countQuery.or(`customer_tracking_status.in.(${codes}),and(customer_tracking_status.is.null,status.in.(${codes}))`);
+    } else if (statuses?.length === 1) countQuery = countQuery.eq("status", statuses[0]);
     else if (statuses && statuses.length > 1) countQuery = countQuery.in("status", statuses);
     const { count } = await countQuery;
     return count ?? 0;
@@ -105,12 +108,14 @@ export default async function ShipmentsPage({ searchParams }: {
   if (isShipper) query = query.eq("shipper_id", profile.id);
   else if (params.shipper) query = query.eq("shipper_id", params.shipper);
   if (params.driver) query = query.eq("assigned_driver_id", params.driver);
-  if (requestedStatus) query = query.eq("status", requestedStatus);
+  if (requestedStatus) query = isShipper
+    ? query.or(`customer_tracking_status.eq.${requestedStatus}${requestedStatus === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${requestedStatus})`}`)
+    : query.eq("status", requestedStatus);
   if (params.from) query = query.gte("created_at", `${params.from}T00:00:00+04:00`);
   if (params.to) query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
 
   const { data, error } = await query;
-  const filteredShipments = ((data ?? []) as Shipment[]).filter((shipment) => {
+  const filteredShipments = ((data ?? []) as Shipment[]).map(row => ({ ...row, customer_tracking_status: isShipper ? row.customer_tracking_status : null })).filter((shipment) => {
     if (!queryText) return true;
     return (
       shipment.tracking_number.toLowerCase().includes(queryText) ||
@@ -170,7 +175,11 @@ export default async function ShipmentsPage({ searchParams }: {
   const exportHref = `/shipments/export?${exportParams.toString()}`;
   const excelExportHref = `/shipments/export-xlsx?${exportParams.toString()}`;
 
+  const { count: transitCount } = isShipper
+    ? await applyCommonFilters(supabase.from("shipments").select("id", { count: "exact", head: true })).eq("customer_tracking_status", "in_transit")
+    : { count: 0 };
   const dashboardCards = [
+    ...(isShipper ? [["in_transit", "In transit", transitCount ?? 0, Truck] as const] : []),
     ["", "All Shipments", allCount, PackageCheck],
     ["booked", "Booked", bookedCount, PackagePlus],
     ["ready_for_pickup", "Pickup", pickupCount, Truck],
@@ -223,10 +232,10 @@ export default async function ShipmentsPage({ searchParams }: {
         </section>
       ) : null}
 
-      <form className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-4">
+      <form noValidate className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-4">
         {showArchived ? <input type="hidden" name="view" value="archived" /> : null}
         <label className="relative"><Search className="absolute left-3.5 top-3.5 size-4 text-[#819088]" /><input name="q" defaultValue={params.q} className="h-11 w-full rounded-xl border border-[#dbe5e0] pl-10 pr-3 text-sm outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10" placeholder="AWB, reference, customer or phone" /></label>
-        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{shipmentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select>
+        <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{(isShipper ? [...shipmentStatuses, "in_transit" as const] : shipmentStatuses).map((status) => <option key={status} value={status}>{status === "in_transit" ? "In transit" : statusLabels[status]}</option>)}</select>
         {!isShipper ? (
           <select name="shipper" defaultValue={params.shipper ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All shippers</option>{(shippers ?? []).map((shipper) => <option key={shipper.id} value={shipper.id}>{shipper.full_name || shipper.email}</option>)}</select>
         ) : <input type="hidden" name="shipper" value="" />}
@@ -244,3 +253,4 @@ export default async function ShipmentsPage({ searchParams }: {
     </div>
   );
 }
+

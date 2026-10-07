@@ -6,6 +6,7 @@ import {
   PackageCheck,
   RotateCcw,
 } from "lucide-react";
+import { customerStatusLabel } from "@/lib/customer-tracking";
 import { requireProfile } from "@/lib/auth";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
@@ -39,6 +40,7 @@ export default async function ShipperReturnsPage() {
       consignee_name,
       consignee_city,
       status,
+      customer_tracking_status,
       delivery_attempt_count,
       last_undelivered_reason,
       booked_at,
@@ -219,7 +221,7 @@ export default async function ShipperReturnsPage() {
                           row.status,
                         )}`}
                       >
-                        {row.status.replaceAll("_", " ")}
+                        {customerStatusLabel(row)}
                       </span>
                     </td>
 
@@ -259,3 +261,4 @@ export default async function ShipperReturnsPage() {
     </div>
   );
 }
+
