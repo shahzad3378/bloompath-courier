@@ -1,10 +1,14 @@
 {
   "expo": {
-    "name": "BloomPath Courier Driver",
+    "name": "Fast Drop Driver",
     "slug": "bloompath-courier-driver",
     "owner": "shahzad3378s-team",
-    "extra": { "eas": { "projectId": "0c577c27-92e9-4409-8c87-d692268acca5" } },
-    "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "0c577c27-92e9-4409-8c87-d692268acca5"
+      }
+    },
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,19 +27,20 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA"
-      ]
+      ],
+      "versionCode": 2
     },
     "plugins": [
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow BloomPath Courier to scan shipment barcodes."
+          "cameraPermission": "Allow Fast Drop to scan shipment barcodes."
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow BloomPath Courier to take delivery proof photos.",
+          "cameraPermission": "Allow Fast Drop to take delivery proof photos.",
           "photosPermission": "Allow access to delivery proof photos."
         }
       ],

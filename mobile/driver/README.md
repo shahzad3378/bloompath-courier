@@ -23,4 +23,5 @@ Returns, background GPS, push notifications and offline result queues are outsid
 
 The app requires network access for sign-in, route loading, proof upload and result submission. If the database is paused, resume it before testing. Test camera scanning and photo upload on a physical Android device; simulator bundling cannot prove those paths.
 
-The project root `DESIGN.md` and `UX-CONTRACT.md` remain the visual and workflow references. The mobile palette in `src/theme.ts` mirrors their green control-room identity.
+The native app now follows `mobile/driver/DESIGN.md` and `UX-CONTRACT.md`: Fast Courier-inspired coral/white cards, DM Sans and Merriweather, Home/Routes/Scan/Profile navigation. The desktop portal keeps its existing green identity. App version 1.1.0 requires a new Android build; a Vercel redeploy does not update installed APKs.
+
