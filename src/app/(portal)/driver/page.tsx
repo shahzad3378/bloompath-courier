@@ -10,7 +10,7 @@ type DriverRun = DispatchRun & { dispatch_run_items: DispatchRunItem[] };
 export default async function DriverPage({ searchParams }: { searchParams: Promise<{ updated?: string; return_updated?: string }> }) {
   const profile = await requireProfile(["driver"]); const { updated, return_updated } = await searchParams; const supabase = await createClient();
   const [{ data, error }, { data: returnData, error: returnError }, { data: codData }, { data: settings }] = await Promise.all([
-    supabase.from("dispatch_runs").select("*, dispatch_run_items(*, shipments(*))").eq("driver_id", profile.id).eq("status", "handed_over").order("handed_over_at", { ascending: true }),
+    supabase.from("dispatch_runs").select("*, dispatch_run_items!inner(*, shipments!inner(*))").eq("driver_id", profile.id).eq("status", "handed_over").is("dispatch_run_items.shipments.deleted_at", null).order("handed_over_at", { ascending: true }),
     supabase.from("return_runs").select("*, return_run_items(*, shipments(*))").eq("driver_id", profile.id).eq("status", "handed_over").order("handed_over_at", { ascending: true }),
     supabase.from("driver_cod_entries").select("outstanding_amount").eq("driver_id", profile.id).gt("outstanding_amount", 0),
     supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),

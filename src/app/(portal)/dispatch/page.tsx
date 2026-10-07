@@ -24,7 +24,7 @@ const dispatchRoles = ["super_admin", "operations_admin", "warehouse_staff", "di
 
 type DispatchListRow = DispatchRun & {
   profiles: { full_name: string; employee_code: string | null } | null;
-  dispatch_run_items: Array<{ id: number; completed_at: string | null }>;
+  dispatch_run_items: Array<{ id: number; completed_at: string | null; shipments: { deleted_at: string | null } | null }>;
 };
 
 type WarehouseZoneRow = { service_zone_name: string | null };
@@ -50,7 +50,7 @@ export default async function DispatchPage() {
       .order("full_name"),
     supabase
       .from("dispatch_runs")
-      .select("*, profiles!dispatch_runs_driver_id_fkey(full_name, employee_code), dispatch_run_items(id, completed_at)")
+      .select("*, profiles!dispatch_runs_driver_id_fkey(full_name, employee_code), dispatch_run_items(id, completed_at, shipments(deleted_at))")
       .eq("organization_id", profile.organization_id)
       .order("created_at", { ascending: false })
       .limit(100),
@@ -76,18 +76,25 @@ export default async function DispatchPage() {
       .is("deleted_at", null),
     supabase
       .from("dispatch_runs")
-      .select("id, dispatch_run_items!inner(id)", { count: "exact", head: true })
+      .select("id, dispatch_run_items!inner(id, shipments!inner(id))", { count: "exact", head: true })
       .eq("organization_id", profile.organization_id)
-      .in("status", ["draft", "handed_over"]),
+      .in("status", ["draft", "handed_over"])
+      .is("dispatch_run_items.shipments.deleted_at", null),
     supabase
       .from("dispatch_run_items")
-      .select("id, dispatch_runs!inner(organization_id, status)", { count: "exact", head: true })
+      .select("id, dispatch_runs!inner(organization_id, status), shipments!inner(id)", { count: "exact", head: true })
       .eq("dispatch_runs.organization_id", profile.organization_id)
-      .in("dispatch_runs.status", ["draft", "handed_over"]),
+      .in("dispatch_runs.status", ["draft", "handed_over"])
+      .is("shipments.deleted_at", null),
   ]);
 
   const drivers = driverData ?? [];
-  const runs = (runData ?? []) as unknown as DispatchListRow[];
+  const runs = ((runData ?? []) as unknown as DispatchListRow[]).flatMap((run) => {
+    const items = run.dispatch_run_items.filter((item) => item.shipments && !item.shipments.deleted_at);
+    // Keep newly created empty drafts, but hide runs whose parcels are all archived.
+    if (run.dispatch_run_items.length > 0 && items.length === 0) return [];
+    return [{ ...run, dispatch_run_items: items }];
+  });
   const warehouseRows = (warehouseData ?? []) as WarehouseZoneRow[];
   const zoneMap = new Map<string, number>();
   for (const row of warehouseRows) {
@@ -97,9 +104,9 @@ export default async function DispatchPage() {
   const zoneSummary = Array.from(zoneMap, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   const warehouseCount = exactWarehouseCount ?? warehouseRows.length;
   const totalCount = totalShipmentCount ?? warehouseCount;
-  const nonEmptyActiveRoutes = activeRouteCount ?? runs.filter((run) => run.status !== "completed" && run.dispatch_run_items.length > 0).length;
+  const nonEmptyActiveRoutes = activeRouteCount ?? runs.filter((run) => ["draft", "handed_over"].includes(run.status) && run.dispatch_run_items.length > 0).length;
   const routedShipmentCount = activeShipmentCount ?? runs
-    .filter((run) => run.status !== "completed")
+    .filter((run) => ["draft", "handed_over"].includes(run.status))
     .reduce((sum, run) => sum + run.dispatch_run_items.length, 0);
 
   return (
@@ -210,3 +217,4 @@ export default async function DispatchPage() {
     </div>
   );
 }
+

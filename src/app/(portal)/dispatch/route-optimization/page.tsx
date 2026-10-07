@@ -78,7 +78,7 @@ export default async function RouteOptimizationPage() {
       .eq("organization_id", profile.organization_id),
     supabase
       .from("dispatch_runs")
-      .select("id,run_number,route_name,driver_id,status,profiles!dispatch_runs_driver_id_fkey(full_name,employee_code)")
+      .select("id,run_number,route_name,driver_id,status,profiles!dispatch_runs_driver_id_fkey(full_name,employee_code),dispatch_run_items(id)")
       .eq("organization_id", profile.organization_id)
       .in("status", ["draft", "handed_over"])
       .order("created_at", { ascending: false })
@@ -112,8 +112,9 @@ export default async function RouteOptimizationPage() {
     for (let start = 0; start < 5000; start += 1000) {
       const { data, error } = await db
         .from("dispatch_run_items")
-        .select("id,run_id,shipment_id,stop_sequence,shipments(id,tracking_number,consignee_name,consignee_city,delivery_latitude,delivery_longitude)")
+        .select("id,run_id,shipment_id,stop_sequence,shipments!inner(id,tracking_number,consignee_name,consignee_city,delivery_latitude,delivery_longitude)")
         .in("run_id", runIds)
+        .is("shipments.deleted_at", null)
         .order("run_id", { ascending: true })
         .order("stop_sequence", { ascending: true })
         .range(start, start + 999);
@@ -144,7 +145,11 @@ export default async function RouteOptimizationPage() {
     }] : [];
   });
 
-  const routes: OptimizationRoute[] = activeRuns.map((run, index) => {
+  const runsWithLiveItems = new Set(activeItems.map((item) => Number(item.run_id)));
+  const visibleRuns = activeRuns.filter((run) =>
+    runsWithLiveItems.has(Number(run.id)) || run.dispatch_run_items?.length === 0,
+  );
+  const routes: OptimizationRoute[] = visibleRuns.map((run, index) => {
     const items = activeItems.filter((item) => Number(item.run_id) === Number(run.id));
     const stops = items.flatMap((item, itemIndex) => {
       const shipment = Array.isArray(item.shipments) ? item.shipments[0] : item.shipments;
@@ -248,3 +253,4 @@ export default async function RouteOptimizationPage() {
     </div>
   );
 }
+
