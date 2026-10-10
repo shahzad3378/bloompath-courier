@@ -63,6 +63,7 @@ revoke all on function private.guard_fourth_attempt_authorization() from public;
 
 drop policy if exists "internal users can update shipments" on public.shipments;
 drop policy if exists "shippers can authorize fourth attempt" on public.shipments;
+drop policy if exists "authorized users can update shipments" on public.shipments;
 
 create policy "authorized users can update shipments"
 on public.shipments
