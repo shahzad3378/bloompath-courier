@@ -1,5 +1,7 @@
 import { requireProfile } from "@/lib/auth";
+import { rowCurrency } from "@/lib/currency";
 import { internalRoles } from "@/lib/roles";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 
@@ -57,6 +59,7 @@ export async function GET(request: Request) {
       consignee_city,
       payment_type,
       cod_amount,
+      currency,
       service_type,
       status,
       delivery_attempt_count,
@@ -97,6 +100,10 @@ export async function GET(request: Request) {
   }
 
   const rows = allRows;
+  const organizationCurrency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id!,
+  );
 
   const header = [
     "tracking_number",
@@ -113,6 +120,7 @@ export async function GET(request: Request) {
     "attempt_count",
     "undelivered_reason",
     "payment_type",
+    "currency",
     "cod_amount",
     "service_type",
     "delivered_at",
@@ -135,6 +143,7 @@ export async function GET(request: Request) {
       row.delivery_attempt_count,
       row.last_undelivered_reason ?? "",
       row.payment_type,
+      rowCurrency(row.currency, organizationCurrency),
       Number(row.cod_amount ?? 0).toFixed(2),
       row.service_type,
       dubaiDate(row.delivered_at),
