@@ -201,7 +201,7 @@ export default async function RevenueReportsPage({
 
         <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
-          <p className={`mt-4 whitespace-pre-line font-black ${netPayable.length > 1 ? "text-base leading-6" : "text-2xl"`}>
+          <p className={`mt-4 whitespace-pre-line font-black ${netPayable.length > 1 ? "text-base leading-6" : "text-2xl"}`}>
             {formatMoneyTotals(netPayable, organizationCurrency, "\n")}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
