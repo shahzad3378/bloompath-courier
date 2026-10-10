@@ -4,7 +4,14 @@ import {
   rgb,
 } from "pdf-lib";
 import { requireProfile } from "@/lib/auth";
+import {
+  formatMoney,
+  formatMoneyTotals,
+  rowCurrency,
+  sumByCurrency,
+} from "@/lib/currency";
 import { internalRoles } from "@/lib/roles";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 
@@ -64,6 +71,7 @@ export async function GET(
       consignee_city,
       payment_type,
       cod_amount,
+      currency,
       service_type,
       status,
       delivery_attempt_count,
@@ -129,18 +137,17 @@ export async function GET(
     );
   }
 
-  const { data: settings } = await supabase
-      .from(
-        "organization_settings",
-      )
-      .select(
-        "display_name, legal_name",
-      )
-      .eq(
-        "organization_id",
-        profile.organization_id,
-      )
-      .maybeSingle();
+  const [{ data: settings }, organizationCurrency] = await Promise.all([
+    supabase
+      .from("organization_settings")
+      .select("display_name, legal_name")
+      .eq("organization_id", profile.organization_id)
+      .maybeSingle(),
+    resolveOrganizationCurrency(
+      supabase,
+      profile.organization_id!,
+    ),
+  ]);
 
   const rows: Awaited<ReturnType<typeof query.range>>["data"] = [];
   for (let offset = 0; ; offset += 1000) {
@@ -287,7 +294,7 @@ export async function GET(
     ["City", 435],
     ["Status", 510],
     ["Attempts", 600],
-    ["COD", 670],
+    ["COD", 640],
     ["Delivered", 745],
   ] as const;
 
@@ -404,13 +411,16 @@ export async function GET(
     );
 
     draw(
-      Number(
-        row.cod_amount ||
-          0,
-      ).toFixed(2),
-      670,
+      formatMoney(
+        row.cod_amount,
+        rowCurrency(
+          row.currency,
+          organizationCurrency,
+        ),
+      ),
+      640,
       y,
-      6.5,
+      6,
     );
 
     draw(
@@ -445,15 +455,12 @@ export async function GET(
         "undelivered",
     ).length;
 
-  const totalCod =
-    rows.reduce(
-      (sum, row) =>
-        sum +
-        Number(
-          row.cod_amount || 0,
-        ),
-      0,
-    );
+  const totalCod = sumByCurrency(
+    rows,
+    (row) => row.cod_amount,
+    (row) => row.currency,
+    organizationCurrency,
+  );
 
   draw(
     `Total AWBs: ${rows.length}`,
@@ -480,13 +487,14 @@ export async function GET(
   );
 
   page.drawText(
-    `COD: ${totalCod.toFixed(2)}`,
+    `COD: ${formatMoneyTotals(totalCod, organizationCurrency)}`,
     {
-      x: 500,
-      y,
+      x: 460,
+      y: y - 16,
       size: 9,
       font: bold,
       color: green,
+      maxWidth: 340,
     },
   );
 
