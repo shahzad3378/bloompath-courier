@@ -7,7 +7,7 @@ import {
   rgb,
 } from "pdf-lib";
 import { requireProfile } from "@/lib/auth";
-import { normalizeCurrency } from "@/lib/currency";
+import { rowCurrency, sumByCurrency } from "@/lib/currency";
 import {
   getShipperDirectory,
   resolveOrganizationCurrency,
@@ -154,7 +154,7 @@ async function loadExportData(
             account: shipper?.accountNumber || "Pending",
             type: row.transaction_type.replaceAll("_", " "),
             date: isoDate(row.transaction_at),
-            currency: normalizeCurrency(row.currency || currency),
+            currency: rowCurrency(row.currency, currency),
             cod: Number(row.cod_amount || 0),
             delivery: Number(row.delivery_charge || 0),
             return: Number(row.return_charge || 0),
@@ -223,7 +223,7 @@ async function loadExportData(
             invoice_date: row.invoice_date || "",
             due_date: row.due_date || "",
             status: row.status.replaceAll("_", " "),
-            currency: normalizeCurrency(row.currency || currency),
+            currency: rowCurrency(row.currency, currency),
             cod: Number(row.cod_collected || 0),
             subtotal: Number(row.subtotal || 0),
             tax: Number(row.tax_amount || 0),
@@ -285,7 +285,7 @@ async function loadExportData(
             period_from: isoDate(row.period_from),
             period_to: isoDate(row.period_to),
             status: row.status.replaceAll("_", " "),
-            currency: normalizeCurrency(row.currency || currency),
+            currency: rowCurrency(row.currency, currency),
             cod: Number(row.total_cod || 0),
             delivery: Number(row.total_delivery_charges || 0),
             return: Number(row.total_return_charges || 0),
@@ -362,7 +362,7 @@ async function loadExportData(
           driver: driver?.full_name || "Driver",
           driver_code: driver?.employee_code || "",
           delivered: isoDate(row.delivered_at),
-          currency: normalizeCurrency(shipment?.currency || currency),
+          currency: rowCurrency(shipment?.currency, currency),
           cod: Number(row.cod_amount || 0),
           received: Number(row.received_amount || 0),
           outstanding: Number(row.outstanding_amount || 0),
@@ -385,7 +385,7 @@ function excelResponse(data: ExportData, companyName: string) {
   sheet.addRow([data.title]);
   sheet.addRow([
     "Organization Base Currency",
-    data.currency,
+    rowCurrency(null, data.currency),
     "Generated",
     new Date().toISOString(),
   ]);
@@ -429,6 +429,50 @@ function excelResponse(data: ExportData, companyName: string) {
     from: { row: 4, column: 1 },
     to: { row: Math.max(4, data.rows.length + 4), column: data.columns.length },
   };
+
+  const numericColumns = data.columns.filter((column) => column.numeric);
+  const currencyColumn = data.columns.find((column) => column.key === "currency");
+
+  if (currencyColumn && numericColumns.length > 0) {
+    sheet.addRow([]);
+    sheet.addRow(["Totals by currency"]);
+    sheet.addRow([
+      "Currency",
+      ...numericColumns.map((column) => column.header),
+    ]);
+
+    const grouped = new Map<string, typeof data.rows>();
+
+    for (const row of data.rows) {
+      const code = rowCurrency(
+        String(row.currency ?? ""),
+        data.currency,
+      );
+      grouped.set(code, [...(grouped.get(code) ?? []), row]);
+    }
+
+    const codes = grouped.size
+      ? [...grouped.keys()].sort()
+      : [rowCurrency(null, data.currency)];
+
+    for (const code of codes) {
+      const bucket = grouped.get(code) ?? [];
+
+      sheet.addRow([
+        code,
+        ...numericColumns.map((column) => {
+          const totals = sumByCurrency(
+            bucket,
+            (row) => row[column.key],
+            () => code,
+            data.currency,
+          );
+
+          return totals[0]?.amount ?? 0;
+        }),
+      ]);
+    }
+  }
 
   return workbook.xlsx.writeBuffer().then(
     (buffer) =>
@@ -494,7 +538,7 @@ async function pdfResponse(
     });
     y -= 18;
     page.drawText(
-      `Base currency: ${data.currency}  |  Generated: ${new Date().toISOString()}`,
+      `Base currency: ${rowCurrency(null, data.currency)}  |  Generated: ${new Date().toISOString()}`,
       {
         x: margin,
         y,
