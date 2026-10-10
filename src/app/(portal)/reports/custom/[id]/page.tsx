@@ -9,7 +9,7 @@ import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, rowCurrency } from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
@@ -58,7 +58,7 @@ function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * 86400000);
 }
 
-function renderValue(column: string, row: any, currency: string) {
+function renderValue(column: string, row: any, organizationCurrency: string) {
   if (column === "shipper") {
     return (
       row.shipper?.full_name ||
@@ -73,6 +73,10 @@ function renderValue(column: string, row: any, currency: string) {
       row.driver?.email ||
       "—"
     );
+  }
+
+  if (column === "currency") {
+    return rowCurrency(row.currency, organizationCurrency);
   }
 
   if (["booked_at", "delivered_at"].includes(column)) {
@@ -90,7 +94,10 @@ function renderValue(column: string, row: any, currency: string) {
       "net_payable",
     ].includes(column)
   ) {
-    return formatMoney(Number(row[column] || 0), currency);
+    return formatMoney(
+      Number(row[column] || 0),
+      rowCurrency(row.currency, organizationCurrency),
+    );
   }
 
   if (
@@ -193,6 +200,7 @@ export default async function RunCustomReportPage({
         last_undelivered_reason,
         payment_type,
         cod_amount,
+        currency,
         service_type,
         delivered_at,
         shipper_id,
@@ -265,6 +273,7 @@ export default async function RunCustomReportPage({
       .select(`
         id,
         tracking_number,
+        currency,
         cod_amount,
         delivery_charge,
         return_charge,
