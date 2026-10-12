@@ -9,7 +9,6 @@ import {
 import {
   ArrowLeft,
   CheckCircle2,
-  Globe2,
   LoaderCircle,
   MapPin,
   PackagePlus,
@@ -19,6 +18,7 @@ import {
   type CreateShipmentState,
 } from "@/app/(portal)/shipments/actions";
 import { uaeCities } from "@/lib/shipments";
+import { calculateInternationalWeights, type InternationalMode } from "@/lib/international-bulk";
 
 const initialState: CreateShipmentState = {
   message: "",
@@ -28,7 +28,7 @@ const inputClass =
   "mt-1.5 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3.5 text-sm text-[#25352d] outline-none transition placeholder:text-[#a2ada7] focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10";
 
 const textAreaClass =
-  "mt-1.5 min-h-24 w-full resize-y rounded-xl border border-[#dbe5e0] bg-white px-3.5 py-3 text-sm text-[#25352d] outline-none transition placeholder:text-[#a2ada7] focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10";
+  "mt-1.5 min-h-24 w-full resize-none rounded-xl border border-[#dbe5e0] bg-white px-3.5 py-3 text-sm text-[#25352d] outline-none transition placeholder:text-[#a2ada7] focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10";
 
 const labelClass =
   "text-xs font-bold text-[#516159]";
@@ -195,12 +195,12 @@ export function ShipmentForm({
   shippers,
   requiresShipperSelection,
   markets,
-  currency,
+  isInternational,
 }: {
   shippers: ShipperOption[];
   requiresShipperSelection: boolean;
   markets: MarketOption[];
-  currency: string;
+  isInternational: boolean;
 }) {
   const [state, formAction, pending] =
     useActionState(
@@ -208,24 +208,44 @@ export function ShipmentForm({
       initialState,
     );
 
-  const defaultCountry =
-    markets[0]?.code || "AE";
+  const defaultCountry = markets[0]?.code || "AE";
+  const hasInternationalMarkets = markets.length > 1;
+  const initialConsigneeCountry = isInternational
+    ? markets.find((market) => market.code !== defaultCountry)?.code || defaultCountry
+    : defaultCountry;
 
-  const [senderCountry, setSenderCountry] =
-    useState(defaultCountry);
+  const [senderCountry, setSenderCountry] = useState(defaultCountry);
 
   const [
     consigneeCountry,
     setConsigneeCountry,
-  ] = useState(defaultCountry);
+  ] = useState(initialConsigneeCountry);
 
   const [consigneePostal, setConsigneePostal] =
     useState("");
 
   const [consigneeCity, setConsigneeCity] =
     useState(
-      defaultCountry === "AE" ? "Dubai" : "",
+      initialConsigneeCountry === "AE" ? "Dubai" : "",
     );
+
+  const [piecesValue, setPiecesValue] = useState("1");
+  const [weightValue, setWeightValue] = useState("1");
+  const [transportMode, setTransportMode] = useState<InternationalMode>("air");
+  const [dimensions, setDimensions] = useState({ length: "", width: "", height: "" });
+
+  const pieceCount = Number(piecesValue);
+  const actualWeight = Number(weightValue);
+  const lengthCm = Number(dimensions.length);
+  const widthCm = Number(dimensions.width);
+  const heightCm = Number(dimensions.height);
+  const hasValidInternationalDimensions =
+    Number.isInteger(pieceCount) && pieceCount > 0 &&
+    Number.isFinite(actualWeight) && actualWeight > 0 &&
+    [lengthCm, widthCm, heightCm].every((value) => Number.isFinite(value) && value > 0);
+  const internationalWeights = hasValidInternationalDimensions
+    ? calculateInternationalWeights(transportMode, lengthCm, widthCm, heightCm, pieceCount, actualWeight)
+    : null;
 
   const [zoneLookup, setZoneLookup] =
     useState<{
@@ -246,12 +266,30 @@ export function ShipmentForm({
         market.code === senderCountry,
     );
 
+  const destinationMarkets = isInternational
+    ? markets.filter((market) => market.code !== senderCountry)
+    : markets.filter((market) => market.code === senderCountry);
+
   const consigneeMarket =
     markets.find(
       (market) =>
         market.code ===
         consigneeCountry,
     );
+
+  useEffect(() => {
+    const shouldChangeDestination = isInternational
+      ? senderCountry === consigneeCountry
+      : senderCountry !== consigneeCountry;
+    if (!shouldChangeDestination) return;
+    const next = isInternational
+      ? markets.find((market) => market.code !== senderCountry)?.code || senderCountry
+      : senderCountry;
+    setConsigneeCountry(next);
+    setConsigneeCity(next === "AE" ? "Dubai" : "");
+    setConsigneePostal("");
+    setZoneLookup({ status: "idle" });
+  }, [isInternational, senderCountry, consigneeCountry, markets]);
 
   useEffect(() => {
     const postal = consigneePostal.trim();
@@ -348,41 +386,46 @@ export function ShipmentForm({
       action={formAction}
       className="mx-auto max-w-[1200px]"
     >
+      {isInternational ? <input type="hidden" name="is_international" value="1" /> : null}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <Link
-            href="/shipments"
-            className="mb-3 inline-flex items-center gap-2 text-xs font-bold text-[#587068]"
-          >
-            <ArrowLeft className="size-4" />
-            Back to shipments
+          <Link href="/shipments" className="mb-3 inline-flex items-center gap-2 text-xs font-bold text-[#587068]">
+            <ArrowLeft className="size-4" /> Back to shipments
           </Link>
-
-          <p className="text-sm font-semibold text-[#188459]">
-            Order booking
-          </p>
-
+          <p className="text-sm font-semibold text-[#188459]">{isInternational ? "International booking" : "Order booking"}</p>
           <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">
-            Create shipment & AWB
+            {isInternational ? "Create international shipment & AWB" : "Create shipment & AWB"}
           </h1>
-
           <p className="mt-2 text-sm text-[#74827b]">
-            Enter delivery details. Country-specific
-            location validation and service-zone
-            mapping are applied automatically.
+            {isInternational
+              ? "Enter sender, receiver and customs details. Air or sea chargeable weight is calculated from dimensions."
+              : "Enter delivery details. Country-specific location validation and service-zone mapping are applied automatically."}
           </p>
         </div>
-
-        <button
-          disabled={pending}
-          className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white shadow-lg shadow-[#13734b]/15 disabled:opacity-60"
-        >
-          <PackagePlus className="size-4" />
-          {pending
-            ? "Booking…"
-            : "Book shipment"}
-        </button>
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <nav aria-label="Shipment type" className="flex rounded-xl border border-[#dfe7e3] bg-white p-1">
+            <Link href="/shipments/new" aria-current={!isInternational ? "page" : undefined}
+              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${!isInternational ? "bg-[#e7f4ed] text-[#13734b]" : "text-[#627069] hover:bg-[#f6f8f7]"}`}>
+              Local shipment
+            </Link>
+            <Link href="/shipments/new?mode=international" aria-current={isInternational ? "page" : undefined}
+              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${isInternational ? "bg-[#e7f4ed] text-[#13734b]" : "text-[#627069] hover:bg-[#f6f8f7]"}`}>
+              International shipment
+            </Link>
+          </nav>
+          <button disabled={pending || (isInternational && !hasInternationalMarkets)}
+            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white shadow-lg shadow-[#13734b]/15 disabled:opacity-60">
+            <PackagePlus className="size-4" />
+            {pending ? "Generating AWB…" : isInternational ? "Generate international AWB" : "Generate AWB"}
+          </button>
+        </div>
       </div>
+
+      {isInternational && !hasInternationalMarkets ? (
+        <p role="status" className="mt-5 rounded-xl border border-[#f0d8ad] bg-[#fff8eb] px-4 py-3 text-sm font-semibold text-[#8a641f]">
+          International booking is unavailable because this courier account has only one active country. Ask an administrator to enable a destination country.
+        </p>
+      ) : null}
 
       {state.message ? (
         <p
@@ -392,18 +435,6 @@ export function ShipmentForm({
           {state.message}
         </p>
       ) : null}
-
-      <div className="mt-5 flex items-center gap-3 rounded-xl border border-[#cfe3d8] bg-[#edf8f2] px-4 py-3">
-        <Globe2 className="size-5 text-[#13734b]" />
-        <div>
-          <p className="text-xs font-bold text-[#30443a]">
-            Global market routing enabled
-          </p>
-          <p className="mt-0.5 text-[10px] text-[#678076]">
-            Base currency: {currency}
-          </p>
-        </div>
-      </div>
 
       {requiresShipperSelection ? (
         <section className="mt-5 rounded-2xl border border-[#cfe2d8] bg-[#f8fcfa] p-5 sm:p-6">
@@ -487,11 +518,20 @@ export function ShipmentForm({
               <select
                 name="sender_country_code"
                 value={senderCountry}
-                onChange={(event) =>
-                  setSenderCountry(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  const countryCode = event.target.value;
+                  setSenderCountry(countryCode);
+                  const next = isInternational
+                    ? (countryCode === consigneeCountry
+                      ? markets.find((market) => market.code !== countryCode)?.code || countryCode
+                      : consigneeCountry)
+                    : countryCode;
+                  setConsigneeCountry(next);
+                  if (next !== consigneeCountry) {
+                    setConsigneeCity(next === "AE" ? "Dubai" : "");
+                    setConsigneePostal("");
+                  }
+                }}
                 className={inputClass}
                 required
               >
@@ -615,7 +655,7 @@ export function ShipmentForm({
                 className={inputClass}
                 required
               >
-                {markets.map((market) => (
+                {destinationMarkets.map((market) => (
                   <option
                     key={market.code}
                     value={market.code}
@@ -777,7 +817,8 @@ export function ShipmentForm({
                 type="number"
                 min="1"
                 max="999"
-                defaultValue="1"
+                value={piecesValue}
+                onChange={(event) => setPiecesValue(event.target.value)}
                 className={inputClass}
                 required
               />
@@ -791,14 +832,15 @@ export function ShipmentForm({
                 min="0.001"
                 max="1000"
                 step="0.001"
-                defaultValue="1"
+                value={weightValue}
+                onChange={(event) => setWeightValue(event.target.value)}
                 className={inputClass}
                 required
               />
             </label>
 
             <label className={labelClass}>
-              COD amount ({currency}) *
+              COD amount *
               <input
                 name="cod_amount"
                 type="number"
@@ -836,17 +878,57 @@ export function ShipmentForm({
             </label>
           </div>
         </section>
+        {isInternational ? (
+          <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 sm:p-6 xl:col-span-2">
+            <div className="border-b border-[#edf1ef] pb-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">04 · International</p>
+              <h2 className="mt-1 font-bold text-[#26372f]">Transport, dimensions & customs</h2>
+              <p className="mt-1 text-sm text-[#74827b]">Enter dimensions for one piece and total actual weight. Chargeable weight is calculated automatically.</p>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <label className={labelClass}>Transport mode *
+                <select name="transport_mode" value={transportMode} onChange={(event) => setTransportMode(event.target.value === "sea" ? "sea" : "air")} className={inputClass} required>
+                  <option value="air">Air</option><option value="sea">Sea</option>
+                </select>
+              </label>
+              {(["length", "width", "height"] as const).map((dimension) => (
+                <label key={dimension} className={labelClass}>{dimension[0].toUpperCase() + dimension.slice(1)} per piece (cm) *
+                  <input type="number" name={`${dimension}_cm`} min="0.1" max="10000" step="any" value={dimensions[dimension]}
+                    onChange={(event) => setDimensions((current) => ({ ...current, [dimension]: event.target.value }))}
+                    className={inputClass} required />
+                </label>
+              ))}
+              <label className={labelClass}>Declared goods value
+                <input type="number" name="declared_value" min="0" max="9999999999" step="0.01" defaultValue="0" className={inputClass} />
+              </label>
+              <label className={labelClass}>HS code (optional)
+                <input type="text" name="hs_code" inputMode="numeric" minLength={4} maxLength={10} pattern="[0-9]{4,10}" className={inputClass} />
+              </label>
+            </div>
+            {internationalWeights ? (
+              <div aria-live="polite" className="mt-5 grid gap-3 rounded-xl bg-[#f3faf6] p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                <p>Actual weight <strong>{actualWeight.toFixed(2)} kg</strong></p>
+                <p>Volume <strong>{internationalWeights.volumeCbm.toFixed(4)} CBM</strong></p>
+                <p>Volumetric weight <strong>{internationalWeights.volumetricWeightKg.toFixed(2)} kg</strong></p>
+                {transportMode === "sea" ? <p>Sea W/M <strong>{internationalWeights.chargeableWm?.toFixed(3)}</strong></p> : null}
+                <p className="font-black text-[#13734b]">{transportMode === "air" ? "Air" : "Sea"} chargeable weight <strong>{internationalWeights.chargeableWeightKg.toFixed(2)} kg</strong></p>
+              </div>
+            ) : (
+              <p className="mt-5 rounded-xl bg-[#f7f9f8] p-4 text-sm text-[#74827b]">Enter positive dimensions, pieces and actual weight to calculate Air or Sea chargeable weight.</p>
+            )}
+          </section>
+        ) : null}
       </div>
 
       <div className="mt-5 flex justify-end">
         <button
-          disabled={pending}
+          disabled={pending || (isInternational && !hasInternationalMarkets)}
           className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#13734b] px-6 text-sm font-bold text-white disabled:opacity-60"
         >
           <PackagePlus className="size-4" />
           {pending
-            ? "Booking…"
-            : "Generate AWB"}
+            ? "Generating AWB…"
+            : isInternational ? "Generate international AWB" : "Generate AWB"}
         </button>
       </div>
     </form>

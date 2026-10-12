@@ -39,6 +39,27 @@ function round(value: number, places: number) {
   return Math.round((value + Number.EPSILON) * scale) / scale;
 }
 
+export function calculateInternationalWeights(
+  mode: InternationalMode,
+  lengthCm: number,
+  widthCm: number,
+  heightCm: number,
+  pieces: number,
+  actualWeightKg: number,
+) {
+  const cubicCentimetres = lengthCm * widthCm * heightCm * pieces;
+  const volumeCbm = cubicCentimetres / 1_000_000;
+  const volumetricWeightKg = mode === "air" ? cubicCentimetres / 6_000 : cubicCentimetres / 1_000;
+  const chargeableWm = mode === "sea" ? Math.max(volumeCbm, actualWeightKg / 1_000) : null;
+
+  return {
+    volumeCbm: round(volumeCbm, 4),
+    volumetricWeightKg: round(volumetricWeightKg, 2),
+    chargeableWeightKg: round(Math.max(actualWeightKg, volumetricWeightKg), 2),
+    chargeableWm: chargeableWm === null ? null : round(chargeableWm, 3),
+  };
+}
+
 export function prepareInternationalRows(
   parsedRows: ParsedBulkShipment[],
   rawRows: unknown[][],
@@ -80,11 +101,7 @@ export function prepareInternationalRows(
     if (parsed.shipment.sender_country_code === parsed.shipment.consignee_country_code) errors.push({ row: parsed.row, field: "consignee_country_code", message: "Sender and destination are in the same country. Use Local Bulk Upload." });
     if (errors.length !== rowErrors || !mode) continue;
 
-    const cm3 = lengthCm * widthCm * heightCm * parsed.shipment.pieces;
-    const volumeCbm = cm3 / 1_000_000;
-    const volumetricWeightKg = mode === "air" ? cm3 / 6000 : cm3 / 1000;
-    const chargeableWeightKg = Math.max(parsed.shipment.weight_kg, volumetricWeightKg);
-    const chargeableWm = mode === "sea" ? Math.max(volumeCbm, parsed.shipment.weight_kg / 1000) : null;
+    const weights = calculateInternationalWeights(mode, lengthCm, widthCm, heightCm, parsed.shipment.pieces, parsed.shipment.weight_kg);
     prepared.push({
       ...parsed,
       shipmentFields: {
@@ -92,10 +109,10 @@ export function prepareInternationalRows(
         length_cm: lengthCm,
         width_cm: widthCm,
         height_cm: heightCm,
-        volume_cbm: round(volumeCbm, 4),
-        volumetric_weight_kg: round(volumetricWeightKg, 2),
-        chargeable_weight_kg: round(chargeableWeightKg, 2),
-        chargeable_wm: chargeableWm === null ? null : round(chargeableWm, 3),
+        volume_cbm: weights.volumeCbm,
+        volumetric_weight_kg: weights.volumetricWeightKg,
+        chargeable_weight_kg: weights.chargeableWeightKg,
+        chargeable_wm: weights.chargeableWm,
         hs_code: hs || null,
       },
       calculation: {
@@ -109,10 +126,10 @@ export function prepareInternationalRows(
         widthCm,
         heightCm,
         actualWeightKg: parsed.shipment.weight_kg,
-        volumeCbm: round(volumeCbm, 4),
-        volumetricWeightKg: round(volumetricWeightKg, 2),
-        chargeableWeightKg: round(chargeableWeightKg, 2),
-        chargeableWm: chargeableWm === null ? null : round(chargeableWm, 3),
+        volumeCbm: weights.volumeCbm,
+        volumetricWeightKg: weights.volumetricWeightKg,
+        chargeableWeightKg: weights.chargeableWeightKg,
+        chargeableWm: weights.chargeableWm,
         hsCode: hs || null,
       },
     });

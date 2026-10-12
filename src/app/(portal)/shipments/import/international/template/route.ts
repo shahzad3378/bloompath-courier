@@ -12,7 +12,7 @@ export async function GET() {
     reference_number: "INT-0001",
     service_type: "standard",
     payment_type: "prepaid",
-    sender_name: "BloomPath Sample Sender",
+    sender_name: "Sample Sender",
     sender_phone: "+971500000000",
     sender_address: "Business Bay, Dubai",
     sender_address_2: "",
@@ -49,7 +49,7 @@ export async function GET() {
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="bloompath-international-shipments-template.csv"',
+      "Content-Disposition": 'attachment; filename="international-shipments-template.csv"',
       "Cache-Control": "no-store",
     },
   });
