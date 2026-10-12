@@ -71,7 +71,7 @@ export function prepareInternationalRows(
     const lengthCm = Number(read("length_cm"));
     const widthCm = Number(read("width_cm"));
     const heightCm = Number(read("height_cm"));
-    const hs = read("hscode") || read("hs_code");
+    const hs = read("hscode");
     const rowErrors = errors.length;
     if (!mode) errors.push({ row: parsed.row, field: "transport_mode", message: "Choose air or sea." });
     for (const [field, value] of [["length_cm", lengthCm], ["width_cm", widthCm], ["height_cm", heightCm]] as const) {
