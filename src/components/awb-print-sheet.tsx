@@ -9,10 +9,12 @@ function addressLine(address: string, address2: string | null | undefined, city:
   return [address, address2, city, state, postal, country].filter(Boolean).join(", ");
 }
 
-export function AwbPrintSheet({ shipment, format, branding }: {
+export function AwbPrintSheet({ shipment, format, branding, pieceNumber = 1, pieceCount = shipment.pieces }: {
   shipment: Shipment;
   format: "4x6" | "a4";
   branding?: { name: string; logoUrl: string | null; location: string; currency?: string };
+  pieceNumber?: number;
+  pieceCount?: number;
 }) {
   const brandName = branding?.name || "BloomPath Courier";
   const currency = shipment.currency || branding?.currency || "AED";
@@ -39,7 +41,7 @@ export function AwbPrintSheet({ shipment, format, branding }: {
         </div>
       </header>
 
-      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /></section>
+      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /><p className="mt-1 text-right text-lg font-black leading-none">{pieceNumber}/{pieceCount}</p></section>
 
       <section className="grid grid-cols-2 border-b-2 border-black">
         <div className="border-r-2 border-black p-3">
