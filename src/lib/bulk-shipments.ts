@@ -26,7 +26,8 @@ export const bulkShipmentHeaders = [
   "consignee_landmark",
   "pieces",
   "weight_kg",
-  "parcel_description",
+  "description",
+  "value",
   "cod_amount",
   "delivery_instructions",
 ] as const;
@@ -63,6 +64,7 @@ export type BulkShipmentInsert = {
   pieces: number;
   weight_kg: number;
   parcel_description: string;
+  declared_value: number;
   cod_amount: number;
   delivery_instructions: string | null;
   currency: string;
@@ -176,13 +178,14 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
 
   const headerIndex = rawRows.slice(0, 10).findIndex((row) => {
     const values = new Set(row.map(normalizeHeader));
-    return bulkShipmentHeaders.every((header) => values.has(header));
+    return bulkShipmentHeaders.filter((header) => header !== "value").every((header) => values.has(header) || (header === "description" && values.has("parcel_description")));
   });
   if (headerIndex === -1) return { ok: false, message: "The required universal header row was not found. Download a fresh template and keep the column names unchanged.", errors: [] };
 
   const headerMap = new Map<BulkHeader, number>();
   rawRows[headerIndex].forEach((value, index) => {
-    const header = normalizeHeader(value) as BulkHeader;
+    const normalized = normalizeHeader(value);
+    const header = (normalized === "parcel_description" ? "description" : normalized === "declared_value" ? "value" : normalized) as BulkHeader;
     if ((bulkShipmentHeaders as readonly string[]).includes(header) && !headerMap.has(header)) headerMap.set(header, index);
   });
 
@@ -210,6 +213,7 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     const pieces = numberValue(value("pieces"));
     const weightKg = numberValue(value("weight_kg"));
     const codAmount = numberValue(value("cod_amount"));
+    const declaredValue = value("value") ? numberValue(value("value")) : 0;
     const rowErrorStart = errors.length;
 
     optionalText(errors, row, "reference_number", referenceNumber, 80);
@@ -240,7 +244,8 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
 
     if (!Number.isInteger(pieces) || pieces < 1 || pieces > 999) errors.push({ row, field: "pieces", message: "Use a whole number from 1 to 999." });
     if (!Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 1000) errors.push({ row, field: "weight_kg", message: "Use a number greater than 0 and no more than 1000." });
-    requiredText(errors, row, "parcel_description", value("parcel_description"), 2, 500);
+    requiredText(errors, row, "description", value("description"), 2, 500);
+    if (!Number.isFinite(declaredValue) || declaredValue < 0 || declaredValue > 9999999999) errors.push({ row, field: "value", message: "Use a value from 0 to 9,999,999,999." });
     if (!Number.isFinite(codAmount) || codAmount < 0 || codAmount > 9999999999) errors.push({ row, field: "cod_amount", message: "Use an amount from 0 to 9,999,999,999." });
     else if (paymentType === "prepaid" && codAmount !== 0) errors.push({ row, field: "cod_amount", message: "Prepaid shipments must have COD amount 0." });
     optionalText(errors, row, "delivery_instructions", value("delivery_instructions"), 500);
@@ -279,7 +284,8 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
           consignee_landmark: value("consignee_landmark") || null,
           pieces,
           weight_kg: weightKg,
-          parcel_description: value("parcel_description"),
+          parcel_description: value("description"),
+          declared_value: declaredValue,
           cod_amount: paymentType === "cod" ? codAmount : 0,
           delivery_instructions: value("delivery_instructions") || null,
           currency,
