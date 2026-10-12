@@ -144,3 +144,11 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - PDF and Excel downloads include the tenant AWB, partner AWB and saved partner load number; a single-load export uses that load number as its reference. Multiple loads remain separate row values.
 - Saved handover manifests offer the same file formats. Export is read-only and never creates a booking or changes custody.
 - Role and tenant checks protect every export. Missing or archived selected shipments fail the whole download. Export failures remain inline and allow retry.
+
+
+### Local and international shipment booking
+
+- `/shipments/new` provides Local shipment and International shipment navigation tabs. The international tab stays in the New Shipment workflow and supports one shipment per booking; International Bulk Upload remains a separate multi-row workflow.
+- International single bookings require distinct enabled sender and destination countries, Air or Sea mode, positive per-piece dimensions, total actual weight, and a customs value. HS code is optional and validated when supplied. The server recalculates and stores CBM, volumetric and chargeable weight, and Sea W/M; browser-calculated figures are display-only.
+- Single and bulk bookings use the database's existing unique AWB trigger. Single booking opens the shipment record after booking; bulk results show each generated AWB and link to its shipment. Booking does not hand over or alter shipment custody.
+- The organization base currency is not displayed on the booking form. Shipment currency continues to resolve from the destination country and remains server-controlled.

@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Create Shipment" };
 
-export default async function NewShipmentPage() {
+export default async function NewShipmentPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  const isInternational = (await searchParams).mode === "international";
   const profile = await requireProfile([
     ...internalRoles,
     "shipper",
@@ -20,8 +21,6 @@ export default async function NewShipmentPage() {
   const [
     { data: shipperData },
     { data: organizationCountries },
-    { data: baseCurrencyData },
-    { data: settings },
   ] = await Promise.all([
     profile.role === "shipper"
       ? Promise.resolve({ data: [] })
@@ -32,26 +31,11 @@ export default async function NewShipmentPage() {
           .eq("role", "shipper")
           .eq("status", "active")
           .order("full_name", { ascending: true }),
-
     supabase
       .from("organization_countries")
       .select("country_code, is_primary")
       .eq("organization_id", profile.organization_id)
       .eq("is_active", true),
-
-    supabase
-      .from("organization_currencies")
-      .select("currency_code")
-      .eq("organization_id", profile.organization_id)
-      .eq("is_base", true)
-      .eq("is_active", true)
-      .maybeSingle(),
-
-    supabase
-      .from("organization_settings")
-      .select("currency")
-      .eq("organization_id", profile.organization_id)
-      .maybeSingle(),
   ]);
 
   /*
@@ -91,10 +75,7 @@ export default async function NewShipmentPage() {
   const primaryIndex = markets.findIndex((market) => market.code === primaryCountryCode);
   if (primaryIndex > 0) markets.unshift(...markets.splice(primaryIndex, 1));
 
-  const currency =
-    baseCurrencyData?.currency_code ||
-    settings?.currency ||
-    "AED";
+
 
   return (
     <ShipmentForm
@@ -108,7 +89,7 @@ export default async function NewShipmentPage() {
         profile.role !== "shipper"
       }
       markets={markets}
-      currency={currency}
+      isInternational={isInternational}
     />
   );
 }

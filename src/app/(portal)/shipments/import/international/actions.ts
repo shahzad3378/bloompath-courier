@@ -43,7 +43,20 @@ async function preparedFile(formData: FormData) {
   }
   const prepared = prepareInternationalRows(parsed.rows, rawRows);
   if (!prepared.ok) return { error: prepared.message, errors: prepared.errors, profile, rows: [], supabase, calculations: [] as InternationalCalculation[] };
-  return { error: "", profile, rows: prepared.rows, supabase, calculations: prepared.rows.map((item) => item.calculation) };
+  const destinationCodes = Array.from(new Set(prepared.rows.map((item) => item.shipment.consignee_country_code)));
+  const { data: destinationCurrencies } = await supabase
+    .from("countries")
+    .select("code, default_currency_code")
+    .in("code", destinationCodes);
+  const currencyByCountry = new Map((destinationCurrencies ?? []).map((country) => [country.code, country.default_currency_code]));
+  const rows = prepared.rows.map((item) => ({
+    ...item,
+    shipment: {
+      ...item.shipment,
+      currency: currencyByCountry.get(item.shipment.consignee_country_code) || item.shipment.currency,
+    },
+  }));
+  return { error: "", profile, rows, supabase, calculations: rows.map((item) => item.calculation) };
 }
 
 async function selectedShipper(formData: FormData, profile: Awaited<ReturnType<typeof requireProfile>>, supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -101,5 +114,5 @@ export async function importInternationalShipmentsAction(_previous: Internationa
   }
   revalidatePath("/shipments");
   revalidatePath("/dashboard");
-  return { status: "success", message: imported.length + " international shipment(s) created with saved Air/Sea calculations.", errors: [], calculations: result.calculations, imported };
+  return { status: "success", message: imported.length + " international shipment(s) created. AWBs are ready to view or print.", errors: [], calculations: result.calculations, imported };
 }

@@ -16,6 +16,7 @@ import {
   type ServiceZone,
 } from "@/lib/service-zones";
 import { createClient } from "@/lib/supabase/server";
+import { calculateInternationalWeights, type InternationalMode } from "@/lib/international-bulk";
 
 export type CreateShipmentState = {
   message: string;
@@ -180,9 +181,16 @@ export async function createShipmentAction(
     formData.get("weight_kg"),
   );
 
-  const submittedCod = Number(
-    formData.get("cod_amount"),
-  );
+  const submittedCod = Number(formData.get("cod_amount"));
+  const isInternational = formData.get("is_international") === "1";
+  const transportModeText = String(formData.get("transport_mode") ?? "").toLowerCase();
+  const transportMode = transportModeText === "air" || transportModeText === "sea" ? transportModeText as InternationalMode : null;
+  const lengthCm = Number(formData.get("length_cm"));
+  const widthCm = Number(formData.get("width_cm"));
+  const heightCm = Number(formData.get("height_cm"));
+  const declaredValue = isInternational ? Number(formData.get("declared_value")) : 0;
+  const hsCodeValue = String(formData.get("hs_code") ?? "").trim();
+  const hsCode = hsCodeValue || null;
 
   if (
     !senderName ||
@@ -216,6 +224,26 @@ export async function createShipmentAction(
       message:
         "Please check the required shipment details and try again.",
     };
+  }
+
+  if (!isInternational && senderCountryCode !== consigneeCountryCode) {
+    return { message: "Sender and destination must be in the same country. Use the International shipment tab for cross-border bookings." };
+  }
+
+  if (isInternational) {
+    if (senderCountryCode === consigneeCountryCode) {
+      return { message: "International shipments must have different sender and destination countries." };
+    }
+    if (
+      !transportMode ||
+      ![lengthCm, widthCm, heightCm].every((value) => Number.isFinite(value) && value > 0 && value <= 10000) ||
+      !Number.isFinite(declaredValue) ||
+      declaredValue < 0 ||
+      declaredValue > 9999999999 ||
+      (hsCode !== null && !/^[0-9]{4,10}$/.test(hsCode))
+    ) {
+      return { message: "Enter Air or Sea mode, positive dimensions up to 10,000 cm, a valid goods value, and an optional 4–10 digit HS code." };
+    }
   }
 
   const supabase = await createClient();
@@ -447,6 +475,10 @@ export async function createShipmentAction(
     shipperId = selectedShipper.id;
   }
 
+  const internationalWeights = isInternational
+    ? calculateInternationalWeights(transportMode!, lengthCm, widthCm, heightCm, pieces, weightKg)
+    : null;
+
   const { data, error } =
     await supabase
       .from("shipments")
@@ -455,6 +487,16 @@ export async function createShipmentAction(
           profile.organization_id,
 
         currency: shipmentCurrency,
+        declared_value: isInternational ? declaredValue : 0,
+        transport_mode: isInternational ? transportMode : null,
+        length_cm: isInternational ? lengthCm : null,
+        width_cm: isInternational ? widthCm : null,
+        height_cm: isInternational ? heightCm : null,
+        volume_cbm: internationalWeights?.volumeCbm ?? null,
+        volumetric_weight_kg: internationalWeights?.volumetricWeightKg ?? null,
+        chargeable_weight_kg: internationalWeights?.chargeableWeightKg ?? null,
+        chargeable_wm: internationalWeights?.chargeableWm ?? null,
+        hs_code: isInternational ? hsCode : null,
 
         shipper_id: shipperId,
         created_by: profile.id,
