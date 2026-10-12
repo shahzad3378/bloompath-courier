@@ -59,11 +59,11 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
     const errors = internationalRows.slice(0, 500).map(({ row }) => ({
       row,
       field: "consignee_country_code",
-      message: "International destination. Upload it through the International Bulk Upload (GTA) module.",
+      message: "International destination. Upload it through the BloomPath International Bulk Upload module.",
     }));
     return {
       status: "error",
-      message: `${internationalRows.length} international destination${internationalRows.length === 1 ? "" : "s"} found. No shipments were imported. Use the International Bulk Upload (GTA) module.`,
+      message: `${internationalRows.length} international destination${internationalRows.length === 1 ? "" : "s"} found. No shipments were imported. Use the BloomPath International Bulk Upload module.`,
       errors,
       imported: [],
     };
