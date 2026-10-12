@@ -42,7 +42,6 @@ function round(value: number, places: number) {
 export function prepareInternationalRows(
   parsedRows: ParsedBulkShipment[],
   rawRows: unknown[][],
-  defaultCountryCode: string,
 ): InternationalPreparation {
   const errors: BulkRowError[] = [];
   const required = ["reference_number", "service_type", "payment_type", "sender_name", "sender_phone", "sender_address", "sender_city", "sender_country_code", "consignee_name", "consignee_phone", "consignee_address", "consignee_city", "consignee_country_code", "pieces", "weight_kg", "description", "value", "cod_amount"];
