@@ -41,7 +41,7 @@ export function AwbPrintSheet({ shipment, format, branding, pieceNumber = 1, pie
         </div>
       </header>
 
-      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /><p className="mt-1 text-right text-lg font-black leading-none">{pieceNumber}/{pieceCount}</p></section>
+      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /><p className="mt-1 text-right text-lg font-black leading-none">Piece {pieceNumber}/{pieceCount}</p></section>
 
       <section className="grid grid-cols-2 border-b-2 border-black">
         <div className="border-r-2 border-black p-3">
