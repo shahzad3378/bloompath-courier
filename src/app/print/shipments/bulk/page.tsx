@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AwbPrintSheet } from "@/components/awb-print-sheet";
 import { BulkPrintControls } from "@/components/bulk-print-controls";
 import { requireProfile } from "@/lib/auth";
-import { type Shipment } from "@/lib/shipments";
+import { shipmentPieceCount, type Shipment } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Bulk Print AWBs" };
@@ -35,6 +35,15 @@ export default async function BulkPrintAwbsPage({ searchParams }: { searchParams
   const shipments = ids.map((id) => byId.get(id)).filter((shipment): shipment is Shipment => Boolean(shipment));
   if (shipments.length === 0) notFound();
 
+  const packageLabels = shipments.flatMap((shipment) => {
+    const pieceCount = shipmentPieceCount(shipment.pieces);
+    return Array.from({ length: pieceCount }, (_, index) => ({
+      shipment,
+      pieceNumber: index + 1,
+      pieceCount,
+    }));
+  });
+
   const branding = {
     name: settings?.awb_brand_name || settings?.display_name || "BloomPath Courier",
     logoUrl: settings?.logo_url || null,
@@ -44,9 +53,9 @@ export default async function BulkPrintAwbsPage({ searchParams }: { searchParams
 
   return (
     <main className="min-h-screen bg-[#eef2f0] px-3 py-5 text-black print:bg-white print:p-0">
-      <BulkPrintControls count={shipments.length} />
+      <BulkPrintControls count={packageLabels.length} />
       <div className="awb-bulk-stack">
-        {shipments.map((shipment) => <div key={shipment.id} className="awb-bulk-item"><AwbPrintSheet shipment={shipment} format={format} branding={branding} /></div>)}
+        {packageLabels.map(({ shipment, pieceNumber, pieceCount }, index) => <div key={`${shipment.id}-${pieceNumber}-${index}`} className="awb-bulk-item"><AwbPrintSheet shipment={shipment} format={format} branding={branding} pieceNumber={pieceNumber} pieceCount={pieceCount} /></div>)}
       </div>
     </main>
   );

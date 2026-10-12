@@ -117,6 +117,11 @@ export const uaeCities = [
   "Umm Al Quwain",
 ] as const;
 
+export function shipmentPieceCount(pieces: number | null | undefined) {
+  const count = Number(pieces);
+  return Number.isFinite(count) ? Math.min(999, Math.max(1, Math.floor(count))) : 1;
+}
+
 export function formatMoney(value: number | string, currency = "AED") {
   const code = /^[A-Z]{3}$/.test(currency.toUpperCase()) ? currency.toUpperCase() : "AED";
   return new Intl.NumberFormat("en", {
