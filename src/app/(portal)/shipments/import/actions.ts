@@ -54,7 +54,7 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
   const parsed = await parseBulkShipmentFile(file, { defaultCountryCode, currency });
   if (!parsed.ok) return { status: "error", message: parsed.message, errors: parsed.errors, imported: [] };
 
-  const internationalRows = parsed.rows.filter(({ shipment }) => shipment.consignee_country_code !== defaultCountryCode);
+  const internationalRows = parsed.rows.filter(({ shipment }) => shipment.sender_country_code !== shipment.consignee_country_code);
   if (internationalRows.length) {
     const errors = internationalRows.slice(0, 500).map(({ row }) => ({
       row,
