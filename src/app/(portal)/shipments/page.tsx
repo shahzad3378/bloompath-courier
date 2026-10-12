@@ -203,6 +203,7 @@ export default async function ShipmentsPage({ searchParams }: {
       {params.archived === "1" ? <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">AWB archived successfully. Its audit record is available under Archived AWBs.</div> : null}
 
       {!showArchived ? (
+        <>
         {!isShipper ? (
           <section className="mt-7">
             <div className="mb-3 flex items-center justify-between">
@@ -232,6 +233,7 @@ export default async function ShipmentsPage({ searchParams }: {
           </div>
           </section>
         ) : null}
+        </>
       ) : null}
 
       <form noValidate className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-4">
