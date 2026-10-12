@@ -41,7 +41,7 @@ async function preparedFile(formData: FormData) {
   } catch {
     return { error: "The international file could not be read. Download a fresh template and retry.", profile, rows: [], supabase, calculations: [] as InternationalCalculation[] };
   }
-  const prepared = prepareInternationalRows(parsed.rows, rawRows, defaultCountryCode);
+  const prepared = prepareInternationalRows(parsed.rows, rawRows);
   if (!prepared.ok) return { error: prepared.message, errors: prepared.errors, profile, rows: [], supabase, calculations: [] as InternationalCalculation[] };
   return { error: "", profile, rows: prepared.rows, supabase, calculations: prepared.rows.map((item) => item.calculation) };
 }
