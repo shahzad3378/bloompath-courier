@@ -10,7 +10,8 @@ import {
 } from "@/app/(portal)/shipments/import/international/actions";
 
 const initial: InternationalUploadState = { status: "idle", message: "", errors: [], calculations: [], imported: [] };
-const emptyQuick = { mode: "air", length: "", width: "", height: "", pieces: "1", actual: "" };
+type QuickCalculation = { mode: "air" | "sea"; length: string; width: string; height: string; pieces: string; actual: string };
+const emptyQuick: QuickCalculation = { mode: "air", length: "", width: "", height: "", pieces: "1", actual: "" };
 
 function weight(value: number) {
   return value.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
