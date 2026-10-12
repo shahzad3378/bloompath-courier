@@ -42,7 +42,6 @@ function round(value: number, places: number) {
 export function prepareInternationalRows(
   parsedRows: ParsedBulkShipment[],
   rawRows: unknown[][],
-  defaultCountryCode: string,
 ): InternationalPreparation {
   const errors: BulkRowError[] = [];
   const required = ["reference_number", "service_type", "payment_type", "sender_name", "sender_phone", "sender_address", "sender_city", "sender_country_code", "consignee_name", "consignee_phone", "consignee_address", "consignee_city", "consignee_country_code", "pieces", "weight_kg", "description", "value", "cod_amount"];
@@ -78,7 +77,7 @@ export function prepareInternationalRows(
       if (!Number.isFinite(value) || value <= 0 || value > 10000) errors.push({ row: parsed.row, field, message: "Enter a dimension greater than 0 and no more than 10,000 cm." });
     }
     if (hs && !/^[0-9]{4,10}$/.test(hs)) errors.push({ row: parsed.row, field: "hscode", message: "HS code must contain 4–10 digits." });
-    if (parsed.shipment.consignee_country_code === defaultCountryCode) errors.push({ row: parsed.row, field: "consignee_country_code", message: "This is a local destination. Use Local Bulk Upload." });
+    if (parsed.shipment.sender_country_code === parsed.shipment.consignee_country_code) errors.push({ row: parsed.row, field: "consignee_country_code", message: "Sender and destination are in the same country. Use Local Bulk Upload." });
     if (errors.length !== rowErrors || !mode) continue;
 
     const cm3 = lengthCm * widthCm * heightCm * parsed.shipment.pieces;
