@@ -53,7 +53,7 @@ export type Shipment = {
   weight_kg: number;
   parcel_description: string;
   cod_amount: number;
-  declared_value: number;
+  declared_value?: number | null;
   currency?: string | null;
   delivery_instructions: string | null;
   pickup_latitude?: number | null;
