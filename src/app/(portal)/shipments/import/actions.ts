@@ -54,6 +54,21 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
   const parsed = await parseBulkShipmentFile(file, { defaultCountryCode, currency });
   if (!parsed.ok) return { status: "error", message: parsed.message, errors: parsed.errors, imported: [] };
 
+  const internationalRows = parsed.rows.filter(({ shipment }) => shipment.consignee_country_code !== defaultCountryCode);
+  if (internationalRows.length) {
+    const errors = internationalRows.slice(0, 500).map(({ row }) => ({
+      row,
+      field: "consignee_country_code",
+      message: "International destination. Upload it through the International Bulk Upload (GTA) module.",
+    }));
+    return {
+      status: "error",
+      message: `${internationalRows.length} international destination${internationalRows.length === 1 ? "" : "s"} found. No shipments were imported. Use the International Bulk Upload (GTA) module.`,
+      errors,
+      imported: [],
+    };
+  }
+
   let shipperId = profile.id;
   if (profile.role !== "shipper") {
     const selectedShipperId = String(formData.get("shipper_id") ?? "");
