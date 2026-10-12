@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AwbPrintSheet } from "@/components/awb-print-sheet";
 import { PrintControls } from "@/components/print-controls";
 import { requireProfile } from "@/lib/auth";
-import { type Shipment } from "@/lib/shipments";
+import { shipmentPieceCount, type Shipment } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Print AWB" };
@@ -34,10 +34,18 @@ export default async function PrintAwbPage({ params, searchParams }: { params: P
     currency: settings?.currency || shipment.currency || "AED",
   };
 
+  const pieceCount = shipmentPieceCount(shipment.pieces);
+
   return (
     <main className="min-h-screen bg-[#eef2f0] px-3 py-5 text-black print:bg-white print:p-0">
-      <PrintControls shipmentId={shipment.id} />
-      <AwbPrintSheet shipment={shipment} format={format} branding={branding} />
+      <PrintControls shipmentId={shipment.id} count={pieceCount} />
+      <div className="awb-bulk-stack">
+        {Array.from({ length: pieceCount }, (_, index) => (
+          <div key={index} className="awb-bulk-item">
+            <AwbPrintSheet shipment={shipment} format={format} branding={branding} pieceNumber={index + 1} pieceCount={pieceCount} />
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
