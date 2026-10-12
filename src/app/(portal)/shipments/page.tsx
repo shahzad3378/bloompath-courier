@@ -203,8 +203,10 @@ export default async function ShipmentsPage({ searchParams }: {
       {params.archived === "1" ? <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">AWB archived successfully. Its audit record is available under Archived AWBs.</div> : null}
 
       {!showArchived ? (
-        <section className="mt-7">
-          <div className="mb-3 flex items-center justify-between">
+        <>
+        {!isShipper ? (
+          <section className="mt-7">
+            <div className="mb-3 flex items-center justify-between">
             <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">Live operations</p><h2 className="mt-1 text-lg font-bold text-[#26372f]">Shipment dashboard</h2></div>
             <div className="flex flex-wrap gap-2">
               <Link href={exportHref} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-4 text-xs font-bold text-[#13734b] shadow-sm transition hover:bg-[#edf7f2]"><Download className="size-4" />CSV</Link>
@@ -229,7 +231,9 @@ export default async function ShipmentsPage({ searchParams }: {
               );
             })}
           </div>
-        </section>
+          </section>
+        ) : null}
+        </>
       ) : null}
 
       <form noValidate className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-4">
