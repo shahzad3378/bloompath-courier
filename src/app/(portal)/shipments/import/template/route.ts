@@ -8,7 +8,7 @@ function csvCell(value: string) {
 export async function GET() {
   const example = [
     "ORDER-1001","standard","cod","Example Shipper","+14165550100","100 Warehouse Rd","Unit 1","Toronto","ON","M5V 2T6","CA",
-    "Jane Customer","+16475550123","","1 Cardiff Rd","Unit 606","Toronto","ON","M4P 0G2","CA","","","1","1.0","Parcel","49.99","Call on arrival",
+    "Jane Customer","+16475550123","","1 Cardiff Rd","Unit 606","Toronto","ON","M4P 0G2","CA","","","1","1.0","Parcel","49.99","49.99","Call on arrival",
   ];
 
   const csv = [bulkShipmentHeaders.join(","), example.map(csvCell).join(",")].join("\r\n");
