@@ -49,7 +49,8 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         children: [
           { label: "All Shipments", href: "/shipments" },
           { label: "Create Shipment", href: "/shipments/new" },
-          { label: "Bulk Upload", href: "/shipments/import" },
+          { label: "Local Bulk Upload", href: "/shipments/import" },
+          { label: "International Bulk Upload (GTA)", href: "/courier-integrations/gta-airskip" },
         ],
       },
       {
@@ -144,7 +145,7 @@ const shipperNav: SimpleNavItem[] = [
   { label: "Overview", href: "/shipper", icon: LayoutDashboard },
   { label: "My Shipments", href: "/shipments", icon: PackageCheck },
   { label: "New Shipment", href: "/shipments/new", icon: ClipboardList },
-  { label: "Bulk Upload", href: "/shipments/import", icon: ScanLine },
+  { label: "Local Bulk Upload", href: "/shipments/import", icon: ScanLine },
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText },
