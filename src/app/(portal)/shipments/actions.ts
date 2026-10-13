@@ -16,7 +16,7 @@ import {
   type ServiceZone,
 } from "@/lib/service-zones";
 import { createClient } from "@/lib/supabase/server";
-import { calculateInternationalWeights, type InternationalMode } from "@/lib/international-bulk";
+import { calculateInternationalWeights, internationalPieceReference, splitInternationalAmount, splitInternationalWeight, type InternationalMode } from "@/lib/international-bulk";
 
 export type CreateShipmentState = {
   message: string;
@@ -475,128 +475,93 @@ export async function createShipmentAction(
     shipperId = selectedShipper.id;
   }
 
-  const internationalWeights = isInternational
-    ? calculateInternationalWeights(transportMode!, lengthCm, widthCm, heightCm, pieces, weightKg)
-    : null;
-
-  const { data, error } =
-    await supabase
-      .from("shipments")
-      .insert({
-        organization_id:
-          profile.organization_id,
-
-        currency: shipmentCurrency,
-        declared_value: isInternational ? declaredValue : 0,
-        transport_mode: isInternational ? transportMode : null,
-        length_cm: isInternational ? lengthCm : null,
-        width_cm: isInternational ? widthCm : null,
-        height_cm: isInternational ? heightCm : null,
-        volume_cbm: internationalWeights?.volumeCbm ?? null,
-        volumetric_weight_kg: internationalWeights?.volumetricWeightKg ?? null,
-        chargeable_weight_kg: internationalWeights?.chargeableWeightKg ?? null,
-        chargeable_wm: internationalWeights?.chargeableWm ?? null,
-        hs_code: isInternational ? hsCode : null,
-
-        shipper_id: shipperId,
-        created_by: profile.id,
-
-        reference_number: optionalText(
-          formData,
-          "reference_number",
-          80,
-        ),
-
-        service_type: serviceType,
-        payment_type: paymentType,
-
-        sender_name: senderName,
-        sender_phone: senderPhone,
-        sender_address: senderAddress,
-        sender_city: senderCity,
-        sender_country_code:
-          senderCountryCode,
-        sender_postal_code:
-          senderPostalCode,
-
-        consignee_name: consigneeName,
-        consignee_phone: consigneePhone,
-
-        consignee_alt_phone:
-          optionalText(
-            formData,
-            "consignee_alt_phone",
-            20,
-          ),
-
-        consignee_address:
-          consigneeAddress,
-
-        consignee_city:
-          consigneeCity,
-
-        consignee_area:
-          consigneeArea,
-
-        consignee_landmark:
-          optionalText(
-            formData,
-            "consignee_landmark",
-            200,
-          ),
-
-        consignee_country_code:
-          consigneeCountryCode,
-
-        consignee_postal_code:
-          consigneePostalCode,
-
-        service_zone_id:
-          matchedZone?.id ?? null,
-
-        service_zone_name:
-          matchedZone?.name ?? null,
-
+  const pieceWeights = isInternational ? splitInternationalWeight(weightKg, pieces) : null;
+  if (isInternational && !pieceWeights) {
+    return { message: "Total actual weight must be at least 0.001 kg per bag so every AWB has a positive weight." };
+  }
+  const pieceValues = isInternational ? splitInternationalAmount(declaredValue, pieces) : [];
+  const pieceCod = isInternational ? splitInternationalAmount(paymentType === "cod" ? submittedCod : 0, pieces) : [];
+  const commonShipmentValues = {
+    organization_id: profile.organization_id,
+    currency: shipmentCurrency,
+    transport_mode: isInternational ? transportMode : null,
+    hs_code: isInternational ? hsCode : null,
+    shipper_id: shipperId,
+    created_by: profile.id,
+    service_type: serviceType,
+    payment_type: paymentType,
+    sender_name: senderName,
+    sender_phone: senderPhone,
+    sender_address: senderAddress,
+    sender_city: senderCity,
+    sender_country_code: senderCountryCode,
+    sender_postal_code: senderPostalCode,
+    consignee_name: consigneeName,
+    consignee_phone: consigneePhone,
+    consignee_alt_phone: optionalText(formData, "consignee_alt_phone", 20),
+    consignee_address: consigneeAddress,
+    consignee_city: consigneeCity,
+    consignee_area: consigneeArea,
+    consignee_landmark: optionalText(formData, "consignee_landmark", 200),
+    consignee_country_code: consigneeCountryCode,
+    consignee_postal_code: consigneePostalCode,
+    service_zone_id: matchedZone?.id ?? null,
+    service_zone_name: matchedZone?.name ?? null,
+    parcel_description: parcelDescription,
+    delivery_instructions: optionalText(formData, "delivery_instructions", 500),
+  };
+  const baseReference = optionalText(formData, "reference_number", 80);
+  const insertRows = isInternational
+    ? Array.from({ length: pieces }, (_, pieceIndex) => {
+        const weights = calculateInternationalWeights(transportMode!, lengthCm, widthCm, heightCm, 1, pieceWeights![pieceIndex]);
+        return {
+          ...commonShipmentValues,
+          reference_number: internationalPieceReference(baseReference, pieceIndex, pieces),
+          pieces: 1,
+          weight_kg: pieceWeights![pieceIndex],
+          declared_value: pieceValues[pieceIndex],
+          cod_amount: pieceCod[pieceIndex],
+          length_cm: lengthCm,
+          width_cm: widthCm,
+          height_cm: heightCm,
+          volume_cbm: weights.volumeCbm,
+          volumetric_weight_kg: weights.volumetricWeightKg,
+          chargeable_weight_kg: weights.chargeableWeightKg,
+          chargeable_wm: weights.chargeableWm,
+        };
+      })
+    : [{
+        ...commonShipmentValues,
+        reference_number: baseReference,
         pieces,
         weight_kg: weightKg,
+        declared_value: 0,
+        cod_amount: paymentType === "cod" ? submittedCod : 0,
+      }];
 
-        parcel_description:
-          parcelDescription,
+  const { data, error } = await supabase
+    .from("shipments")
+    .insert(insertRows)
+    .select("id, tracking_number");
 
-        cod_amount:
-          paymentType === "cod"
-            ? submittedCod
-            : 0,
-
-        delivery_instructions:
-          optionalText(
-            formData,
-            "delivery_instructions",
-            500,
-          ),
-      })
-      .select(
-        "id, tracking_number",
-      )
-      .single();
-
-  if (error || !data) {
+  if (error || !data || data.length !== insertRows.length) {
     if (error?.code === "23505") {
       return {
-        message:
-          "This reference number is already used for another shipment.",
+        message: "This reference number is already used for another shipment.",
       };
     }
-
     return {
-      message:
-        "Shipment could not be booked. Please review the details and retry.",
+      message: "Shipment could not be booked. Please review the details and retry.",
     };
   }
 
-  redirect(
-    `/shipments/${data.id}?created=1`,
-  );
+  revalidatePath("/shipments");
+  revalidatePath("/dashboard");
+  if (isInternational && data.length > 1) {
+    redirect("/shipments?generated=international&ids=" + data.map((row) => row.id).join(","));
+  }
+
+  redirect(`/shipments/${data[0].id}?created=1`);
 }
 
 export async function archiveShipmentAction(

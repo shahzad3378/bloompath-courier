@@ -72,7 +72,7 @@ export async function previewInternationalUploadAction(_previous: InternationalU
   if (result.error) return { ...idle, status: "error", message: result.error, errors: result.errors ?? [] };
   const shipper = await selectedShipper(formData, result.profile, result.supabase!);
   if (shipper.error) return { ...idle, status: "error", message: shipper.error, errors: [] };
-  return { ...idle, status: "ready", message: result.rows.length + " international shipments ready. Review the air/sea weight calculations before creating them.", calculations: result.calculations };
+  return { ...idle, status: "ready", message: result.rows.length + " individual bag AWBs ready. Each bag gets its own AWB; review per-bag air/sea weight before creating them.", calculations: result.calculations };
 }
 
 export async function importInternationalShipmentsAction(_previous: InternationalUploadState, formData: FormData): Promise<InternationalUploadState> {
@@ -114,5 +114,5 @@ export async function importInternationalShipmentsAction(_previous: Internationa
   }
   revalidatePath("/shipments");
   revalidatePath("/dashboard");
-  return { status: "success", message: imported.length + " international shipment(s) created. AWBs are ready to view or print.", errors: [], calculations: result.calculations, imported };
+  return { status: "success", message: imported.length + " separate international AWB(s) created, one per bag. AWBs are ready to view or print.", errors: [], calculations: result.calculations, imported };
 }

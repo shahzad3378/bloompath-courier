@@ -811,7 +811,7 @@ export function ShipmentForm({
             </label>
 
             <label className={labelClass}>
-              Pieces *
+              {isInternational ? "Bags / pieces *" : "Pieces *"}
               <input
                 name="pieces"
                 type="number"
@@ -825,7 +825,7 @@ export function ShipmentForm({
             </label>
 
             <label className={labelClass}>
-              Weight (kg) *
+              {isInternational ? "Total actual weight (kg) *" : "Weight (kg) *"}
               <input
                 name="weight_kg"
                 type="number"
@@ -883,7 +883,7 @@ export function ShipmentForm({
             <div className="border-b border-[#edf1ef] pb-4">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">04 · International</p>
               <h2 className="mt-1 font-bold text-[#26372f]">Transport, dimensions & customs</h2>
-              <p className="mt-1 text-sm text-[#74827b]">Enter dimensions for one piece and total actual weight. Chargeable weight is calculated automatically.</p>
+              <p className="mt-1 text-sm text-[#74827b]">Enter dimensions per bag and total actual weight. Each bag gets a separate AWB; weight, declared value and COD are split across the bags.</p>
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <label className={labelClass}>Transport mode *
@@ -898,7 +898,7 @@ export function ShipmentForm({
                     className={inputClass} required />
                 </label>
               ))}
-              <label className={labelClass}>Declared goods value
+              <label className={labelClass}>Total declared goods value
                 <input type="number" name="declared_value" min="0" max="9999999999" step="0.01" defaultValue="0" className={inputClass} />
               </label>
               <label className={labelClass}>HS code (optional)
