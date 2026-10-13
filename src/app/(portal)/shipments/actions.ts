@@ -537,13 +537,6 @@ export async function createShipmentAction(
         weight_kg: weightKg,
         declared_value: 0,
         cod_amount: paymentType === "cod" ? submittedCod : 0,
-        length_cm: null,
-        width_cm: null,
-        height_cm: null,
-        volume_cbm: null,
-        volumetric_weight_kg: null,
-        chargeable_weight_kg: null,
-        chargeable_wm: null,
       }];
 
   const { data, error } = await supabase
