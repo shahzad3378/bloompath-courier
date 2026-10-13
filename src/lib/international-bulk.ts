@@ -1,4 +1,4 @@
-import type { BulkRowError, ParsedBulkShipment } from "@/lib/bulk-shipments";
+import { bulkUploadMaxRows, type BulkRowError, type ParsedBulkShipment } from "@/lib/bulk-shipments";
 
 export type InternationalMode = "air" | "sea";
 export type InternationalCalculation = {
@@ -8,6 +8,8 @@ export type InternationalCalculation = {
   destinationCountry: string;
   mode: InternationalMode;
   pieces: number;
+  pieceNumber: number;
+  pieceCount: number;
   lengthCm: number;
   widthCm: number;
   heightCm: number;
@@ -37,6 +39,28 @@ function normalizedHeader(value: unknown) {
 function round(value: number, places: number) {
   const scale = 10 ** places;
   return Math.round((value + Number.EPSILON) * scale) / scale;
+}
+
+
+export function splitInternationalWeight(totalKg: number, count: number) {
+  const totalMilliKg = Math.round((totalKg + Number.EPSILON) * 1000);
+  if (!Number.isInteger(count) || count < 1 || totalMilliKg < count) return null;
+  const base = Math.floor(totalMilliKg / count);
+  const remainder = totalMilliKg % count;
+  return Array.from({ length: count }, (_, index) => (base + (index < remainder ? 1 : 0)) / 1000);
+}
+
+export function splitInternationalAmount(total: number, count: number) {
+  const totalCents = Math.round((total + Number.EPSILON) * 100);
+  const base = Math.floor(totalCents / count);
+  const remainder = totalCents % count;
+  return Array.from({ length: count }, (_, index) => (base + (index < remainder ? 1 : 0)) / 100);
+}
+
+export function internationalPieceReference(reference: string | null, index: number, count: number) {
+  if (!reference || count === 1) return reference;
+  const suffix = `-P${index + 1}`;
+  return reference.slice(0, 80 - suffix.length) + suffix;
 }
 
 export function calculateInternationalWeights(
@@ -83,6 +107,8 @@ export function prepareInternationalRows(
   if (errors.length) return { ok: false, errors, message: "Download the International Upload template and keep all required columns." };
 
   const prepared: PreparedInternationalRow[] = [];
+  const generatedReferences = new Map<string, number>();
+  let generatedCount = 0;
   for (const parsed of parsedRows) {
     const cells = rawRows[parsed.row - 1] ?? [];
     const read = (name: string) => text(cells[index(name)]);
@@ -101,39 +127,73 @@ export function prepareInternationalRows(
     if (parsed.shipment.sender_country_code === parsed.shipment.consignee_country_code) errors.push({ row: parsed.row, field: "consignee_country_code", message: "Sender and destination are in the same country. Use Local Bulk Upload." });
     if (errors.length !== rowErrors || !mode) continue;
 
-    const weights = calculateInternationalWeights(mode, lengthCm, widthCm, heightCm, parsed.shipment.pieces, parsed.shipment.weight_kg);
-    prepared.push({
-      ...parsed,
-      shipmentFields: {
-        transport_mode: mode,
-        length_cm: lengthCm,
-        width_cm: widthCm,
-        height_cm: heightCm,
-        volume_cbm: weights.volumeCbm,
-        volumetric_weight_kg: weights.volumetricWeightKg,
-        chargeable_weight_kg: weights.chargeableWeightKg,
-        chargeable_wm: weights.chargeableWm,
-        hs_code: hs || null,
-      },
-      calculation: {
-        row: parsed.row,
-        referenceNumber: parsed.shipment.reference_number,
-        consignee: parsed.shipment.consignee_name,
-        destinationCountry: parsed.shipment.consignee_country_code,
-        mode,
-        pieces: parsed.shipment.pieces,
-        lengthCm,
-        widthCm,
-        heightCm,
-        actualWeightKg: parsed.shipment.weight_kg,
-        volumeCbm: weights.volumeCbm,
-        volumetricWeightKg: weights.volumetricWeightKg,
-        chargeableWeightKg: weights.chargeableWeightKg,
-        chargeableWm: weights.chargeableWm,
-        hsCode: hs || null,
-      },
-    });
+    const pieces = parsed.shipment.pieces;
+    const pieceWeights = splitInternationalWeight(parsed.shipment.weight_kg, pieces);
+    if (!pieceWeights) {
+      errors.push({ row: parsed.row, field: "weight_kg", message: "Total weight must be at least 0.001 kg per bag so each AWB has a positive weight." });
+      continue;
+    }
+    generatedCount += pieces;
+    if (generatedCount > bulkUploadMaxRows) {
+      errors.push({ row: parsed.row, field: "pieces", message: "This upload creates more than " + bulkUploadMaxRows + " AWBs. Reduce the piece count or split the file." });
+      break;
+    }
+    const pieceValues = splitInternationalAmount(parsed.shipment.declared_value, pieces);
+    const pieceCod = splitInternationalAmount(parsed.shipment.cod_amount, pieces);
+    for (let pieceIndex = 0; pieceIndex < pieces; pieceIndex += 1) {
+      const referenceNumber = internationalPieceReference(parsed.shipment.reference_number, pieceIndex, pieces);
+      if (referenceNumber) {
+        const earlier = generatedReferences.get(referenceNumber);
+        if (earlier) {
+          errors.push({ row: parsed.row, field: "reference_number", message: "Generated piece reference " + referenceNumber + " conflicts with row " + earlier + " in this file." });
+          continue;
+        }
+        generatedReferences.set(referenceNumber, parsed.row);
+      }
+      const weights = calculateInternationalWeights(mode, lengthCm, widthCm, heightCm, 1, pieceWeights[pieceIndex]);
+      prepared.push({
+        ...parsed,
+        shipment: {
+          ...parsed.shipment,
+          reference_number: referenceNumber,
+          pieces: 1,
+          weight_kg: pieceWeights[pieceIndex],
+          declared_value: pieceValues[pieceIndex],
+          cod_amount: pieceCod[pieceIndex],
+        },
+        shipmentFields: {
+          transport_mode: mode,
+          length_cm: lengthCm,
+          width_cm: widthCm,
+          height_cm: heightCm,
+          volume_cbm: weights.volumeCbm,
+          volumetric_weight_kg: weights.volumetricWeightKg,
+          chargeable_weight_kg: weights.chargeableWeightKg,
+          chargeable_wm: weights.chargeableWm,
+          hs_code: hs || null,
+        },
+        calculation: {
+          row: parsed.row,
+          referenceNumber,
+          consignee: parsed.shipment.consignee_name,
+          destinationCountry: parsed.shipment.consignee_country_code,
+          mode,
+          pieces: 1,
+          pieceNumber: pieceIndex + 1,
+          pieceCount: pieces,
+          lengthCm,
+          widthCm,
+          heightCm,
+          actualWeightKg: pieceWeights[pieceIndex],
+          volumeCbm: weights.volumeCbm,
+          volumetricWeightKg: weights.volumetricWeightKg,
+          chargeableWeightKg: weights.chargeableWeightKg,
+          chargeableWm: weights.chargeableWm,
+          hsCode: hs || null,
+        },
+      });
+    }
   }
-  if (errors.length) return { ok: false, errors: errors.slice(0, 500), message: errors.length + " international upload issue" + (errors.length === 1 ? "" : "s") + " found. No shipments were imported." };
+    if (errors.length) return { ok: false, errors: errors.slice(0, 500), message: errors.length + " international upload issue" + (errors.length === 1 ? "" : "s") + " found. No shipments were imported." };
   return { ok: true, rows: prepared };
 }
