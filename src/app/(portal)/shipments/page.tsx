@@ -167,7 +167,7 @@ export default async function ShipmentsPage({ searchParams }: {
     };
   });
 
-  const generatedIds = new Set(String(params.ids ?? "").split(",").filter((id) => /^\\d+$/.test(id)).slice(0, 999));
+  const generatedIds = new Set(String(params.ids ?? "").split(",").filter((id) => /^\d+$/.test(id)).slice(0, 999));
   const generatedShipments = params.generated === "international" ? shipments.filter((shipment) => generatedIds.has(String(shipment.id))) : [];
 
   const exportParams = new URLSearchParams();
