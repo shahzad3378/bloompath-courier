@@ -1,6 +1,7 @@
-import { bulkUploadMaxRows, type BulkRowError, type ParsedBulkShipment } from "@/lib/bulk-shipments";
+import type { BulkRowError, ParsedBulkShipment } from "@/lib/bulk-shipments";
 
 export type InternationalMode = "air" | "sea";
+const internationalUploadMaxAwbs = 5000;
 export type InternationalCalculation = {
   row: number;
   referenceNumber: string | null;
@@ -134,8 +135,8 @@ export function prepareInternationalRows(
       continue;
     }
     generatedCount += pieces;
-    if (generatedCount > bulkUploadMaxRows) {
-      errors.push({ row: parsed.row, field: "pieces", message: "This upload creates more than " + bulkUploadMaxRows + " AWBs. Reduce the piece count or split the file." });
+    if (generatedCount > internationalUploadMaxAwbs) {
+      errors.push({ row: parsed.row, field: "pieces", message: "This upload creates more than " + internationalUploadMaxAwbs + " AWBs. Reduce the piece count or split the file." });
       break;
     }
     const pieceValues = splitInternationalAmount(parsed.shipment.declared_value, pieces);
