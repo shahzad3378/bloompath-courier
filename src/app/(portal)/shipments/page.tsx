@@ -40,6 +40,8 @@ export default async function ShipmentsPage({ searchParams }: {
     to?: string;
     shipper?: string;
     driver?: string;
+    generated?: string;
+    ids?: string;
   }>;
 }) {
   const profile = await requireProfile([...internalRoles, "shipper"]);
@@ -59,7 +61,7 @@ export default async function ShipmentsPage({ searchParams }: {
     supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),
   ]);
 
-  const tenantCurrency = /^[A-Z]{3}$/.test(String(orgSettings?.currency ?? "").toUpperCase())
+  const tenantCurrency = /^\d+$/.test(String(orgSettings?.currency ?? "").toUpperCase())
     ? String(orgSettings?.currency).toUpperCase()
     : "AED";
 
@@ -165,6 +167,9 @@ export default async function ShipmentsPage({ searchParams }: {
     };
   });
 
+  const generatedIds = new Set(String(params.ids ?? "").split(",").filter((id) => /^\\d+$/.test(id)).slice(0, 999));
+  const generatedShipments = params.generated === "international" ? shipments.filter((shipment) => generatedIds.has(String(shipment.id))) : [];
+
   const exportParams = new URLSearchParams();
   if (params.q) exportParams.set("q", params.q);
   if (requestedStatus) exportParams.set("status", requestedStatus);
@@ -201,6 +206,7 @@ export default async function ShipmentsPage({ searchParams }: {
       </div>
 
       {params.archived === "1" ? <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">AWB archived successfully. Its audit record is available under Archived AWBs.</div> : null}
+      {generatedShipments.length ? <section className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] p-4 text-[#176a47]"><p className="font-bold">{generatedShipments.length} separate international AWB{generatedShipments.length === 1 ? "" : "s"} created</p><div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-auto">{generatedShipments.map((shipment) => <Link key={shipment.id} href={`/shipments/${shipment.id}`} className="rounded-lg border border-[#bfe3cf] bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#13734b]">{shipment.tracking_number}</Link>)}</div></section> : null}
 
       {!showArchived ? (
         <>
