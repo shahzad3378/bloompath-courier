@@ -56,6 +56,11 @@ export function AwbPrintSheet({
   pieceCount?: number;
 }) {
   const brandName = branding?.name || "BloomPath Courier";
+  const brandLegalName = branding?.legalName?.trim();
+  const brandSubline = [
+    brandLegalName && brandLegalName.toLowerCase() !== brandName.trim().toLowerCase() ? brandLegalName : null,
+    branding?.location,
+  ].filter(Boolean).join(" · ");
   const currency = shipment.currency || branding?.currency || "AED";
   const brandInitials = brandName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "BP";
   const destination = shipment.consignee_postal_code || shipment.consignee_area || shipment.consignee_country_code || "DESTINATION";
@@ -76,7 +81,7 @@ export function AwbPrintSheet({
           )}
           <div className="bp-awb-brand-copy">
             <p className="bp-awb-brand-name">{brandName}</p>
-            {[branding?.legalName, branding?.location].filter(Boolean).length > 0 ? <p className="bp-awb-brand-location">{[branding?.legalName, branding?.location].filter(Boolean).join(" · ")}</p> : null}
+            {brandSubline ? <p className="bp-awb-brand-location">{brandSubline}</p> : null}
           </div>
         </div>
         <div className="bp-awb-piece">
