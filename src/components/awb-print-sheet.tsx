@@ -1,73 +1,154 @@
-import { ShipmentCodes } from "@/components/shipment-codes";
+import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
+import { Code39Barcode } from "@/components/code39-barcode";
 import { formatDubaiDate, formatMoney, serviceLabels, type Shipment } from "@/lib/shipments";
 
-function Detail({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return <div className="border-r border-b border-black p-2 last:border-r-0"><p className="text-[9px] font-bold uppercase tracking-wide text-black/55">{label}</p><p className={`mt-1 leading-tight ${strong ? "text-base font-black" : "text-[11px] font-bold"}`}>{value}</p></div>;
+type Branding = { name: string; logoUrl: string | null; location: string; currency?: string };
+
+function addressLines(
+  address: string,
+  address2: string | null | undefined,
+  city: string,
+  state: string | null | undefined,
+  postal: string | null | undefined,
+  country: string | null | undefined,
+) {
+  return [address, address2, city, state, postal, country].filter((line): line is string => Boolean(line));
 }
 
-function addressLine(address: string, address2: string | null | undefined, city: string, state: string | null | undefined, postal: string | null | undefined, country: string | null | undefined) {
-  return [address, address2, city, state, postal, country].filter(Boolean).join(", ");
+function AddressBlock({
+  eyebrow,
+  name,
+  phone,
+  lines,
+  secondaryPhone,
+  landmark,
+}: {
+  eyebrow: string;
+  name: string;
+  phone: string;
+  lines: string[];
+  secondaryPhone?: string | null;
+  landmark?: string | null;
+}) {
+  return (
+    <section className="bp-awb-address">
+      <p className="bp-awb-eyebrow">{eyebrow}</p>
+      <p className="bp-awb-address-name">{name}</p>
+      <p className="bp-awb-address-phone">{[phone, secondaryPhone].filter(Boolean).join(" · ")}</p>
+      <p className="bp-awb-address-lines">{lines.join(", ")}</p>
+      {landmark ? <p className="bp-awb-address-note">Landmark: {landmark}</p> : null}
+    </section>
+  );
 }
 
-export function AwbPrintSheet({ shipment, format, branding, pieceNumber = 1, pieceCount = shipment.pieces }: {
+function Metric({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div className={`bp-awb-metric${emphasis ? " bp-awb-metric-emphasis" : ""}`}>
+      <p className="bp-awb-eyebrow">{label}</p>
+      <p className="bp-awb-metric-value">{value}</p>
+    </div>
+  );
+}
+
+export function AwbPrintSheet({
+  shipment,
+  format,
+  branding,
+  pieceNumber = 1,
+  pieceCount = shipment.pieces,
+}: {
   shipment: Shipment;
   format: "4x6" | "a4";
-  branding?: { name: string; logoUrl: string | null; location: string; currency?: string };
+  branding?: Branding;
   pieceNumber?: number;
   pieceCount?: number;
 }) {
   const brandName = branding?.name || "BloomPath Courier";
   const currency = shipment.currency || branding?.currency || "AED";
   const brandInitials = brandName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "BP";
+  const service = serviceLabels[shipment.service_type];
+  const destination = shipment.consignee_postal_code || shipment.consignee_area || shipment.consignee_country_code || "DESTINATION";
+  const dimensions = [shipment.length_cm, shipment.width_cm, shipment.height_cm].every((value) => value != null)
+    ? `${shipment.length_cm} × ${shipment.width_cm} × ${shipment.height_cm} cm`
+    : "Not recorded";
+  const hasCod = shipment.payment_type === "cod";
 
   return (
-    <article className={`awb-print-sheet awb-${format} mx-auto overflow-hidden bg-white text-black`}>
-      <header className="grid grid-cols-[1fr_92px] items-stretch border-b-2 border-black">
-        <div className="flex min-w-0 items-center gap-2 p-3">
+    <article className={`bp-awb-sheet bp-awb-${format}`}>
+      <header className="bp-awb-header">
+        <div className="bp-awb-brand">
           {branding?.logoUrl ? (
-            <span className="grid size-12 shrink-0 place-items-center overflow-hidden bg-white">
-              <img src={branding.logoUrl} alt={`${brandName} logo`} className="max-h-full max-w-full object-contain" />
-            </span>
+            <span className="bp-awb-logo"><Image src={branding.logoUrl} alt={`${brandName} logo`} width={140} height={140} unoptimized /></span>
           ) : (
-            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-black text-sm font-black text-white">{brandInitials}</span>
+            <span className="bp-awb-logo bp-awb-logo-initials">{brandInitials}</span>
           )}
-          <div className="min-w-0">
-            <p className="text-base font-black leading-tight">{brandName}</p>
+          <div className="bp-awb-brand-copy">
+            <p className="bp-awb-brand-name">{brandName}</p>
+            {branding?.location ? <p className="bp-awb-brand-location">{branding.location}</p> : null}
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center border-l-2 border-black px-2 py-2 text-center">
-          <p className="text-[8px] font-black uppercase tracking-[0.08em]">Air Waybill</p>
-          <p className="mt-1 text-xs font-black leading-tight">{serviceLabels[shipment.service_type]}</p>
+        <div className="bp-awb-piece">
+          <span>Pieces</span>
+          <strong>{pieceNumber}<i> / </i>{pieceCount}</strong>
         </div>
       </header>
 
-      <section className="border-b-2 border-black px-4 py-2"><ShipmentCodes trackingNumber={shipment.tracking_number} compact /><p className="mt-1 text-right text-lg font-black leading-none">Piece {pieceNumber}/{pieceCount}</p></section>
+      <div className="bp-awb-address-grid">
+        <AddressBlock
+          eyebrow="From / Shipper"
+          name={shipment.sender_name}
+          phone={shipment.sender_phone}
+          lines={addressLines(shipment.sender_address, shipment.sender_address_2, shipment.sender_city, shipment.sender_state_province, shipment.sender_postal_code, shipment.sender_country_code)}
+        />
+        <AddressBlock
+          eyebrow="To / Consignee"
+          name={shipment.consignee_name}
+          phone={shipment.consignee_phone}
+          secondaryPhone={shipment.consignee_alt_phone}
+          lines={addressLines(shipment.consignee_address, shipment.consignee_address_2, shipment.consignee_city, shipment.consignee_state_province, shipment.consignee_postal_code, shipment.consignee_country_code)}
+          landmark={shipment.consignee_landmark}
+        />
+      </div>
 
-      <section className="grid grid-cols-2 border-b-2 border-black">
-        <div className="border-r-2 border-black p-3">
-          <p className="text-[9px] font-bold uppercase text-black/55">From / Shipper</p>
-          <p className="mt-1 text-sm font-black">{shipment.sender_name}</p>
-          <p className="mt-1 text-[11px] font-bold">{shipment.sender_phone}</p>
-          <p className="mt-1 text-[10px] leading-4">{addressLine(shipment.sender_address, shipment.sender_address_2, shipment.sender_city, shipment.sender_state_province, shipment.sender_postal_code, shipment.sender_country_code)}</p>
-        </div>
-        <div className="p-3">
-          <p className="text-[9px] font-bold uppercase text-black/55">To / Consignee</p>
-          <p className="mt-1 text-sm font-black">{shipment.consignee_name}</p>
-          <p className="mt-1 text-[11px] font-bold">{shipment.consignee_phone}{shipment.consignee_alt_phone ? ` / ${shipment.consignee_alt_phone}` : ""}</p>
-          <p className="mt-1 text-[10px] leading-4">{addressLine(shipment.consignee_address, shipment.consignee_address_2, shipment.consignee_city, shipment.consignee_state_province, shipment.consignee_postal_code, shipment.consignee_country_code)}</p>
-          {shipment.service_zone_name ? <p className="mt-1 text-[9px] font-bold">Zone: {shipment.service_zone_name}</p> : null}
-          {shipment.consignee_landmark ? <p className="mt-1 text-[9px]">Landmark: {shipment.consignee_landmark}</p> : null}
-        </div>
+      <div className="bp-awb-reference-row">
+        <div><span>Reference</span><strong>{shipment.reference_number || "—"}</strong></div>
+        <div><span>Booked</span><strong>{formatDubaiDate(shipment.booked_at)}</strong></div>
+      </div>
+
+      <section className="bp-awb-service-band" aria-label="Shipment service and payment">
+        <div className="bp-awb-service-name"><span>Service</span><strong>{service}</strong></div>
+        <div className="bp-awb-payment"><span>{hasCod ? "Collect on delivery" : "Payment"}</span><strong>{hasCod ? formatMoney(shipment.cod_amount, currency) : "PREPAID"}</strong></div>
       </section>
 
-      <section className="grid grid-cols-4 border-l border-black">
-        <Detail label="Reference" value={shipment.reference_number || "—"} />
-        <Detail label="Pieces" value={String(shipment.pieces)} />
-        <Detail label="Weight" value={`${shipment.weight_kg} kg`} />
-        <Detail label="COD Amount" value={formatMoney(shipment.cod_amount, currency)} strong />
+      <section className="bp-awb-tracking">
+        <p className="bp-awb-eyebrow">Tracking Number / AWB</p>
+        <Code39Barcode value={shipment.tracking_number} height={49} />
+        <p className="bp-awb-tracking-number">{shipment.tracking_number}</p>
       </section>
-      <section className="border-b-2 border-black p-3"><p className="text-[9px] font-bold uppercase text-black/55">Contents</p><p className="mt-1 text-[11px] font-bold">{shipment.parcel_description}</p>{shipment.delivery_instructions ? <><p className="mt-2 text-[9px] font-bold uppercase text-black/55">Delivery instructions</p><p className="mt-1 text-[10px]">{shipment.delivery_instructions}</p></> : null}</section>
-      <footer className="grid grid-cols-[1fr_120px] border-b border-black"><div className="p-3"><p className="text-[9px] font-bold uppercase text-black/55">Booked</p><p className="mt-1 text-[10px] font-bold">{formatDubaiDate(shipment.booked_at)} · {shipment.consignee_country_code || ""}</p><p className="mt-2 text-[8px] leading-3 text-black/55">Received in good condition. This AWB is subject to {brandName} service terms.</p></div><div className="border-l border-black p-3 text-center"><div className="h-10 border-b border-black" /><p className="mt-1 text-[8px] font-bold uppercase">Receiver signature</p></div></footer>
+
+      <section className="bp-awb-details">
+        <Metric label="Weight" value={`${shipment.weight_kg} kg`} emphasis />
+        <Metric label="Pieces" value={`${pieceCount}`} />
+        <Metric label="Dimensions" value={dimensions} />
+      </section>
+
+      <footer className="bp-awb-footer">
+        <div className="bp-awb-footer-copy">
+          <p className="bp-awb-eyebrow">Contents</p>
+          <p className="bp-awb-contents">{shipment.parcel_description || "Parcel"}</p>
+          {shipment.delivery_instructions ? <p className="bp-awb-instructions"><b>Delivery note:</b> {shipment.delivery_instructions}</p> : null}
+          {shipment.service_zone_name ? <p className="bp-awb-zone">Delivery zone · {shipment.service_zone_name}</p> : null}
+        </div>
+        <div className="bp-awb-destination">
+          <p className="bp-awb-eyebrow">Destination</p>
+          <strong>{destination}</strong>
+        </div>
+        <div className="bp-awb-qr" aria-label={`QR code for AWB ${shipment.tracking_number}`}>
+          <QRCodeSVG value={shipment.tracking_number} size={72} level="M" marginSize={3} title={`QR code for AWB ${shipment.tracking_number}`} />
+          <span>Scan AWB</span>
+        </div>
+      </footer>
     </article>
   );
 }

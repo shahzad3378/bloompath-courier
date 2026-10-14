@@ -152,3 +152,11 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - International single bookings require distinct enabled sender and destination countries, Air or Sea mode, positive per-piece dimensions, total actual weight, and a customs value. HS code is optional and validated when supplied. The server recalculates and stores CBM, volumetric and chargeable weight, and Sea W/M; browser-calculated figures are display-only.
 - Single and bulk bookings use the database's existing unique AWB trigger. Single booking opens the shipment record after booking; bulk results show each generated AWB and link to its shipment. Booking does not hand over or alter shipment custody.
 - The organization base currency is not displayed on the booking form. Shipment currency continues to resolve from the destination country and remains server-controlled.
+
+
+### Shipment AWB labels
+
+- `/print/shipments/[id]` and bulk printing use the shared `AwbPrintSheet` for 4×6 thermal and A4 output. Each physical piece gets its own label with the current piece index and total.
+- The label prioritizes shipper/consignee addresses, service and COD/prepaid status, a full-width Code 39 AWB barcode, and a QR code for the same tenant AWB. It shows the customer reference, weight, piece count, available dimensions, delivery zone, parcel description, and delivery instructions.
+- Destination uses postal code when available, then the saved consignee area, then country code. Missing parcel dimensions are labeled “Not recorded”; the label never invents a route/terminal code.
+- Tenant logo/name and organization currency remain dynamic. Label printing is read-only and does not create a carrier booking, charge a customer, or change custody.

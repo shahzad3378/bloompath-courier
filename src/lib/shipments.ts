@@ -51,6 +51,9 @@ export type Shipment = {
   consignee_landmark: string | null;
   pieces: number;
   weight_kg: number;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
   parcel_description: string;
   cod_amount: number;
   declared_value?: number | null;
