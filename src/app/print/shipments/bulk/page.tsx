@@ -17,7 +17,7 @@ export default async function BulkPrintAwbsPage({ searchParams }: { searchParams
   const supabase = await createClient();
   const [{ data: settings }, { data: primaryCountry }] = await Promise.all([
     profile.organization_id
-      ? supabase.from("organization_settings").select("display_name,awb_brand_name,logo_url,city,currency").eq("organization_id", profile.organization_id).maybeSingle()
+      ? supabase.from("organization_settings").select("display_name,awb_brand_name,legal_name,logo_url,city,currency").eq("organization_id", profile.organization_id).maybeSingle()
       : Promise.resolve({ data: null }),
     profile.organization_id
       ? supabase.from("organization_countries").select("country_code").eq("organization_id", profile.organization_id).eq("is_primary", true).maybeSingle()
@@ -46,6 +46,7 @@ export default async function BulkPrintAwbsPage({ searchParams }: { searchParams
 
   const branding = {
     name: settings?.awb_brand_name || settings?.display_name || "BloomPath Courier",
+    legalName: settings?.legal_name || null,
     logoUrl: settings?.logo_url || null,
     location: settings?.city || primaryCountry?.country_code || shipments[0]?.consignee_country_code || "Operations",
     currency: settings?.currency || shipments[0]?.currency || "AED",
