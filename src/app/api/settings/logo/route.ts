@@ -40,11 +40,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: uploadError.message || "Logo storage upload failed." }, { status: 500 });
     }
 
-    const logoUrl = admin.storage.from("tenant-branding").getPublicUrl(objectPath).data.publicUrl;
+    const publicUrl = admin.storage.from("tenant-branding").getPublicUrl(objectPath).data.publicUrl;
+    const logoUrl = `${publicUrl}?v=${Date.now()}`;
     const { error: updateError } = await admin
       .from("organization_settings")
-      .update({ logo_url: logoUrl })
-      .eq("organization_id", profile.organization_id);
+      .upsert({ organization_id: profile.organization_id, logo_url: logoUrl }, { onConflict: "organization_id" });
 
     if (updateError) {
       console.error("TENANT_LOGO_SETTINGS_ERROR", updateError);

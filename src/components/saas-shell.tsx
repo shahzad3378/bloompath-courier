@@ -11,6 +11,7 @@ import {
   PackageCheck,
   Settings,
   ShieldCheck,
+  UserRoundCog,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -38,6 +39,11 @@ export function SaasShell({
       label: "Service Zones",
       href: "/saas/zones",
       icon: MapPinned,
+    },
+    {
+      label: "Users & Roles",
+      href: "/saas/users",
+      icon: UserRoundCog,
     },
     {
       label: "Add Courier Company",

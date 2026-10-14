@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import { ImageUp, LoaderCircle } from "lucide-react";
 
 export function LogoUploadForm({ logoUrl, canEdit }: { logoUrl?: string | null; canEdit: boolean }) {
@@ -27,7 +28,7 @@ export function LogoUploadForm({ logoUrl, canEdit }: { logoUrl?: string | null; 
       const response = await fetch("/api/settings/logo", { method: "POST", body: data });
       const payload = (await response.json().catch(() => ({}))) as { error?: string; logoUrl?: string };
       if (!response.ok || !payload.logoUrl) throw new Error(payload.error || "Company logo could not be uploaded.");
-      setCurrentLogoUrl(`${payload.logoUrl}?v=${Date.now()}`);
+      setCurrentLogoUrl(payload.logoUrl);
       setStatus("success");
       setMessage("Company logo uploaded successfully. AWBs and portal branding will use it automatically.");
       form.reset();
@@ -51,7 +52,7 @@ export function LogoUploadForm({ logoUrl, canEdit }: { logoUrl?: string | null; 
 
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-[#dfe8e3] bg-[#f8faf9]">
-          {currentLogoUrl ? <img src={currentLogoUrl} alt="Company logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs font-bold text-[#87938d]">No logo</span>}
+          {currentLogoUrl ? <Image src={currentLogoUrl} alt="Company logo" width={80} height={80} unoptimized className="max-h-full max-w-full object-contain" /> : <span className="text-xs font-bold text-[#87938d]">No logo</span>}
         </div>
 
         {canEdit ? (

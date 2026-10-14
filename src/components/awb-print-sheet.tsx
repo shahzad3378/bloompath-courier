@@ -123,7 +123,7 @@ export function AwbPrintSheet({
 
       <section className="bp-awb-tracking">
         <p className="bp-awb-eyebrow">Tracking Number / AWB</p>
-        <Code39Barcode value={shipment.tracking_number} height={49} />
+        <div className="bp-awb-barcode"><Code39Barcode value={shipment.tracking_number} height={49} /></div>
         <p className="bp-awb-tracking-number">{shipment.tracking_number}</p>
       </section>
 
@@ -145,8 +145,7 @@ export function AwbPrintSheet({
           <strong>{destination}</strong>
         </div>
         <div className="bp-awb-qr" aria-label={`QR code for AWB ${shipment.tracking_number}`}>
-          <QRCodeSVG value={shipment.tracking_number} size={72} level="M" marginSize={3} title={`QR code for AWB ${shipment.tracking_number}`} />
-          <span>Scan AWB</span>
+          <QRCodeSVG value={shipment.tracking_number} size={104} level="M" marginSize={3} title={`QR code for AWB ${shipment.tracking_number}`} />
         </div>
       </footer>
     </article>

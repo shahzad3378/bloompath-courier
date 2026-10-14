@@ -96,6 +96,9 @@ export default async function UsersPage({
   const activeCount = profiles.filter(
     (row) => row.status === "active",
   ).length;
+  const superAdminCount = profiles.filter(
+    (row) => row.role === "super_admin" && row.status === "active",
+  ).length;
 
   const errorMessages: Record<string, string> = {
     organization: "Your admin account is not linked to a company.",
@@ -130,11 +133,12 @@ export default async function UsersPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             ["Users", internalCount],
             ["Drivers", driverCount],
             ["Active", activeCount],
+            ["Super Admins", superAdminCount],
           ].map(([label, value]) => (
             <div
               key={String(label)}
@@ -169,6 +173,12 @@ export default async function UsersPage({
         </div>
       ) : null}
 
+      {superAdminCount === 0 ? (
+        <div role="alert" className="mt-6 rounded-xl border border-[#f0d8ad] bg-[#fff8eb] px-4 py-3 text-sm font-semibold text-[#8a641f]">
+          No active Super Admin is linked to this company. Contact BloomPath SaaS support to restore the account owner.
+        </div>
+      ) : null}
+
       {params.error ? (
         <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
           {errorMessages[params.error] ??
@@ -191,7 +201,7 @@ export default async function UsersPage({
                 Add staff or driver
               </h2>
               <p className="mt-1 text-xs text-[#87938d]">
-                Driver is selected by default for quick setup
+                Keep one active Super Admin on every company account
               </p>
             </div>
           </div>
@@ -260,6 +270,9 @@ export default async function UsersPage({
                 defaultValue="driver"
                 className="mt-1.5 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm"
               >
+                <option value="super_admin" disabled>
+                  Super Admin · managed in SaaS
+                </option>
                 <option value="operations_admin">
                   Operations Admin
                 </option>
@@ -280,6 +293,9 @@ export default async function UsersPage({
                 </option>
               </select>
             </label>
+            <p className="-mt-2 text-[11px] leading-5 text-[#7c8a83]">
+              Super Admin access can only be assigned from the BloomPath SaaS Control Center.
+            </p>
 
             <label className="block text-xs font-bold text-[#516159]">
               Account status

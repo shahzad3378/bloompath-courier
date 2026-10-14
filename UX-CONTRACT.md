@@ -17,6 +17,7 @@ This contract records observable workflow behavior for the authenticated courier
 | Route cancellation | Server-authorized dispatch transition | Only draft routes may be cancelled; route records/items remain for audit while warehouse-ready AWBs return to route planning. With-driver and completed routes stay locked. |
 | Operational feedback | Inline page banners and stable loading panels | Success, partial success, and recovery guidance remain visible in text. |
 | Currency | Organization base currency with shipment override | No screen hardcodes AED for a non-AED tenant. |
+| Tenant user roles | `/users` and SaaS-only `/saas/users` | Tenant Super Admins can create staff and edit staff details, but cannot assign or change roles. Only a platform admin can change roles; every company keeps at least one active Super Admin. |
 
 ## Canonical UI Map
 
@@ -157,6 +158,6 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 ### Shipment AWB labels
 
 - `/print/shipments/[id]` and bulk printing use the shared `AwbPrintSheet` for 4×6 thermal and A4 output. Each physical piece gets its own label with the current piece index and total.
-- The label prioritizes shipper/consignee addresses, service and COD/prepaid status, a full-width Code 39 AWB barcode, and a QR code for the same tenant AWB. It shows the customer reference, weight, piece count, available dimensions, delivery zone, parcel description, and delivery instructions.
+- The label prioritizes shipper/consignee addresses, service and COD/prepaid status, a centered full-width Code 39 AWB barcode, and a larger QR code for the same tenant AWB without a scan caption. It shows the customer reference, weight, piece count, available dimensions, delivery zone, parcel description, and delivery instructions.
 - Destination uses postal code when available, then the saved consignee area, then country code. Missing parcel dimensions are labeled “Not recorded”; the label never invents a route/terminal code.
 - Tenant logo/name and organization currency remain dynamic. Label printing is read-only and does not create a carrier booking, charge a customer, or change custody.
