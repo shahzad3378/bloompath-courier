@@ -18,7 +18,7 @@ import {
   shipmentDeleteDelegateRoles,
   type Profile,
 } from "@/lib/roles";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = {
   title: "Users & Roles",
@@ -43,10 +43,10 @@ export default async function UsersPage({
   }>;
 }) {
   const currentProfile =
-    await requireProfile(["super_admin"]);
+    await requireProfile(["super_admin", "operations_admin"]);
 
   const params = await searchParams;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const [
     { data, error },
@@ -173,9 +173,9 @@ export default async function UsersPage({
         </div>
       ) : null}
 
-      {superAdminCount === 0 ? (
+      {superAdminCount !== 1 ? (
         <div role="alert" className="mt-6 rounded-xl border border-[#f0d8ad] bg-[#fff8eb] px-4 py-3 text-sm font-semibold text-[#8a641f]">
-          No active Super Admin is linked to this company. Contact BloomPath SaaS support to restore the account owner.
+          {superAdminCount === 0 ? "No active Super Admin is linked to this company. Contact BloomPath SaaS support to restore the account owner." : "This company has more than one active Super Admin. BloomPath SaaS support can correct the extra account."}
         </div>
       ) : null}
 
@@ -188,7 +188,7 @@ export default async function UsersPage({
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[390px_1fr]">
         <form
-          id="add-driver"
+          id="add-user"
           action={createInternalUserAction}
           className="self-start rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]"
         >
@@ -201,7 +201,7 @@ export default async function UsersPage({
                 Add staff or driver
               </h2>
               <p className="mt-1 text-xs text-[#87938d]">
-                Keep one active Super Admin on every company account
+                Company roles are managed in SaaS. Keep one active Super Admin.
               </p>
             </div>
           </div>
@@ -273,9 +273,7 @@ export default async function UsersPage({
                 <option value="super_admin" disabled>
                   Super Admin · managed in SaaS
                 </option>
-                <option value="operations_admin">
-                  Operations Admin
-                </option>
+                {currentProfile.role === "super_admin" ? <option value="operations_admin">Operations Admin</option> : null}
                 <option value="warehouse_staff">
                   Warehouse Staff
                 </option>
@@ -420,7 +418,7 @@ export default async function UsersPage({
                               {profile.phone}
                             </p>
                           ) : null}
-                          {!isSuperAdmin && profile.role !== "shipper" ? (
+                          {!isSuperAdmin && profile.role !== "shipper" && profile.id !== currentProfile.id && !(currentProfile.role === "operations_admin" && profile.role === "operations_admin") ? (
                             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                               <Link href={`/users/${profile.id}`} className="text-xs font-bold text-[#13734b] underline-offset-2 hover:underline">Edit details</Link>
                               <form action={setUserStatusAction}>
@@ -496,7 +494,7 @@ export default async function UsersPage({
                                 : "Not allowed"}
                             </span>
 
-                            {!isSuperAdmin && eligible ? (
+                            {currentProfile.role === "super_admin" && !isSuperAdmin && eligible ? (
                               <form
                                 action={
                                   setShipmentDeletePermissionAction
@@ -531,6 +529,8 @@ export default async function UsersPage({
                             <span className="text-xs font-semibold text-[#87938d]">
                               Permanent
                             </span>
+                          ) : currentProfile.id === profile.id || (currentProfile.role === "operations_admin" && profile.role === "operations_admin") ? (
+                            <span className="text-xs font-semibold text-[#87938d]">Managed by platform</span>
                           ) : (
                             <form
                               action={setUserStatusAction}

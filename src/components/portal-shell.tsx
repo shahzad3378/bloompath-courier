@@ -89,7 +89,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: UserRoundCog,
         children: [
           { label: "Users & Roles", href: "/users" },
-          { label: "Create Driver", href: "/users#add-driver" },
+          { label: "Create User", href: "/users#add-user" },
         ],
       },
     ],
@@ -206,7 +206,18 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
   const pathname = usePathname(); const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false); const [searchText, setSearchText] = useState(""); const [notificationsOpen, setNotificationsOpen] = useState(false); const [profileOpen, setProfileOpen] = useState(false); const menuAreaRef = useRef<HTMLDivElement>(null);
   const tenantInitials = useMemo(() => branding.displayName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "CO", [branding.displayName]);
-  const allowedInternalSections = internalSections.map(section => ({ ...section, groups: section.groups?.map(group => ({ ...group, children: group.children.filter(child => child.href !== '/driver-support' || ['super_admin','operations_admin','dispatcher','customer_service'].includes(profile.role)) })) }));
+  const canManageUsers = ["super_admin", "operations_admin"].includes(profile.role);
+  const allowedInternalSections = internalSections.map((section) => ({
+    ...section,
+    groups: section.groups
+      ?.filter((group) => group.key !== "team" || canManageUsers)
+      .map((group) => ({
+        ...group,
+        children: group.children.filter((child) =>
+          child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role),
+        ),
+      })),
+  }));
   const visibleInternalSections: typeof internalSections = isPlatformAdmin ? [...allowedInternalSections, { label: "Platform", direct: [{ label: "SaaS Management", href: "/saas", icon: Building2 }] }] : allowedInternalSections;
   const initialInternalGroup = profile.role !== "shipper" && profile.role !== "driver" ? activeInternalGroup(pathname) : null;
   const [expandedGroup, setExpandedGroup] = useState<string | null>(initialInternalGroup);

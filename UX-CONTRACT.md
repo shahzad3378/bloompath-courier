@@ -161,3 +161,9 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - The label prioritizes shipper/consignee addresses, service and COD/prepaid status, a centered full-width Code 39 AWB barcode, and a larger QR code for the same tenant AWB without a scan caption. It shows the customer reference, weight, piece count, available dimensions, delivery zone, parcel description, and delivery instructions.
 - Destination uses postal code when available, then the saved consignee area, then country code. Missing parcel dimensions are labeled “Not recorded”; the label never invents a route/terminal code.
 - Tenant logo/name and organization currency remain dynamic. Label printing is read-only and does not create a carrier booking, charge a customer, or change custody.
+
+### Company users and Super Admin ownership
+
+- `/users` and `/users/[id]` are available to the company Super Admin and Operations Admin. Operations Admin can create and edit standard staff/driver accounts, and suspend or activate eligible staff; it cannot create another Operations Admin, manage peer Operations Admins, alter archive permissions, or edit a Super Admin.
+- Super Admin role assignment is SaaS-only. Each organization has exactly one assigned Super Admin; a unique database index prevents duplicates, and the existing role guard protects the active owner.
+- Team navigation links to `/users#add-user`, matching the user creation form. Server authorization is checked before profile queries and mutations.

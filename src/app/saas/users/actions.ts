@@ -92,6 +92,15 @@ export async function updateTenantUserRoleAction(formData: FormData): Promise<vo
     redirect("/saas/users?error=inactive");
   }
 
+  if (role === "super_admin" && target.role !== "super_admin") {
+    const { count, error } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", target.organization_id)
+      .eq("role", "super_admin");
+    if (error || (count ?? 0) > 0) redirect("/saas/users?error=one_admin");
+  }
+
   if (target.role === "super_admin" && target.status === "active" && role !== "super_admin") {
     const { count, error } = await admin
       .from("profiles")

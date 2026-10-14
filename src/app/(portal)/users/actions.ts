@@ -32,7 +32,7 @@ function clean(
 export async function createInternalUserAction(
   formData: FormData,
 ): Promise<void> {
-  const profile = await requireProfile(["super_admin"]);
+  const profile = await requireProfile(["super_admin", "operations_admin"]);
 
   if (!profile.organization_id) {
     redirect("/users?error=organization");
@@ -61,6 +61,7 @@ export async function createInternalUserAction(
     !email.includes("@") ||
     password.length < 8 ||
     !creatableRoles.includes(role) ||
+    (profile.role === "operations_admin" && role === "operations_admin") ||
     !["active", "inactive", "suspended"].includes(status)
   ) {
     redirect("/users?error=invalid");
@@ -151,7 +152,7 @@ export async function createInternalUserAction(
 export async function setUserStatusAction(
   formData: FormData,
 ): Promise<void> {
-  const profile = await requireProfile(["super_admin"]);
+  const profile = await requireProfile(["super_admin", "operations_admin"]);
 
   const targetId = String(formData.get("profile_id") ?? "");
   const status = String(formData.get("status") ?? "");
@@ -177,7 +178,8 @@ export async function setUserStatusAction(
   if (
     targetError ||
     !target ||
-    target.role === "super_admin"
+    target.role === "super_admin" ||
+    (profile.role === "operations_admin" && target.role === "operations_admin")
   ) {
     redirect("/users?error=status");
   }
@@ -202,7 +204,7 @@ function staffEditPath(id: string, query: string) {
 }
 
 export async function updateStaffDetailsAction(formData: FormData): Promise<void> {
-  const actor = await requireProfile(["super_admin"]);
+  const actor = await requireProfile(["super_admin", "operations_admin"]);
   const targetId = String(formData.get("profile_id") ?? "");
   if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(targetId) || targetId === actor.id) {
     redirect("/users?error=invalid");
@@ -222,7 +224,7 @@ export async function updateStaffDetailsAction(formData: FormData): Promise<void
     .eq("id", targetId)
     .eq("organization_id", actor.organization_id)
     .maybeSingle();
-  if (!target || target.role === "super_admin" || target.role === "shipper") {
+  if (!target || target.role === "super_admin" || target.role === "shipper" || (actor.role === "operations_admin" && target.role === "operations_admin")) {
     redirect("/users?error=invalid");
   }
 
@@ -260,7 +262,7 @@ export async function updateStaffDetailsAction(formData: FormData): Promise<void
 }
 
 export async function updateDriverDetailsAction(formData: FormData): Promise<void> {
-  const actor = await requireProfile(["super_admin"]);
+  const actor = await requireProfile(["super_admin", "operations_admin"]);
   const targetId = String(formData.get("profile_id") ?? "");
   if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(targetId) || targetId === actor.id) {
     redirect("/users?error=invalid");

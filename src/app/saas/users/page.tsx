@@ -46,9 +46,13 @@ export default async function SaasUsersPage({ searchParams }: {
   }
 
   const organizationNames = new Map((organizations ?? []).map((row) => [row.id, row.name]));
+  const { data: superAdmins } = await admin.from("profiles")
+    .select("organization_id, status")
+    .eq("role", "super_admin")
+    .not("organization_id", "is", null);
   const adminsByOrganization = new Map<string, number>();
-  for (const profile of profiles ?? []) {
-    if (profile.role === "super_admin" && profile.status === "active" && profile.organization_id) {
+  for (const profile of superAdmins ?? []) {
+    if (profile.status === "active" && profile.organization_id) {
       adminsByOrganization.set(profile.organization_id, (adminsByOrganization.get(profile.organization_id) ?? 0) + 1);
     }
   }
@@ -58,6 +62,7 @@ export default async function SaasUsersPage({ searchParams }: {
     target: "That user is unavailable for role changes.",
     inactive: "Activate the account before assigning Super Admin.",
     last_admin: "Every company must keep at least one active Super Admin.",
+    one_admin: "Each company can have only one Super Admin. Demote the current one in SaaS before assigning another.",
     save: "The role change could not be saved. Try again.",
   };
 
@@ -78,7 +83,7 @@ export default async function SaasUsersPage({ searchParams }: {
 
     <section className="mt-7 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
       <div className="flex items-center gap-3 border-b border-[#e8eeeb] px-5 py-4"><Building2 className="size-5 text-[#13734b]" /><div><h2 className="font-bold text-[#26372f]">Company accounts</h2><p className="mt-1 text-xs text-[#87938d]">Role changes are restricted to the SaaS Control Center. Active Super Admins are protected.</p></div><UsersRound className="ml-auto size-5 text-[#13734b]" /></div>
-      {(organizations ?? []).some((organization) => !adminsByOrganization.get(organization.id)) ? <div className="border-b border-[#f0d7ab] bg-[#fff8e9] px-5 py-3 text-sm font-semibold text-[#8b651e]">At least one company has no active Super Admin. Assign one below to restore company access.</div> : null}
+      {(organizations ?? []).some((organization) => adminsByOrganization.get(organization.id) !== 1) ? <div className="border-b border-[#f0d7ab] bg-[#fff8e9] px-5 py-3 text-sm font-semibold text-[#8b651e]">At least one company does not have exactly one active Super Admin. Use this SaaS page to restore the single company owner.</div> : null}
       <form method="get" className="flex flex-wrap items-end gap-3 border-b border-[#e8eeeb] p-5"><label className="min-w-0 flex-1 text-xs font-semibold text-[#516159]">Find a company or user<input name="q" defaultValue={query} maxLength={100} placeholder="Company, name or email" className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] px-3.5 text-sm" /></label><button className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-4 text-sm font-bold text-[#405048] hover:bg-[#f5f8f6]">Search</button>{query ? <Link href="/saas/users" className="inline-flex h-11 items-center rounded-xl border border-[#dbe5e0] px-4 text-sm font-bold text-[#405048] hover:bg-[#f5f8f6]">Clear</Link> : null}</form>
       {error ? <p className="p-8 text-center text-sm font-semibold text-[#b74646]">Users could not be loaded.</p> : profiles?.length ? <><div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm"><thead className="border-b border-[#e8eeeb] bg-[#f8faf9] text-[11px] uppercase tracking-[0.08em] text-[#77847e]"><tr><th className="px-5 py-3.5">Company</th><th className="px-5 py-3.5">User</th><th className="px-5 py-3.5">Current role</th><th className="px-5 py-3.5">Change role</th><th className="px-5 py-3.5">Status</th></tr></thead><tbody className="divide-y divide-[#edf1ef]">{profiles.map((profile) => {
         const currentRole = profile.role as AppRole;

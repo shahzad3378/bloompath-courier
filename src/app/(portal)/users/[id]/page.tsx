@@ -6,7 +6,7 @@ import { ArrowLeft, Save, Truck, UserRoundCog } from "lucide-react";
 import { updateDriverDetailsAction, updateStaffDetailsAction } from "@/app/(portal)/users/actions";
 import { requireProfile } from "@/lib/auth";
 import { roleLabel, type AppRole } from "@/lib/roles";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = { title: "Edit Staff" };
 
@@ -14,18 +14,18 @@ export default async function EditStaffPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
-  const actor = await requireProfile(["super_admin"]);
+  const actor = await requireProfile(["super_admin", "operations_admin"]);
   const { id } = await params;
   const query = await searchParams;
-  if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  if (!actor.organization_id || !/^[0-9a-f-]{36}$/i.test(id) || actor.id === id) notFound();
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: staff } = await supabase.from("profiles")
     .select("id, full_name, email, phone, employee_code, role, status")
     .eq("id", id)
     .eq("organization_id", actor.organization_id)
     .maybeSingle();
-  if (!staff || staff.role === "shipper" || staff.role === "super_admin") notFound();
+  if (!staff || staff.role === "shipper" || staff.role === "super_admin" || (actor.role === "operations_admin" && staff.role === "operations_admin")) notFound();
 
   const { data: driver } = staff.role === "driver"
     ? await supabase.from("driver_profiles")
@@ -35,8 +35,8 @@ export default async function EditStaffPage({ params, searchParams }: {
         .maybeSingle()
     : { data: null };
 
-  const { data: payTerms } = staff.role === 'driver' ? await supabase.from('driver_pay_terms').select('mode,delivery_rate,fixed_rate,fixed_period,currency,updated_at').eq('driver_id',id).eq('organization_id',actor.organization_id).maybeSingle() : {data:null};
-  const {data:orgSettings}=await supabase.from('organization_settings').select('currency').eq('organization_id',actor.organization_id).maybeSingle();
+  const { data: payTerms } = actor.role === "super_admin" && staff.role === 'driver' ? await supabase.from('driver_pay_terms').select('mode,delivery_rate,fixed_rate,fixed_period,currency,updated_at').eq('driver_id',id).eq('organization_id',actor.organization_id).maybeSingle() : {data:null};
+  const {data:orgSettings}=actor.role === "super_admin" ? await supabase.from('organization_settings').select('currency').eq('organization_id',actor.organization_id).maybeSingle() : {data:null};
   const errors: Record<string, string> = {
     invalid: "Review the name, email and date fields.",
     email: "Sign-in email could not be updated. It may already be in use.",
@@ -78,7 +78,7 @@ export default async function EditStaffPage({ params, searchParams }: {
       </div>
       <button className="bp-button-primary inline-flex items-center gap-2"><Save className="size-4" /> Save driver details</button>
     </form> : null}
-    {staff.role==='driver'?<DriverPayForms driverId={id} terms={payTerms} currency={orgSettings?.currency??''} entryKey={randomUUID()}/>:null}
+    {actor.role === "super_admin" && staff.role==='driver'?<DriverPayForms driverId={id} terms={payTerms} currency={orgSettings?.currency??''} entryKey={randomUUID()}/>:null}
   </div>;
 }
 
