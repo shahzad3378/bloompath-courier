@@ -11,6 +11,7 @@ import {
   paymentTypes,
   serviceTypes,
 } from "@/lib/shipments";
+import { internationalTrackingMilestones } from "@/lib/customer-tracking";
 import {
   resolveServiceZone,
   type ServiceZone,
@@ -562,6 +563,67 @@ export async function createShipmentAction(
   }
 
   redirect(`/shipments/${data[0].id}?created=1`);
+}
+
+export async function recordInternationalTrackingMilestoneAction(formData: FormData) {
+  const profile = await requireProfile(internalRoles);
+  const shipmentId = String(formData.get("shipment_id") ?? "");
+  const status = String(formData.get("milestone_status") ?? "");
+
+  if (!/^\d+$/.test(shipmentId)) redirect("/shipments");
+  if (!profile.organization_id || !internationalTrackingMilestones.includes(status as (typeof internationalTrackingMilestones)[number])) {
+    redirect(`/shipments/${shipmentId}?internationalTracking=error`);
+  }
+
+  const supabase = await createClient();
+  const { data: shipment, error: shipmentError } = await supabase
+    .from("shipments")
+    .select("id, sender_country_code, consignee_country_code")
+    .eq("id", shipmentId)
+    .eq("organization_id", profile.organization_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (
+    shipmentError ||
+    !shipment ||
+    !shipment.sender_country_code ||
+    !shipment.consignee_country_code ||
+    shipment.sender_country_code === shipment.consignee_country_code
+  ) {
+    redirect(`/shipments/${shipmentId}?internationalTracking=error`);
+  }
+
+  const { data: existingEvents, error: eventError } = await supabase
+    .from("customer_tracking_events")
+    .select("status")
+    .eq("shipment_id", shipment.id)
+    .in("status", [...internationalTrackingMilestones]);
+
+  if (eventError) redirect(`/shipments/${shipmentId}?internationalTracking=error`);
+
+  const completed = new Set((existingEvents ?? []).map((event) => event.status));
+  if (completed.has(status)) redirect(`/shipments/${shipmentId}?internationalTracking=updated`);
+  if (
+    status === "customs_clearance_completed_warehouse_scanned" &&
+    !completed.has("arrived_at_destination_airport_customs_started")
+  ) {
+    redirect(`/shipments/${shipmentId}?internationalTracking=error`);
+  }
+
+  const { error: insertError } = await supabase
+    .from("customer_tracking_events")
+    .insert({
+      shipment_id: shipment.id,
+      organization_id: profile.organization_id,
+      status,
+    });
+
+  if (insertError) redirect(`/shipments/${shipmentId}?internationalTracking=error`);
+
+  revalidatePath(`/shipments/${shipmentId}`);
+  revalidatePath("/shipments");
+  redirect(`/shipments/${shipmentId}?internationalTracking=updated`);
 }
 
 export async function archiveShipmentAction(
