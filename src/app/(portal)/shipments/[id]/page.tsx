@@ -75,7 +75,7 @@ export default async function ShipmentDetailsPage({
     : !completedMilestones.has(secondMilestone)
       ? secondMilestone
       : null;
-  const mayRecordInternationalMilestone = !archived && isInternationalShipment && internalRoles.includes(profile.role);
+  const mayRecordInternationalMilestone = !shipment.deleted_at && isInternationalShipment && internalRoles.includes(profile.role);
   const attempts = (attemptData ?? []) as DeliveryAttempt[];
   const attemptsWithProof = await Promise.all(attempts.map(async (attempt) => {
     const { data: signed } = await supabase.storage.from("delivery-proofs").createSignedUrl(attempt.proof_path, 3600);
