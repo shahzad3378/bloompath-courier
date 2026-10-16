@@ -84,7 +84,7 @@ export default async function ThreePLDispatchPage() {
       .order("created_at", { ascending: false })
       .limit(100),
     supabase.from("organization_settings").select("awb_brand_name,display_name").eq("organization_id", profile.organization_id).maybeSingle(),
-    supabase.from("shipments").select("tracking_number,consignee_name,consignee_city").eq("organization_id", profile.organization_id).eq("status", "at_warehouse").is("deleted_at", null).is("assigned_driver_id", null).order("created_at", { ascending: false }).limit(100),
+    supabase.from("shipments").select("tracking_number,consignee_name,consignee_city,weight_kg,chargeable_weight_kg").eq("organization_id", profile.organization_id).eq("status", "at_warehouse").is("deleted_at", null).is("assigned_driver_id", null).order("created_at", { ascending: false }).limit(100),
   ]);
   const awbBrandName = resolveAwbBrandName(settings);
 

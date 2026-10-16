@@ -12,6 +12,7 @@ import {
   type ThreePLUpdateStatus,
 } from "@/lib/bulk-three-pl-statuses";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ThreePLState = {
   status: "idle" | "success" | "error";
@@ -26,6 +27,35 @@ export type BulkThreePLState = {
   failedCount: number;
 };
 
+export type ThreePLRateQuote = {
+  carrierId: string;
+  carrierName: string;
+  cardName: string;
+  service: string;
+  origin: string;
+  zone: string;
+  currency: string;
+  amount: number;
+  weightKg: number;
+  rateNotes: string | null;
+};
+
+export type ThreePLRateCheckState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  quotes: ThreePLRateQuote[];
+  unmatchedCards: string[];
+  trackingNumber: string;
+  shipperName: string;
+  weightKg: number | null;
+  weightSource: string;
+};
+
+const initialRateCheck: ThreePLRateCheckState = {
+  status: "idle", message: "", quotes: [], unmatchedCards: [], trackingNumber: "",
+  shipperName: "", weightKg: null, weightSource: "",
+};
+
 const roles = [
   "super_admin",
   "operations_admin",
@@ -35,6 +65,101 @@ const roles = [
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
+}
+
+async function fetchRateRows(admin: ReturnType<typeof createAdminClient>, cardId: string, services: string[], zones: string[]) {
+  const rows: Array<{ service_code: string; origin_terminal: string; zone_code: string; weight_value: number; weight_unit: "kg" | "lb"; base_rate: number; fuel_surcharge_pct: number; rate_basis: "weight_break" | "minimum_per_package" | "per_weight_unit" }> = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("carrier_rate_grid")
+      .select("service_code,origin_terminal,zone_code,weight_value,weight_unit,base_rate,fuel_surcharge_pct,rate_basis")
+      .eq("rate_card_id", cardId).in("service_code", services).in("zone_code", zones)
+      .order("weight_value").range(from, from + 999);
+    if (error) throw new Error("Rate rows could not be checked.");
+    rows.push(...(data ?? []) as typeof rows);
+    if ((data?.length ?? 0) < 1000) return rows;
+  }
+}
+
+function estimateRate(rows: Awaited<ReturnType<typeof fetchRateRows>>, weightKg: number) {
+  if (!rows.length) return null;
+  const lbs = weightKg * 2.2046226218;
+  const breaks = rows.filter((row) => row.rate_basis === "weight_break");
+  if (breaks.length) {
+    const matching = breaks.map((row) => ({ row, weight: row.weight_unit === "lb" ? lbs : weightKg }))
+      .filter(({ row, weight }) => Number(row.weight_value) + 0.0001 >= weight)
+      .sort((a, b) => Number(a.row.weight_value) - Number(b.row.weight_value))[0];
+    if (matching) return matching.row.base_rate * (1 + matching.row.fuel_surcharge_pct / 100);
+  }
+  const perUnit = rows.filter((row) => row.rate_basis === "per_weight_unit")
+    .map((row) => ({ row, weight: row.weight_unit === "lb" ? lbs : weightKg }))
+    .filter(({ row, weight }) => Number(row.weight_value) <= weight + 0.0001)
+    .sort((a, b) => Number(b.row.weight_value) - Number(a.row.weight_value))[0];
+  if (perUnit) {
+    const floor = Math.max(0, ...rows.filter((row) => row.rate_basis === "minimum_per_package").map((row) => Number(row.base_rate)));
+    return Math.max(floor, perUnit.weight * Number(perUnit.row.base_rate)) * (1 + perUnit.row.fuel_surcharge_pct / 100);
+  }
+  return null;
+}
+
+export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, formData: FormData): Promise<ThreePLRateCheckState> {
+  const profile = await requireProfile(roles);
+  if (!profile.organization_id) return { ...initialRateCheck, status: "error", message: "Organization is not configured." };
+  const tracking = value(formData, "tracking_number").toUpperCase();
+  if (!tracking) return { ...initialRateCheck, status: "error", message: "Select or scan a shipment first." };
+  const db = await createClient();
+  const { data: shipment, error: shipmentError } = await db.from("shipments")
+    .select("id,tracking_number,shipper_id,consignee_country_code,consignee_postal_code,weight_kg,chargeable_weight_kg,pieces")
+    .eq("organization_id", profile.organization_id).eq("tracking_number", tracking).is("deleted_at", null).maybeSingle();
+  if (shipmentError || !shipment) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Shipment was not found. Confirm its AWB and try again." };
+  if (!shipment.shipper_id) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "This shipment has no customer account mapped, so its customer-specific 3PL cards cannot be checked." };
+  const enteredWeight = value(formData, "confirmed_weight_kg");
+  const weightKg = Number(enteredWeight || shipment.chargeable_weight_kg || shipment.weight_kg);
+  if (!Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 1000) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Enter a confirmed parcel weight greater than 0 and no more than 1000 kg." };
+  const weightSource = enteredWeight ? "weight confirmed at 3PL handover" : shipment.chargeable_weight_kg ? "recorded chargeable weight" : "actual shipment weight (no chargeable weight recorded)";
+  const admin = createAdminClient();
+  const [{ data: shipper }, { data: cards, error: cardsError }] = await Promise.all([
+    admin.from("profiles").select("full_name,email").eq("id", shipment.shipper_id).eq("organization_id", profile.organization_id).maybeSingle(),
+    admin.from("carrier_rate_cards").select("id,carrier_id,card_name,country_code,currency,rate_notes,effective_from")
+      .eq("organization_id", profile.organization_id).eq("shipper_id", shipment.shipper_id).eq("country_code", (shipment.consignee_country_code || "").toUpperCase())
+      .eq("is_active", true).eq("import_status", "active").lte("effective_from", new Date().toISOString().slice(0, 10)),
+  ]);
+  if (cardsError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "The saved rate cards could not be loaded. Please retry." };
+  const shipperName = shipper?.full_name || shipper?.email || "Customer account";
+  if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, message: `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
+  const postal = (shipment.consignee_postal_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const prefixes = postal.length >= 3 ? Array.from({ length: postal.length - 2 }, (_, i) => postal.slice(0, i + 3)) : [];
+  if (!prefixes.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, message: "Shipment has no usable destination postal code; saved postal-zone cards cannot be compared.", quotes: [], unmatchedCards: cards.map((card) => card.card_name) };
+  const carrierIds = [...new Set(cards.map((card) => card.carrier_id))];
+  const { data: carrierRows, error: carrierError } = await admin.from("third_party_carriers").select("id,name").eq("organization_id", profile.organization_id).in("id", carrierIds);
+  if (carrierError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Carrier names could not be loaded. Please retry." };
+  const carrierNames = new Map((carrierRows ?? []).map((row) => [row.id, row.name]));
+  const quotes: ThreePLRateQuote[] = [];
+  const unmatchedCards: string[] = [];
+  if (Number(shipment.pieces) !== 1) unmatchedCards.push("Multi-piece shipment: per-piece weights are not stored, so package tariffs were not compared.");
+  else for (const card of cards) {
+    const { data: maps, error: mapError } = await admin.from("carrier_postal_zone_map")
+      .select("service_code,origin_terminal,postal_code,zone_code").eq("rate_card_id", card.id).in("postal_code", prefixes);
+    if (mapError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Postal-zone mappings could not be checked. Please retry." };
+    if (!maps?.length) { unmatchedCards.push(`${card.card_name}: no postal-zone mapping for ${postal || "destination"}.`); continue; }
+    const longest = Math.max(...maps.map((row) => row.postal_code.length));
+    const preciseMaps = maps.filter((row) => row.postal_code.length === longest);
+    const serviceCodes = [...new Set(preciseMaps.map((row) => row.service_code))];
+    const zoneCodes = [...new Set(preciseMaps.map((row) => row.zone_code))];
+    const rows = await fetchRateRows(admin, card.id, serviceCodes, zoneCodes);
+    const quoteCountBeforeCard = quotes.length;
+    for (const map of preciseMaps) {
+      const sameRateKey = rows.filter((row) => row.service_code === map.service_code && row.zone_code === map.zone_code);
+      const exactOrigin = sameRateKey.filter((row) => row.origin_terminal === map.origin_terminal);
+      const matchingRows = exactOrigin.length ? exactOrigin : sameRateKey.filter((row) => row.origin_terminal === "ANY");
+      const amount = estimateRate(matchingRows, weightKg);
+      if (amount === null) continue;
+      quotes.push({ carrierId: card.carrier_id, carrierName: carrierNames.get(card.carrier_id) || "3PL", cardName: card.card_name, service: map.service_code, origin: map.origin_terminal, zone: map.zone_code, currency: card.currency, amount, weightKg, rateNotes: card.rate_notes });
+    }
+    if (quotes.length === quoteCountBeforeCard) unmatchedCards.push(`${card.card_name}: no matching rate row for this weight and postal zone.`);
+  }
+  quotes.sort((a, b) => a.amount - b.amount);
+  return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource,
+    message: quotes.length ? `${quotes.length} applicable tariff${quotes.length === 1 ? "" : "s"} found. Lowest saved rate is shown first.` : "No applicable rates were found in the mapped cards.", quotes, unmatchedCards };
 }
 
 function readStatusInput(formData: FormData): ThreePLStatusInput {
