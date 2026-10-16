@@ -81,6 +81,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         children: [
           { label: "Shipper List", href: "/shippers" },
           { label: "Create Shipper", href: "/shippers/new" },
+          { label: "3PL Rate Cards", href: "/carrier-rates" },
         ],
       },
       {
@@ -214,7 +215,8 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
       .map((group) => ({
         ...group,
         children: group.children.filter((child) =>
-          child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role),
+          (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
+          && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role)),
         ),
       })),
   }));

@@ -258,6 +258,9 @@ export async function createShipperAction(_state: ShipperFormState, formData: Fo
 
   revalidatePath("/shippers");
   revalidatePath("/users");
+  if (String(formData.get("upload_rates_after") ?? "") === "true") {
+    redirect(`/shippers/${userId}/carrier-rates`);
+  }
   redirect(`/shippers?created=1&shipper=${userId}`);
 }
 
