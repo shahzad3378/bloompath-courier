@@ -10,7 +10,7 @@ export default async function PortalLayout({
 }: {
   children: ReactNode;
 }) {
-  const profile = await requireProfile();
+  let profile = await requireProfile();
 
   let branding = {
     displayName: "BloomPath",
@@ -18,6 +18,20 @@ export default async function PortalLayout({
   };
 
   const admin = createAdminClient();
+
+  if (profile.role === "shipper" && profile.organization_id) {
+    const { data: shipperBusiness } = await admin
+      .from("shipper_business_profiles")
+      .select("company_name")
+      .eq("shipper_id", profile.id)
+      .eq("organization_id", profile.organization_id)
+      .maybeSingle();
+
+    if (shipperBusiness?.company_name) {
+      profile = { ...profile, full_name: shipperBusiness.company_name };
+    }
+  }
+
 
   const { data: platformAdmin } = await admin
     .from("platform_admins")
