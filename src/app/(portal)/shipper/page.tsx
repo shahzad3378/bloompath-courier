@@ -329,7 +329,7 @@ export default async function ShipperPage({
 
           <h1 className="bp-heading mt-1 text-3xl font-black">
             Welcome,{" "}
-            {profile.full_name?.split(" ")[0] || "Shipper"}
+            {profile.full_name || "Shipper"}
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm text-[#74827b]">
