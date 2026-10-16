@@ -93,7 +93,7 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   const gridRows = parsed.grid.map((row) => ({ ...row, organization_id: profile.organization_id, rate_card_id: card.id }));
   const postalRows = parsed.postalZones.map((row) => ({ ...row, organization_id: profile.organization_id, rate_card_id: card.id }));
   try {
-    await upsertInBatches(admin, "carrier_rate_grid", gridRows, "rate_card_id,service_code,origin_terminal,zone_code,weight_value,weight_unit");
+    await upsertInBatches(admin, "carrier_rate_grid", gridRows, "rate_card_id,service_code,origin_terminal,zone_code,weight_value,weight_unit,rate_basis");
     await upsertInBatches(admin, "carrier_postal_zone_map", postalRows, "rate_card_id,service_code,origin_terminal,postal_code");
     const { error: activateError } = await admin.from("carrier_rate_cards").update({ import_status: "active", is_active: true, grid_row_count: gridRows.length, postal_mapping_count: postalRows.length, activated_at: new Date().toISOString() }).eq("id", card.id).eq("organization_id", profile.organization_id);
     if (activateError) throw new Error(activateError.message);
