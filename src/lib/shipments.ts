@@ -27,7 +27,7 @@ export type Shipment = {
   created_by: string;
   assigned_driver_id: string | null;
   status: ShipmentStatus;
-  customer_tracking_status?: "in_transit" | "out_for_delivery" | "delivered" | "undelivered" | "arrived_at_destination_airport_customs_started" | "customs_clearance_completed_warehouse_scanned" | null;
+  customer_tracking_status?: ShipmentStatus | "in_transit" | "arrived_at_destination_airport_customs_started" | "customs_clearance_completed_warehouse_scanned" | null;
   service_type: ServiceType;
   payment_type: PaymentType;
   sender_name: string;

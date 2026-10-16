@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardList, Truck, Warehouse } from "lucide-react";
+import { ArrowRight, ClipboardList, ScanLine, Truck, Warehouse } from "lucide-react";
 import { WarehouseReceiveForm } from "@/components/warehouse-receive-form";
 import { WarehouseReturnForm } from "@/components/warehouse-return-form";
 import { requireProfile } from "@/lib/auth";
@@ -360,7 +360,7 @@ export default async function WarehousePage({
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
           {tabs.map(([key, label, count]) => (
             <Link
               key={key}
@@ -381,6 +381,10 @@ export default async function WarehousePage({
               <p className="mt-1 text-xl font-black">{count}</p>
             </Link>
           ))}
+          <Link href="/warehouse/manual-tracking" className="rounded-xl border border-[#dce6e1] bg-white px-4 py-3 text-[#405048] transition hover:border-[#9fc8b4]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-[#7b8982]">Manual tracking</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-black text-[#13734b]"><ScanLine className="size-4" /> Update AWB</p>
+          </Link>
         </div>
       </div>
 

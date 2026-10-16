@@ -7,14 +7,27 @@ export const internationalTrackingMilestones = [
 export type InternationalTrackingMilestone = (typeof internationalTrackingMilestones)[number];
 
 export const customerTrackingLabels = {
+  ...statusLabels,
   in_transit: "In transit",
-  out_for_delivery: "Out for delivery",
-  delivered: "Delivered",
-  undelivered: "Undelivered",
   arrived_at_destination_airport_customs_started: "Arrived at destination airport — customs clearance started",
   customs_clearance_completed_warehouse_scanned: "Customs clearance completed — shipment scanned in warehouse",
 } as const;
 export type CustomerTrackingStatus = keyof typeof customerTrackingLabels;
+export const manualTrackingStatuses = [
+  "booked",
+  "ready_for_pickup",
+  "picked_up",
+  "at_warehouse",
+  "in_transit",
+  "arrived_at_destination_airport_customs_started",
+  "customs_clearance_completed_warehouse_scanned",
+  "out_for_delivery",
+  "delivered",
+  "undelivered",
+  "return_initiated",
+  "returned_to_shipper",
+  "cancelled",
+] as const satisfies readonly CustomerTrackingStatus[];
 export type CustomerTrackingEvent = { id: number; status: ShipmentStatus | CustomerTrackingStatus; created_at: string };
 
 // Only canonical status labels enter customer output. Never display partner payloads or notes.

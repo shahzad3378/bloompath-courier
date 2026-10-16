@@ -62,6 +62,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
           { label: "Pickup Manifests", href: "/pickup-manifests" },
           { label: "Rider Support", href: "/driver-support" },
           { label: "Warehouse", href: "/warehouse" },
+          { label: "Manual Tracking", href: "/warehouse/manual-tracking" },
           { label: "Dispatch", href: "/dispatch" },
           { label: "Live Map", href: "/live-map" },
           { label: "Returns / RTO", href: "/returns" },

@@ -14,18 +14,15 @@ const tones: Record<ShipmentStatus, string> = {
   cancelled: "bg-[#ecefee] text-[#64716b]",
 };
 
-const customerTones: Record<CustomerTrackingStatus, string> = {
+const customerTones: Partial<Record<CustomerTrackingStatus, string>> = {
   in_transit: "bg-[#e4f5f3] text-[#27847c]",
-  out_for_delivery: "bg-[#e7f4ed] text-[#13734b]",
-  delivered: "bg-[#dff4e8] text-[#14734b]",
-  undelivered: "bg-[#fdeaea] text-[#b74646]",
   arrived_at_destination_airport_customs_started: "bg-[#e8f0fb] text-[#376eb1]",
   customs_clearance_completed_warehouse_scanned: "bg-[#eeeaf8] text-[#6952a0]",
 };
 
 export function StatusBadge({ status, customerStatus }: { status: ShipmentStatus; customerStatus?: CustomerTrackingStatus | null }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${customerStatus ? customerTones[customerStatus] : tones[status]}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${customerStatus ? customerTones[customerStatus] ?? tones[status] : tones[status]}`}>
       {customerStatus ? customerTrackingLabels[customerStatus] : statusLabels[status]}
     </span>
   );
