@@ -1,11 +1,37 @@
 "use server";
 import { requireProfile } from "@/lib/auth";
 import { buildGtaShipment } from "@/lib/gta-airskip";
-import { gtaBulkMaxBytes, parseGtaBulkRows, type GtaBulkPreview } from "@/lib/gta-bulk";
+import { gtaBulkMaxBytes, parseGtaBulkRows, type GtaBulkPreview, type GtaBulkRateComparison, type GtaBulkRow } from "@/lib/gta-bulk";
 import { getGtaConfig, getGtaPickup } from "@/lib/gta-airskip-server";
 import { readBulkFileRows } from "@/lib/bulk-shipments";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/lib/shipments";
+import { compareThreePLRatesAction } from "@/app/(portal)/dispatch/3pl/actions";
+
+async function compareBulkRates(awbs: string[]) {
+  const results = new Map<string, GtaBulkRateComparison>();
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(5, awbs.length) }, async () => {
+    while (cursor < awbs.length) {
+      const awb = awbs[cursor++];
+      const form = new FormData();
+      form.set("tracking_number", awb);
+      const result = await compareThreePLRatesAction({
+        status: "idle", message: "", quotes: [], unmatchedCards: [], trackingNumber: "",
+        shipperName: "", weightKg: null, weightSource: "", billedAmount: null, billedCurrency: null,
+      }, form);
+      results.set(awb, {
+        status: result.status, message: result.message, quotes: result.quotes,
+        unmatchedCards: result.unmatchedCards, weightKg: result.weightKg,
+        weightSource: result.weightSource, billedAmount: result.billedAmount,
+        billedCurrency: result.billedCurrency,
+      });
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export async function previewGtaBulk(_state: GtaBulkPreview, form: FormData): Promise<GtaBulkPreview> {
   const profile = await requireProfile(["super_admin", "operations_admin", "dispatcher"]);
   const fail = (message: string): GtaBulkPreview => ({ status: "error", message, rows: [] });
@@ -20,7 +46,7 @@ export async function previewGtaBulk(_state: GtaBulkPreview, form: FormData): Pr
   const { data, error } = await (await createClient()).from("shipments").select("*").eq("organization_id", profile.organization_id).in("tracking_number", parcels.map(p => p.awb)).is("deleted_at", null);
   if (error) return fail("Shipments could not be checked. Try preview again. No labels were requested.");
   const shipments = new Map((data ?? []).map(s => [s.tracking_number, s as Shipment]));
-  const rows = parcels.map(parcel => {
+  const rows: GtaBulkRow[] = parcels.map(parcel => {
     const shipment = shipments.get(parcel.awb);
     try {
       if (!shipment) throw new Error("AWB not found. Import this FastDrop shipment first.");
@@ -28,6 +54,18 @@ export async function previewGtaBulk(_state: GtaBulkPreview, form: FormData): Pr
       return { ...parcel, status: "ready" as const, destination: shipment.consignee_country_code ?? undefined, message: "Ready for booking" };
     } catch (issue) { return { ...parcel, status: "invalid" as const, message: issue instanceof Error ? issue.message : "Review parcel details." }; }
   });
+  const readyAwbs = rows.filter(row => row.status === "ready").map(row => row.awb);
+  try {
+    const comparisons = await compareBulkRates(readyAwbs);
+    for (const row of rows) {
+      if (row.status === "ready") row.rateComparison = comparisons.get(row.awb);
+    }
+  } catch {
+    // Carrier booking readiness remains available; rate failures are shown on each row.
+    for (const row of rows) if (row.status === "ready") {
+      row.rateComparison = { status: "error", message: "Rates could not be loaded. Retry preview to validate rates.", quotes: [], unmatchedCards: [], weightKg: null, weightSource: "", billedAmount: null, billedCurrency: null };
+    }
+  }
   const ready = rows.filter(r => r.status === "ready").length;
   return { status: ready ? "success" : "error", message: `${ready} of ${rows.length} parcels ready. Preview creates no labels.`, rows };
 }

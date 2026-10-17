@@ -4,7 +4,17 @@ import { broadReachResultsCsv, type BroadReachBulkResult } from "@/lib/broadreac
 export const gtaBulkHeaders = ["awb", "length", "width", "height", "description", "weight", "hscode", "value", "currency", "qty"] as const;
 export const gtaBulkMaxBytes = 2 * 1024 * 1024;
 export type GtaBulkParcel = { awb: string; rows: number[]; options: GtaOptions };
-export type GtaBulkRow = GtaBulkParcel & { status: "ready" | "invalid"; message: string; destination?: string };
+export type GtaBulkRateComparison = {
+  status: "idle" | "success" | "error";
+  message: string;
+  quotes: Array<{ carrierId: string; carrierName: string; cardName: string; service: string; origin: string; zone: string; currency: string; amount: number; weightKg: number; rateNotes: string | null; margin: number | null }>;
+  unmatchedCards: string[];
+  weightKg: number | null;
+  weightSource: string;
+  billedAmount: number | null;
+  billedCurrency: string | null;
+};
+export type GtaBulkRow = GtaBulkParcel & { status: "ready" | "invalid"; message: string; destination?: string; rateComparison?: GtaBulkRateComparison };
 export type GtaBulkPreview = { status: "idle" | "success" | "error"; message: string; rows: GtaBulkRow[] };
 export type GtaBulkResult = BroadReachBulkResult;
 export const gtaResultsCsv = broadReachResultsCsv;
