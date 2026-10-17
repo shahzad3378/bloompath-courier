@@ -167,3 +167,11 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - `/users` and `/users/[id]` are available to the company Super Admin and Operations Admin. Operations Admin can create and edit standard staff/driver accounts, and suspend or activate eligible staff; it cannot create another Operations Admin, manage peer Operations Admins, alter archive permissions, or edit a Super Admin.
 - Super Admin role assignment is SaaS-only. Each organization has exactly one assigned Super Admin; a unique database index prevents duplicates, and the existing role guard protects the active owner.
 - Team navigation links to `/users#add-user`, matching the user creation form. Server authorization is checked before profile queries and mutations.
+
+### Public Fast Drop customer tracking
+
+- `/tracking` is a public, no-login page for customer shipment lookups by AWB or exact customer reference number. It uses the deployed `fastdrop-public-tracking` Edge Function, which is scoped to Fast Drop's organization; lookup results therefore appear from the existing Fast Drop shipment records.
+- `/api/public-tracking` proxies requests server-side with the app's publishable key. The service-role key remains inside the Edge Function; the page never queries shipment tables directly.
+- Show the customer-safe current status, AWB, latest update time, and saved tracking events in newest-first order. Do not reveal 3PL names, provider payloads, internal notes, consignee contact details, or locations not present in the public tracking contract.
+- Accept AWBs and customer reference numbers with the same validation as the Edge Function. Keep search input transient (not in the URL), provide loading, empty history, not-found, and retryable service-error states, and format event times in the visitor's local timezone.
+- The visual contract follows the shipment summary plus vertical event history pattern: current status first, newest update at the top, booking/earliest event at the bottom. Fast Drop remains the only organization queried by this public route.
