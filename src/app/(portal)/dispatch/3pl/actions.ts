@@ -176,9 +176,21 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
     }
     if (quotes.length === quoteCountBeforeCard) unmatchedCards.push(`${card.card_name}: no matching rate row for this weight and postal zone.`);
   }
-  quotes.sort((a, b) => a.amount - b.amount);
+  // A carrier may have multiple mapped cards or services (for example Ground/Air).
+  // Show one comparable option per carrier: prefer the customer's billing currency,
+  // then choose that carrier's lowest applicable tariff.
+  const bestQuoteByCarrier = new Map<string, ThreePLRateQuote>();
+  for (const quote of quotes) {
+    const current = bestQuoteByCarrier.get(quote.carrierId);
+    const quoteMatchesBilling = Boolean(billedCurrency && quote.currency === billedCurrency);
+    const currentMatchesBilling = Boolean(billedCurrency && current?.currency === billedCurrency);
+    if (!current || (quoteMatchesBilling && !currentMatchesBilling) || (quoteMatchesBilling === currentMatchesBilling && quote.amount < current.amount)) {
+      bestQuoteByCarrier.set(quote.carrierId, quote);
+    }
+  }
+  const bestQuotes = [...bestQuoteByCarrier.values()].sort((a, b) => a.amount - b.amount);
   return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency,
-    message: quotes.length ? `${quotes.length} applicable tariff${quotes.length === 1 ? "" : "s"} found. Lowest saved rate is shown first.` : "No applicable rates were found in the mapped cards.", quotes, unmatchedCards };
+    message: bestQuotes.length ? `${bestQuotes.length} carrier${bestQuotes.length === 1 ? "" : "s"} matched. Showing the lowest applicable rate per carrier.` : "No applicable rates were found in the mapped cards.", quotes: bestQuotes, unmatchedCards };
 }
 
 function readStatusInput(formData: FormData): ThreePLStatusInput {
