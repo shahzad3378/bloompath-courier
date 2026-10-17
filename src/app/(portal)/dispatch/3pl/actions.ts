@@ -13,6 +13,7 @@ import {
 } from "@/lib/bulk-three-pl-statuses";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { quoteShipperTariff } from "@/lib/shipper-tariff-rates";
 
 export type ThreePLState = {
   status: "idle" | "success" | "error";
@@ -135,7 +136,11 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   if (defaultRateResult.error || zoneRateResult.error) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Customer billing rates could not be checked. Please retry." };
   let billedAmount: number | null = null;
   let billedCurrency: string | null = null;
-  if (zoneRateResult.data) {
+  const tariff = Number(shipment.pieces) === 1 ? await quoteShipperTariff(admin, profile.organization_id, shipment.shipper_id, shipment.consignee_country_code || "", shipment.consignee_postal_code || "", weightKg) : { configured: false, amount: null, currency: null, cardName: null, reason: null };
+  if (tariff.configured) {
+    billedAmount = tariff.amount;
+    billedCurrency = tariff.currency;
+  } else if (zoneRateResult.data) {
     const rate = zoneRateResult.data;
     const extra = rate.weight_to_kg && Number(shipment.weight_kg) > Number(rate.weight_to_kg) ? Math.ceil(Number(shipment.weight_kg) - Number(rate.weight_to_kg)) * Number(rate.additional_kg_rate) : 0;
     billedAmount = Number(rate.delivery_rate) + extra + (shipment.payment_type === "cod" ? Number(rate.cod_fee) : 0);
@@ -144,7 +149,7 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
     billedAmount = Number(defaultRateResult.data.delivery_rate);
     billedCurrency = defaultRateResult.data.currency;
   }
-  if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
+  if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: tariff.reason || `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
   const postal = (shipment.consignee_postal_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const prefixes = postal.length >= 3 ? Array.from({ length: postal.length - 2 }, (_, i) => postal.slice(0, i + 3)) : [];
   if (!prefixes.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: "Shipment has no usable destination postal code; saved postal-zone cards cannot be compared.", quotes: [], unmatchedCards: cards.map((card) => card.card_name) };
@@ -190,7 +195,7 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   }
   const bestQuotes = [...bestQuoteByCarrier.values()].sort((a, b) => a.amount - b.amount);
   return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency,
-    message: bestQuotes.length ? `${bestQuotes.length} carrier${bestQuotes.length === 1 ? "" : "s"} matched. Showing the lowest applicable rate per carrier.` : "No applicable rates were found in the mapped cards.", quotes: bestQuotes, unmatchedCards };
+    message: tariff.reason || (bestQuotes.length ? `${bestQuotes.length} carrier${bestQuotes.length === 1 ? "" : "s"} matched. Showing the lowest applicable rate per carrier.` : "No applicable rates were found in the mapped cards."), quotes: bestQuotes, unmatchedCards };
 }
 
 function readStatusInput(formData: FormData): ThreePLStatusInput {
