@@ -38,6 +38,7 @@ export type ThreePLRateQuote = {
   amount: number;
   weightKg: number;
   rateNotes: string | null;
+  margin: number | null;
 };
 
 export type ThreePLRateCheckState = {
@@ -49,11 +50,13 @@ export type ThreePLRateCheckState = {
   shipperName: string;
   weightKg: number | null;
   weightSource: string;
+  billedAmount: number | null;
+  billedCurrency: string | null;
 };
 
 const initialRateCheck: ThreePLRateCheckState = {
   status: "idle", message: "", quotes: [], unmatchedCards: [], trackingNumber: "",
-  shipperName: "", weightKg: null, weightSource: "",
+  shipperName: "", weightKg: null, weightSource: "", billedAmount: null, billedCurrency: null,
 };
 
 const roles = [
@@ -108,7 +111,7 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   if (!tracking) return { ...initialRateCheck, status: "error", message: "Select or scan a shipment first." };
   const db = await createClient();
   const { data: shipment, error: shipmentError } = await db.from("shipments")
-    .select("id,tracking_number,shipper_id,consignee_country_code,consignee_postal_code,weight_kg,chargeable_weight_kg,pieces")
+    .select("id,tracking_number,shipper_id,consignee_country_code,consignee_postal_code,weight_kg,chargeable_weight_kg,pieces,service_zone_id,service_type,payment_type")
     .eq("organization_id", profile.organization_id).eq("tracking_number", tracking).is("deleted_at", null).maybeSingle();
   if (shipmentError || !shipment) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Shipment was not found. Confirm its AWB and try again." };
   if (!shipment.shipper_id) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "This shipment has no customer account mapped, so its customer-specific 3PL cards cannot be checked." };
@@ -125,10 +128,26 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   ]);
   if (cardsError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "The saved rate cards could not be loaded. Please retry." };
   const shipperName = shipper?.full_name || shipper?.email || "Customer account";
-  if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, message: `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
+  const [defaultRateResult, zoneRateResult] = await Promise.all([
+    admin.from("shipper_rates").select("delivery_rate,currency,effective_from,effective_to").eq("organization_id", profile.organization_id).eq("shipper_id", shipment.shipper_id).lte("effective_from", new Date().toISOString()).or(`effective_to.is.null,effective_to.gt.${new Date().toISOString()}`).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
+    shipment.service_zone_id ? admin.from("shipper_zone_rates").select("delivery_rate,currency,weight_from_kg,weight_to_kg,additional_kg_rate,cod_fee,effective_from,effective_to").eq("organization_id", profile.organization_id).eq("shipper_id", shipment.shipper_id).eq("service_zone_id", shipment.service_zone_id).eq("service_type", shipment.service_type).eq("is_active", true).lte("weight_from_kg", Number(shipment.weight_kg)).lte("effective_from", new Date().toISOString()).or(`effective_to.is.null,effective_to.gt.${new Date().toISOString()}`).order("weight_from_kg", { ascending: false }).order("effective_from", { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (defaultRateResult.error || zoneRateResult.error) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Customer billing rates could not be checked. Please retry." };
+  let billedAmount: number | null = null;
+  let billedCurrency: string | null = null;
+  if (zoneRateResult.data) {
+    const rate = zoneRateResult.data;
+    const extra = rate.weight_to_kg && Number(shipment.weight_kg) > Number(rate.weight_to_kg) ? Math.ceil(Number(shipment.weight_kg) - Number(rate.weight_to_kg)) * Number(rate.additional_kg_rate) : 0;
+    billedAmount = Number(rate.delivery_rate) + extra + (shipment.payment_type === "cod" ? Number(rate.cod_fee) : 0);
+    billedCurrency = rate.currency;
+  } else if (defaultRateResult.data) {
+    billedAmount = Number(defaultRateResult.data.delivery_rate);
+    billedCurrency = defaultRateResult.data.currency;
+  }
+  if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
   const postal = (shipment.consignee_postal_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const prefixes = postal.length >= 3 ? Array.from({ length: postal.length - 2 }, (_, i) => postal.slice(0, i + 3)) : [];
-  if (!prefixes.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, message: "Shipment has no usable destination postal code; saved postal-zone cards cannot be compared.", quotes: [], unmatchedCards: cards.map((card) => card.card_name) };
+  if (!prefixes.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: "Shipment has no usable destination postal code; saved postal-zone cards cannot be compared.", quotes: [], unmatchedCards: cards.map((card) => card.card_name) };
   const carrierIds = [...new Set(cards.map((card) => card.carrier_id))];
   const { data: carrierRows, error: carrierError } = await admin.from("third_party_carriers").select("id,name").eq("organization_id", profile.organization_id).in("id", carrierIds);
   if (carrierError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Carrier names could not be loaded. Please retry." };
@@ -153,12 +172,12 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
       const matchingRows = exactOrigin.length ? exactOrigin : sameRateKey.filter((row) => row.origin_terminal === "ANY");
       const amount = estimateRate(matchingRows, weightKg);
       if (amount === null) continue;
-      quotes.push({ carrierId: card.carrier_id, carrierName: carrierNames.get(card.carrier_id) || "3PL", cardName: card.card_name, service: map.service_code, origin: map.origin_terminal, zone: map.zone_code, currency: card.currency, amount, weightKg, rateNotes: card.rate_notes });
+      quotes.push({ carrierId: card.carrier_id, carrierName: carrierNames.get(card.carrier_id) || "3PL", cardName: card.card_name, service: map.service_code, origin: map.origin_terminal, zone: map.zone_code, currency: card.currency, amount, weightKg, rateNotes: card.rate_notes, margin: billedAmount !== null && billedCurrency === card.currency ? billedAmount - amount : null });
     }
     if (quotes.length === quoteCountBeforeCard) unmatchedCards.push(`${card.card_name}: no matching rate row for this weight and postal zone.`);
   }
   quotes.sort((a, b) => a.amount - b.amount);
-  return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource,
+  return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency,
     message: quotes.length ? `${quotes.length} applicable tariff${quotes.length === 1 ? "" : "s"} found. Lowest saved rate is shown first.` : "No applicable rates were found in the mapped cards.", quotes, unmatchedCards };
 }
 

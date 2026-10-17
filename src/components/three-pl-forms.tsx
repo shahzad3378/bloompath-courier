@@ -175,7 +175,7 @@ export function ThreePLHandoverForm({
     initialState,
   );
   const [rateState, compareAction, checkingRates] = useActionState<ThreePLRateCheckState, FormData>(compareThreePLRatesAction, {
-    status: "idle", message: "", quotes: [], unmatchedCards: [], trackingNumber: "", shipperName: "", weightKg: null, weightSource: "",
+    status: "idle", message: "", quotes: [], unmatchedCards: [], trackingNumber: "", shipperName: "", weightKg: null, weightSource: "", billedAmount: null, billedCurrency: null,
   });
   const [awb, setAwb] = useState("");
   const [weightKg, setWeightKg] = useState("");
@@ -227,16 +227,16 @@ export function ThreePLHandoverForm({
         </button>
         {displayedRateState && <section aria-live="polite" className={`rounded-xl border p-3 ${displayedRateState.status === "error" ? "border-[#f1c7c7] bg-[#fff7f7]" : "border-[#cfe5d8] bg-[#f4faf6]"}`}>
           <p className={`text-sm font-bold ${displayedRateState.status === "error" ? "text-[#a13f3f]" : "text-[#176a47]"}`}>{displayedRateState.message}</p>
-          {displayedRateState.status === "success" && <p className="mt-1 text-xs text-[#66756e]">Account: {displayedRateState.shipperName || "—"} · {displayedRateState.weightKg?.toFixed(3)} kg · {displayedRateState.weightSource}</p>}
+          {displayedRateState.status === "success" && <p className="mt-1 text-xs text-[#66756e]">Account: {displayedRateState.shipperName || "—"} · {displayedRateState.weightKg?.toFixed(3)} kg · {displayedRateState.weightSource} · customer charge: {displayedRateState.billedAmount === null || !displayedRateState.billedCurrency ? "not set" : new Intl.NumberFormat("en-CA", { style: "currency", currency: displayedRateState.billedCurrency }).format(displayedRateState.billedAmount)}</p>}
           {displayedRateState.quotes.length > 0 && <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label="Rate comparison results">
             {displayedRateState.quotes.map((quote, index) => <div key={`${quote.cardName}-${quote.service}-${quote.origin}-${quote.zone}`} className="rounded-lg border border-[#dfe7e3] bg-white p-3 text-xs">
-              <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-bold text-[#26372f]">{quote.carrierName}{index === 0 ? <span className="ml-2 rounded-full bg-[#e7f4ed] px-2 py-1 text-[10px] text-[#176a47]">Lowest saved rate</span> : null}</p><p className="mt-1 text-[#66756e]">{quote.cardName} · {quote.service} · zone {quote.zone}{quote.origin !== "ANY" ? ` · ${quote.origin}` : ""}</p></div><p className="whitespace-nowrap font-mono text-sm font-black text-[#172f25]">{new Intl.NumberFormat("en-CA", { style: "currency", currency: quote.currency }).format(quote.amount)}</p></div>
+              <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-bold text-[#26372f]">{quote.carrierName}{index === 0 ? <span className="ml-2 rounded-full bg-[#e7f4ed] px-2 py-1 text-[10px] text-[#176a47]">Lowest saved rate</span> : null}</p><p className="mt-1 text-[#66756e]">{quote.cardName} · {quote.service} · zone {quote.zone}{quote.origin !== "ANY" ? ` · ${quote.origin}` : ""}</p></div><div className="text-right"><p className="whitespace-nowrap font-mono text-sm font-black text-[#172f25]">{new Intl.NumberFormat("en-CA", { style: "currency", currency: quote.currency }).format(quote.amount)}</p><p className={`mt-1 font-bold ${quote.margin === null ? "text-[#66756e]" : quote.margin >= 0 ? "text-[#176a47]" : "text-[#a13f3f]"}`}>{quote.margin === null ? "P/L unavailable" : `Est. P/L ${new Intl.NumberFormat("en-CA", { style: "currency", currency: quote.currency, signDisplay: "always" }).format(quote.margin)}`}</p></div></div>
               <button type="button" onClick={() => setCarrierId(quote.carrierId)} className="mt-2 min-h-9 rounded-lg border border-[#bdd9ca] px-3 font-bold text-[#13734b] hover:bg-[#f0f8f3] focus-visible:outline-2 focus-visible:outline-offset-2">Choose {quote.carrierName}</button>
               {quote.rateNotes && <p className="mt-2 leading-5 text-[#77847e]">{quote.rateNotes}</p>}
             </div>)}
           </div>}
           {displayedRateState.unmatchedCards.length > 0 && <details className="mt-3 text-xs text-[#66756e]"><summary className="cursor-pointer font-semibold">Cards not compared ({displayedRateState.unmatchedCards.length})</summary><ul className="mt-2 list-disc space-y-1 pl-5">{displayedRateState.unmatchedCards.map((reason) => <li key={reason}>{reason}</li>)}</ul></details>}
-          {displayedRateState.status === "success" && <p className="mt-3 text-[11px] leading-5 text-[#77847e]">Comparison uses the saved customer rate cards and is an estimate; final carrier invoice may include accessorials or other charges.</p>}
+          {displayedRateState.status === "success" && <p className="mt-3 text-[11px] leading-5 text-[#77847e]">Estimated P/L is customer delivery charge minus carrier rate; taxes and accessorials are excluded. Different currencies are not converted.</p>}
         </section>}
 
         <select
