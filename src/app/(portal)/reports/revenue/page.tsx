@@ -10,6 +10,12 @@ import { requireProfile } from "@/lib/auth";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
+import {
+  formatMoney,
+  formatMoneyTotals,
+  rowCurrency,
+  sumByCurrency,
+} from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -24,9 +30,13 @@ export const metadata = {
 
 function money(
   value: unknown,
-  currency = "AED",
+  currency: string | null | undefined,
+  organizationCurrency: string,
 ) {
-  return `${currency} ${Number(value || 0).toFixed(2)}`;
+  return formatMoney(
+    value,
+    rowCurrency(currency, organizationCurrency),
+  );
 }
 
 export default async function RevenueReportsPage({
@@ -87,50 +97,49 @@ export default async function RevenueReportsPage({
 
   const rows = ledgerData ?? [];
 
-  const currency =
-    rows[0]?.currency ||
-    settlementData?.[0]?.currency ||
-    organizationCurrency;
-
-  const totalCod = rows.reduce(
-    (sum, row) =>
-      sum + Number(row.cod_amount || 0),
-    0,
+  const totalCod = sumByCurrency(
+    rows,
+    (row) => row.cod_amount,
+    (row) => row.currency,
+    organizationCurrency,
   );
 
-  const deliveryCharges = rows.reduce(
-    (sum, row) =>
-      sum + Number(row.delivery_charge || 0),
-    0,
+  const deliveryCharges = sumByCurrency(
+    rows,
+    (row) => row.delivery_charge,
+    (row) => row.currency,
+    organizationCurrency,
   );
 
-  const returnCharges = rows.reduce(
-    (sum, row) =>
-      sum + Number(row.return_charge || 0),
-    0,
+  const returnCharges = sumByCurrency(
+    rows,
+    (row) => row.return_charge,
+    (row) => row.currency,
+    organizationCurrency,
   );
 
-  const totalCharges = rows.reduce(
-    (sum, row) =>
-      sum + Number(row.total_charges || 0),
-    0,
+  const totalCharges = sumByCurrency(
+    rows,
+    (row) => row.total_charges,
+    (row) => row.currency,
+    organizationCurrency,
   );
 
-  const netPayable = rows.reduce(
-    (sum, row) =>
-      sum + Number(row.net_payable || 0),
-    0,
+  const netPayable = sumByCurrency(
+    rows,
+    (row) => row.net_payable,
+    (row) => row.currency,
+    organizationCurrency,
   );
 
-  const paid = (settlementData ?? [])
-    .filter(
+  const paid = sumByCurrency(
+    (settlementData ?? []).filter(
       (row) => row.status === "paid",
-    )
-    .reduce(
-      (sum, row) =>
-        sum + Number(row.net_payable || 0),
-      0,
-    );
+    ),
+    (row) => row.net_payable,
+    (row) => row.currency,
+    organizationCurrency,
+  );
 
   return (
     <div className="bp-page">
@@ -172,8 +181,8 @@ export default async function RevenueReportsPage({
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="bp-card p-5">
           <CircleDollarSign className="size-5 text-[#15905c]" />
-          <p className="mt-4 text-2xl font-black">
-            {money(totalCod, currency)}
+          <p className={`mt-4 whitespace-pre-line font-black ${totalCod.length > 1 ? "text-base leading-6" : "text-2xl"}`}>
+            {formatMoneyTotals(totalCod, organizationCurrency, "\n")}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             COD Value
@@ -182,8 +191,8 @@ export default async function RevenueReportsPage({
 
         <div className="bp-card p-5">
           <BadgeDollarSign className="size-5 text-[#15905c]" />
-          <p className="mt-4 text-2xl font-black">
-            {money(totalCharges, currency)}
+          <p className={`mt-4 whitespace-pre-line font-black ${totalCharges.length > 1 ? "text-base leading-6" : "text-2xl"}`}>
+            {formatMoneyTotals(totalCharges, organizationCurrency, "\n")}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             Courier Charges
@@ -192,8 +201,8 @@ export default async function RevenueReportsPage({
 
         <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
-          <p className="mt-4 text-2xl font-black">
-            {money(netPayable, currency)}
+          <p className={`mt-4 whitespace-pre-line font-black ${netPayable.length > 1 ? "text-base leading-6" : "text-2xl"}`}>
+            {formatMoneyTotals(netPayable, organizationCurrency, "\n")}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             Shipper Payable
@@ -202,8 +211,8 @@ export default async function RevenueReportsPage({
 
         <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
-          <p className="mt-4 text-2xl font-black">
-            {money(paid, currency)}
+          <p className={`mt-4 whitespace-pre-line font-black ${paid.length > 1 ? "text-base leading-6" : "text-2xl"}`}>
+            {formatMoneyTotals(paid, organizationCurrency, "\n")}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             Paid
@@ -285,6 +294,7 @@ export default async function RevenueReportsPage({
                       {money(
                         row.cod_amount,
                         row.currency,
+                        organizationCurrency,
                       )}
                     </td>
 
@@ -292,6 +302,7 @@ export default async function RevenueReportsPage({
                       {money(
                         row.delivery_charge,
                         row.currency,
+                        organizationCurrency,
                       )}
                     </td>
 
@@ -299,6 +310,7 @@ export default async function RevenueReportsPage({
                       {money(
                         row.return_charge,
                         row.currency,
+                        organizationCurrency,
                       )}
                     </td>
 
@@ -306,6 +318,7 @@ export default async function RevenueReportsPage({
                       {money(
                         row.total_charges,
                         row.currency,
+                        organizationCurrency,
                       )}
                     </td>
 
@@ -313,6 +326,7 @@ export default async function RevenueReportsPage({
                       {money(
                         row.net_payable,
                         row.currency,
+                        organizationCurrency,
                       )}
                     </td>
                   </tr>
@@ -329,9 +343,9 @@ export default async function RevenueReportsPage({
                 Delivery charges
               </span>
               <strong>
-                {money(
+                {formatMoneyTotals(
                   deliveryCharges,
-                  currency,
+                  organizationCurrency,
                 )}
               </strong>
             </div>
@@ -341,9 +355,9 @@ export default async function RevenueReportsPage({
                 Return charges
               </span>
               <strong>
-                {money(
+                {formatMoneyTotals(
                   returnCharges,
-                  currency,
+                  organizationCurrency,
                 )}
               </strong>
             </div>
@@ -353,9 +367,9 @@ export default async function RevenueReportsPage({
                 Total Charges
               </span>
               <strong className="text-[#13734b]">
-                {money(
+                {formatMoneyTotals(
                   totalCharges,
-                  currency,
+                  organizationCurrency,
                 )}
               </strong>
             </div>

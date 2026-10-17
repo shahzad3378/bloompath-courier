@@ -1,5 +1,10 @@
 import ExcelJS from "exceljs";
 import { requireProfile } from "@/lib/auth";
+import {
+  rowCurrency,
+  sumByCurrency,
+  type CurrencyAmount,
+} from "@/lib/currency";
 import { internalRoles } from "@/lib/roles";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
@@ -25,24 +30,26 @@ export async function GET() {
     .order("transaction_at", { ascending: false });
 
   const rows = data ?? [];
-  const currency =
-    rows[0]?.currency ||
-    (await resolveOrganizationCurrency(
-      supabase,
-      profile.organization_id!,
-    ));
+  const organizationCurrency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id!,
+  );
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Revenue Report");
 
   sheet.addRow(["Revenue Report"]);
-  sheet.addRow(["Currency", currency]);
+  sheet.addRow([
+    "Organization currency",
+    rowCurrency(null, organizationCurrency),
+  ]);
   sheet.addRow([]);
 
   sheet.addRow([
     "AWB",
     "Transaction",
     "Date",
+    "Currency",
     "COD",
     "Delivery Charge",
     "Return Charge",
@@ -55,6 +62,7 @@ export async function GET() {
       row.tracking_number,
       row.transaction_type,
       row.transaction_at,
+      rowCurrency(row.currency, organizationCurrency),
       Number(row.cod_amount || 0),
       Number(row.delivery_charge || 0),
       Number(row.return_charge || 0),
@@ -65,36 +73,28 @@ export async function GET() {
 
   sheet.addRow([]);
 
-  const totalCod = rows.reduce(
-    (sum, row) => sum + Number(row.cod_amount || 0),
-    0,
-  );
+  const grouped = [
+    ["Total COD", sumByCurrency(rows, (row) => row.cod_amount, (row) => row.currency, organizationCurrency)],
+    ["Delivery Charges", sumByCurrency(rows, (row) => row.delivery_charge, (row) => row.currency, organizationCurrency)],
+    ["Return Charges", sumByCurrency(rows, (row) => row.return_charge, (row) => row.currency, organizationCurrency)],
+    ["Total Charges", sumByCurrency(rows, (row) => row.total_charges, (row) => row.currency, organizationCurrency)],
+    ["Net Payable", sumByCurrency(rows, (row) => row.net_payable, (row) => row.currency, organizationCurrency)],
+  ] as const;
 
-  const delivery = rows.reduce(
-    (sum, row) => sum + Number(row.delivery_charge || 0),
-    0,
-  );
+  sheet.addRow(["Metric", "Currency", "Amount"]);
 
-  const returns = rows.reduce(
-    (sum, row) => sum + Number(row.return_charge || 0),
-    0,
-  );
+  for (const [label, totals] of grouped) {
+    const lines: CurrencyAmount[] = totals.length
+      ? [...totals]
+      : [{
+          currency: rowCurrency(null, organizationCurrency),
+          amount: 0,
+        }];
 
-  const charges = rows.reduce(
-    (sum, row) => sum + Number(row.total_charges || 0),
-    0,
-  );
-
-  const net = rows.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
-  );
-
-  sheet.addRow(["", "", "Total COD", totalCod]);
-  sheet.addRow(["", "", "Delivery Charges", delivery]);
-  sheet.addRow(["", "", "Return Charges", returns]);
-  sheet.addRow(["", "", "Total Charges", charges]);
-  sheet.addRow(["", "", "Net Payable", net]);
+    for (const total of lines) {
+      sheet.addRow([label, total.currency, total.amount]);
+    }
+  }
 
   sheet.columns.forEach((column) => {
     column.width = 20;

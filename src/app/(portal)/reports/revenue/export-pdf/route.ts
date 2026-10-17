@@ -5,12 +5,14 @@ import {
 } from "pdf-lib";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
+import {
+  formatMoney,
+  formatMoneyTotals,
+  rowCurrency,
+  sumByCurrency,
+} from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
-
-function money(value: unknown, currency: string) {
-  return `${currency} ${Number(value || 0).toFixed(2)}`;
-}
 
 export async function GET() {
   const profile = await requireProfile(internalRoles);
@@ -41,12 +43,10 @@ export async function GET() {
     ]);
 
   const rows = rowsData ?? [];
-  const currency =
-    rows[0]?.currency ||
-    (await resolveOrganizationCurrency(
-      supabase,
-      profile.organization_id!,
-    ));
+  const organizationCurrency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id!,
+  );
 
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -114,11 +114,11 @@ export async function GET() {
 
   const headers = [
     ["AWB", 40],
-    ["COD", 170],
-    ["Delivery", 250],
-    ["Return", 330],
-    ["Charges", 405],
-    ["Net", 490],
+    ["COD", 145],
+    ["Delivery", 230],
+    ["Return", 315],
+    ["Charges", 400],
+    ["Net", 485],
   ] as const;
 
   function tableHeader() {
@@ -151,12 +151,17 @@ export async function GET() {
       tableHeader();
     }
 
+    const amountCurrency = rowCurrency(
+      row.currency,
+      organizationCurrency,
+    );
+
     drawText(row.tracking_number, 40, y, 7, true);
-    drawText(Number(row.cod_amount || 0).toFixed(2), 170, y, 7);
-    drawText(Number(row.delivery_charge || 0).toFixed(2), 250, y, 7);
-    drawText(Number(row.return_charge || 0).toFixed(2), 330, y, 7);
-    drawText(Number(row.total_charges || 0).toFixed(2), 405, y, 7);
-    drawText(Number(row.net_payable || 0).toFixed(2), 490, y, 7, true);
+    drawText(formatMoney(row.cod_amount, amountCurrency), 145, y, 6);
+    drawText(formatMoney(row.delivery_charge, amountCurrency), 230, y, 6);
+    drawText(formatMoney(row.return_charge, amountCurrency), 315, y, 6);
+    drawText(formatMoney(row.total_charges, amountCurrency), 400, y, 6);
+    drawText(formatMoney(row.net_payable, amountCurrency), 485, y, 6, true);
 
     y -= 18;
   }
@@ -165,37 +170,25 @@ export async function GET() {
 
   y -= 20;
 
-  const totalCod = rows.reduce(
-    (sum, row) => sum + Number(row.cod_amount || 0),
-    0,
-  );
+  const totals = [
+    ["Total COD", sumByCurrency(rows, (row) => row.cod_amount, (row) => row.currency, organizationCurrency)],
+    ["Courier Charges", sumByCurrency(rows, (row) => row.total_charges, (row) => row.currency, organizationCurrency)],
+    ["Net Payable", sumByCurrency(rows, (row) => row.net_payable, (row) => row.currency, organizationCurrency)],
+  ] as const;
 
-  const totalCharges = rows.reduce(
-    (sum, row) => sum + Number(row.total_charges || 0),
-    0,
-  );
+  for (const [label, amounts] of totals) {
+    if (y < 70) newPage();
 
-  const netPayable = rows.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
-  );
-
-  drawText("Total COD", 350, y, 9, true);
-  drawText(money(totalCod, currency), 455, y, 9, true);
-  y -= 18;
-
-  drawText("Courier Charges", 350, y, 9, true);
-  drawText(money(totalCharges, currency), 455, y, 9, true);
-  y -= 18;
-
-  drawText("Net Payable", 350, y, 10, true);
-  page.drawText(money(netPayable, currency), {
-    x: 455,
-    y,
-    size: 10,
-    font: bold,
-    color: green,
-  });
+    drawText(label, 300, y, 9, true);
+    drawText(
+      formatMoneyTotals(amounts, organizationCurrency),
+      400,
+      y,
+      9,
+      true,
+    );
+    y -= 18;
+  }
 
   const bytes = await pdf.save();
 

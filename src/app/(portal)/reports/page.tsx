@@ -15,7 +15,12 @@ import { requireProfile } from "@/lib/auth";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { internalRoles } from "@/lib/roles";
-import { formatMoney } from "@/lib/currency";
+import {
+  formatMoney,
+  formatMoneyTotals,
+  rowCurrency,
+  sumByCurrency,
+} from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
@@ -103,6 +108,7 @@ export default async function DeliveryReportsPage({
       consignee_city,
       payment_type,
       cod_amount,
+      currency,
       service_type,
       status,
       delivery_attempt_count,
@@ -190,7 +196,7 @@ export default async function DeliveryReportsPage({
 
   // Summary cards cover the entire selected period, not just the visible table page.
   let summaryQuery = supabase.from("shipments")
-    .select("status, cod_amount")
+    .select("status, cod_amount, currency")
     .eq("organization_id", profile.organization_id!)
     .is("deleted_at", null)
     .gte("booked_at", startIso)
@@ -199,7 +205,11 @@ export default async function DeliveryReportsPage({
   if (params.shipper) summaryQuery = summaryQuery.eq("shipper_id", params.shipper);
   if (params.driver) summaryQuery = summaryQuery.eq("assigned_driver_id", params.driver);
   if (params.status) summaryQuery = summaryQuery.eq("status", params.status);
-  const summaryRows: { status: string; cod_amount: number | null }[] = [];
+  const summaryRows: {
+    status: string;
+    cod_amount: number | null;
+    currency: string | null;
+  }[] = [];
   let summaryError = false;
   for (let offset = 0; offset < (count ?? 0); offset += 1000) {
     const { data: batch, error: batchError } = await summaryQuery.range(offset, offset + 999);
@@ -315,11 +325,11 @@ export default async function DeliveryReportsPage({
         )
       : 0;
 
-  const totalCod = summaryRows.reduce(
-    (sum, row) =>
-      sum +
-      Number(row.cod_amount || 0),
-    0,
+  const totalCod = sumByCurrency(
+    summaryRows,
+    (row) => row.cod_amount,
+    (row) => row.currency,
+    currency,
   );
 
   const exportParams =
@@ -575,7 +585,7 @@ export default async function DeliveryReportsPage({
           </p>
 
           <p className="mt-1 text-[10px] text-[#87938d]">
-            COD {formatMoney(totalCod, currency)}
+            COD {formatMoneyTotals(totalCod, currency)}
           </p>
         </div>
       </section>
@@ -754,7 +764,10 @@ export default async function DeliveryReportsPage({
                     <td className="px-4 py-4 font-bold">
                       {formatMoney(
                         row.cod_amount,
-                        currency,
+                        rowCurrency(
+                          row.currency,
+                          currency,
+                        ),
                       )}
                     </td>
                   </tr>

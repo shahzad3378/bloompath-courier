@@ -4,7 +4,9 @@ import {
   rgb,
 } from "pdf-lib";
 import { requireProfile } from "@/lib/auth";
+import { formatMoney, rowCurrency } from "@/lib/currency";
 import { internalRoles } from "@/lib/roles";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 
 const labels: Record<string, string> = {
@@ -54,7 +56,11 @@ function relation(value: any) {
   return value ?? null;
 }
 
-function cell(column: string, row: any) {
+function cell(
+  column: string,
+  row: any,
+  organizationCurrency: string,
+) {
   if (column === "shipper") {
     const value = relation(row.shipper);
 
@@ -67,6 +73,10 @@ function cell(column: string, row: any) {
     return value?.full_name || value?.email || "-";
   }
 
+  if (column === "currency") {
+    return rowCurrency(row.currency, organizationCurrency);
+  }
+
   if (
     [
       "cod_amount",
@@ -76,7 +86,10 @@ function cell(column: string, row: any) {
       "net_payable",
     ].includes(column)
   ) {
-    return Number(row[column] || 0).toFixed(2);
+    return formatMoney(
+      row[column],
+      rowCurrency(row.currency, organizationCurrency),
+    );
   }
 
   const value = row[column];
@@ -113,6 +126,7 @@ export async function GET(
   const [
     { data: report },
     { data: settings },
+    organizationCurrency,
   ] = await Promise.all([
     db
       .from("report_definitions")
@@ -131,6 +145,10 @@ export async function GET(
       .select("display_name, legal_name")
       .eq("organization_id", profile.organization_id)
       .maybeSingle(),
+    resolveOrganizationCurrency(
+      supabase,
+      profile.organization_id!,
+    ),
   ]);
 
   if (!report) {
@@ -174,6 +192,7 @@ export async function GET(
         last_undelivered_reason,
         payment_type,
         cod_amount,
+        currency,
         service_type,
         delivered_at,
         shipper_id,
@@ -250,6 +269,7 @@ export async function GET(
       .select(`
         id,
         tracking_number,
+        currency,
         cod_amount,
         delivery_charge,
         return_charge,
@@ -416,7 +436,7 @@ export async function GET(
     columns.forEach(
       (column: string, index: number) => {
         page.drawText(
-          cell(column, row),
+          cell(column, row, organizationCurrency),
           {
             x: 38 + index * columnWidth,
             y,

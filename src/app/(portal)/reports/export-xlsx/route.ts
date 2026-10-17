@@ -1,6 +1,8 @@
 import ExcelJS from "exceljs";
 import { requireProfile } from "@/lib/auth";
+import { rowCurrency, sumByCurrency } from "@/lib/currency";
 import { internalRoles } from "@/lib/roles";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
       consignee_city,
       payment_type,
       cod_amount,
+      currency,
       service_type,
       status,
       delivery_attempt_count,
@@ -108,6 +111,10 @@ export async function GET(request: Request) {
   }
 
   const rows = allRows;
+  const organizationCurrency = await resolveOrganizationCurrency(
+    supabase,
+    profile.organization_id!,
+  );
 
   const workbook = new ExcelJS.Workbook();
   const sheet =
@@ -121,6 +128,10 @@ export async function GET(request: Request) {
         endExclusive.getTime() - 1,
       ).toISOString(),
     )}`,
+  ]);
+  sheet.addRow([
+    "Organization currency",
+    rowCurrency(null, organizationCurrency),
   ]);
   sheet.addRow([]);
 
@@ -139,6 +150,7 @@ export async function GET(request: Request) {
     "Attempts",
     "Undelivered Reason",
     "Payment",
+    "Currency",
     "COD",
     "Service",
     "Delivered",
@@ -168,10 +180,33 @@ export async function GET(request: Request) {
       row.delivery_attempt_count,
       row.last_undelivered_reason ?? "",
       row.payment_type,
+      rowCurrency(row.currency, organizationCurrency),
       Number(row.cod_amount ?? 0),
       row.service_type,
       dubaiDate(row.delivered_at),
     ]);
+  }
+
+  const codTotals = sumByCurrency(
+    rows,
+    (row) => row.cod_amount,
+    (row) => row.currency,
+    organizationCurrency,
+  );
+
+  sheet.addRow([]);
+  sheet.addRow(["COD totals"]);
+  sheet.addRow(["Currency", "Amount"]);
+
+  const codLines = codTotals.length
+    ? codTotals
+    : [{
+        currency: rowCurrency(null, organizationCurrency),
+        amount: 0,
+      }];
+
+  for (const total of codLines) {
+    sheet.addRow([total.currency, total.amount]);
   }
 
   sheet.columns.forEach((column) => {
