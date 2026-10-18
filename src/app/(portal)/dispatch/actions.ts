@@ -39,7 +39,7 @@ export async function createDispatchRunAction(_state: DispatchActionState, formD
   const driverId = String(formData.get("driver_id") ?? "");
   if (!profile.organization_id || !/^[0-9a-f-]{36}$/i.test(driverId)) return { status: "error", message: "Select an active driver." };
   const supabase = await createClient();
-  const { data: driver } = await supabase.from("profiles").select("id, full_name").eq("id", driverId).eq("role", "driver").eq("status", "active").maybeSingle();
+  const { data: driver } = await supabase.from("profiles").select("id, full_name").eq("id", driverId).eq("organization_id", profile.organization_id).eq("role", "driver").eq("status", "active").maybeSingle();
   if (!driver) return { status: "error", message: "Selected driver is not active." };
   const routeDate = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date());
   const routeName = `${driver.full_name || "Driver"} · ${routeDate}`.slice(0, 100);
@@ -52,9 +52,13 @@ export async function addDispatchAwbAction(_state: DispatchActionState, formData
   const profile = await requireProfile(dispatchRoles);
   const runId = numericId(formData, "run_id");
   const tracking = text(formData, "tracking_number", 3, 40)?.toUpperCase();
-  if (!runId || !tracking) return { status: "error", message: "Scan or enter a valid AWB." };
+  if (!profile.organization_id || !runId || !tracking) return { status: "error", message: "Scan or enter a valid AWB." };
   const supabase = await createClient();
-  const { data: shipment } = await supabase.from("shipments").select("id, status, delivery_attempt_count, fourth_attempt_authorized").eq("tracking_number", tracking).is("deleted_at", null).maybeSingle();
+  const [{ data: run }, { data: shipment }] = await Promise.all([
+    supabase.from("dispatch_runs").select("id, status").eq("id", Number(runId)).eq("organization_id", profile.organization_id).maybeSingle(),
+    supabase.from("shipments").select("id, status, delivery_attempt_count, fourth_attempt_authorized").eq("tracking_number", tracking).eq("organization_id", profile.organization_id).is("deleted_at", null).maybeSingle(),
+  ]);
+  if (!run || run.status !== "draft") return { status: "error", message: "This route is not an open draft in your courier account." };
   if (!shipment) return { status: "error", message: `AWB ${tracking} was not found.` };
   const eligible = shipment.status === "at_warehouse" || (shipment.status === "return_initiated" && shipment.delivery_attempt_count === 3 && shipment.fourth_attempt_authorized);
   if (!eligible) return { status: "error", message: `AWB ${tracking} must be physically scanned into warehouse before dispatch.` };
