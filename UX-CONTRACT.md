@@ -41,7 +41,8 @@ This contract records observable workflow behavior for the authenticated courier
 ### Dispatch and warehouse scan modes
 
 - `/dispatch` has an explicit Auto routing / Dispatch scan selector. Auto routing shows the existing warehouse route planner; Dispatch scan asks for an active driver, creates a draft route, and opens its AWB scanner.
-- `/warehouse` has one scan selector for Inbound warehouse scan, Driver return scan, and Manual customer status update. Each option opens its existing authorized scan/update workflow.
+- `/warehouse` has one scan selector for Inbound warehouse scan, Driver return scan, Manual customer status update, and Scan & print package label. Each option opens its authorized workflow.
+- Scan & print is part of Warehouse because staff label physical packages before dispatch. A warehouse-authorized USB/Bluetooth scanner types an AWB into the focused field; the read-only lookup is organization-scoped and excludes archived shipments. A match loads the shared 4×6 `AwbPrintSheet` in a print-only iframe, where staff print that package label before scanning the next box. Multi-piece shipments require the operator to choose the physical piece number. Lookup errors keep the station available and do not change shipment custody or tracking.
 - A driver return is only received after a physical warehouse scan; manual customer tracking updates do not change shipment custody.
 ### Warehouse custody
 
@@ -172,6 +173,7 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - The label prioritizes shipper/consignee addresses, service and COD/prepaid status, a centered full-width Code 39 AWB barcode, and a larger QR code for the same tenant AWB without a scan caption. It shows the customer reference, weight, piece count, available dimensions, delivery zone, parcel description, and delivery instructions.
 - Destination uses postal code when available, then the saved consignee area, then country code. Missing parcel dimensions are labeled “Not recorded”; the label never invents a route/terminal code.
 - Tenant logo/name and organization currency remain dynamic. Label printing is read-only and does not create a carrier booking, charge a customer, or change custody.
+- The warehouse scan-to-print station embeds one selected piece at a time and invokes the browser print dialog for the 4×6 label; the existing shipment detail and bulk print flows keep their current behavior.
 
 ### Company users and Super Admin ownership
 

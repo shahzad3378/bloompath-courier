@@ -329,6 +329,7 @@ textarea:focus {
 
 @media print {
   body { background: #fff; }
+  body:has(.awb-embed) { min-height: 0; }
   .print-controls { display: none !important; }
   .bp-awb-sheet { margin: 0 auto; box-shadow: none; }
   .bp-awb-logo img { filter: grayscale(1) contrast(1.8); }
