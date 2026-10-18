@@ -42,24 +42,31 @@ export function ScanPrintStation() {
     // Open synchronously from the scan gesture so popup blockers allow printing.
     const printWindow = window.open("about:blank", "bloompath-awb-label");
     startTransition(async () => {
-      const lookup = await lookupShipmentForLabel(scannedAwb);
-      setAwb("");
-      if (!lookup.ok) {
+      try {
+        const lookup = await lookupShipmentForLabel(scannedAwb);
+        setAwb("");
+        if (!lookup.ok) {
+          if (printWindow && !printWindow.closed) printWindow.close();
+          setResult(null);
+          setMessage(lookup.message);
+          inputRef.current?.focus();
+          return;
+        }
+
+        setResult({ shipment: lookup.shipment });
+        setPiece(1);
+        if (printWindow && !printWindow.closed) {
+          printWindow.location.replace(labelUrl(lookup.shipment.id, 1));
+        } else {
+          setMessage("Shipment found. Allow pop-ups for this site, then scan again to print its label.");
+        }
+        requestAnimationFrame(() => inputRef.current?.focus());
+      } catch {
         if (printWindow && !printWindow.closed) printWindow.close();
         setResult(null);
-        setMessage(lookup.message);
+        setMessage("Shipment lookup failed. Check the connection and scan again.");
         inputRef.current?.focus();
-        return;
       }
-
-      setResult({ shipment: lookup.shipment });
-      setPiece(1);
-      if (printWindow && !printWindow.closed) {
-        printWindow.location.replace(labelUrl(lookup.shipment.id, 1));
-      } else {
-        setMessage("Shipment found. Allow pop-ups for this site, then scan again to print its label.");
-      }
-      requestAnimationFrame(() => inputRef.current?.focus());
     });
   }
 
