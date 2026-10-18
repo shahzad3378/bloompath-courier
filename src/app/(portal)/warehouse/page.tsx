@@ -861,6 +861,7 @@ export default async function WarehousePage({
           )}
         </section>
       </div>
+      )}
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
         <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
