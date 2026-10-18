@@ -10,7 +10,8 @@ export function AutoPrintLabel() {
 
     async function printWhenReady() {
       await document.fonts?.ready;
-      await Promise.all(Array.from(document.images, (image) => image.decode().catch(() => undefined)));
+      const imagesReady = Promise.all(Array.from(document.images, (image) => image.decode().catch(() => undefined)));
+      await Promise.race([imagesReady, new Promise<void>((resolve) => window.setTimeout(resolve, 1500))]);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (active) window.print();
