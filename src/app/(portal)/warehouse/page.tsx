@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ClipboardList, ScanLine, Truck, Warehouse } from "lucide-react";
 import { WarehouseReceiveForm } from "@/components/warehouse-receive-form";
 import { WarehouseReturnForm } from "@/components/warehouse-return-form";
+import { ScanPrintStation } from "@/components/scan-print-station";
 import { WorkflowModeSelector } from "@/components/workflow-mode-selector";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
@@ -102,7 +103,7 @@ export default async function WarehousePage({
   const supabase = await createClient();
 
   const lookupTracking = String(params.q ?? "").trim().toUpperCase();
-  const scanMode = ["receive", "driver_return", "manual_tracking"].includes(params.scan ?? "")
+  const scanMode = ["receive", "driver_return", "manual_tracking", "print_label"].includes(params.scan ?? "")
     ? String(params.scan)
     : "receive";
 
@@ -577,21 +578,33 @@ export default async function WarehousePage({
         ) : null}
       </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[360px_1fr]">
-        {canReceiveReturns ? (
+      {canReceiveReturns ? (
+        <div className="mt-5">
+          <WorkflowModeSelector
+            action="/warehouse"
+            name="scan"
+            selected={scanMode}
+            hiddenFields={{ view }}
+            options={[
+              { value: "receive", label: "Inbound warehouse scan" },
+              { value: "driver_return", label: "Driver return scan" },
+              { value: "manual_tracking", label: "Manual customer status update" },
+              { value: "print_label", label: "Scan & print package label" },
+            ]}
+            label="Warehouse scan / update"
+          />
+        </div>
+      ) : null}
+
+      {!canReceiveReturns ? (
+        <div className="mt-5 rounded-2xl border border-[#e4d5b8] bg-[#fffaf1] p-5 text-sm font-semibold text-[#8a651f]">
+          Warehouse receipt access is required to scan inbound parcels and driver returns.
+        </div>
+      ) : scanMode === "print_label" ? (
+        <div className="mt-5"><ScanPrintStation /></div>
+      ) : (
+        <div className="mt-5 grid gap-5 xl:grid-cols-[360px_1fr]">
           <div className="space-y-4">
-            <WorkflowModeSelector
-              action="/warehouse"
-              name="scan"
-              selected={scanMode}
-              hiddenFields={{ view }}
-              options={[
-                { value: "receive", label: "Inbound warehouse scan" },
-                { value: "driver_return", label: "Driver return scan" },
-                { value: "manual_tracking", label: "Manual customer status update" },
-              ]}
-              label="Warehouse scan / update"
-            />
             {scanMode === "receive" ? <WarehouseReceiveForm /> : null}
             {scanMode === "driver_return" ? <WarehouseReturnForm /> : null}
             {scanMode === "manual_tracking" ? (
@@ -604,11 +617,6 @@ export default async function WarehousePage({
               </section>
             ) : null}
           </div>
-        ) : (
-          <div className="rounded-2xl border border-[#e4d5b8] bg-[#fffaf1] p-5 text-sm font-semibold text-[#8a651f]">
-            Warehouse receipt access is required to scan inbound parcels and driver returns.
-          </div>
-        )}
 
         <section className="overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
           <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
