@@ -396,7 +396,7 @@ export default async function WarehousePage({
         <span><strong className="text-[#13734b]">{(deliveredCount ?? 0).toLocaleString("en-US")}</strong> delivered</span>
       </div>
 
-      <section className="mt-7 rounded-2xl border border-[#dce6e1] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
+{scanMode !== "print_label" ? <section className="mt-7 rounded-2xl border border-[#dce6e1] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#188459]">
@@ -576,7 +576,7 @@ export default async function WarehousePage({
             )}
           </div>
         ) : null}
-      </section>
+      </section> : null}
 
       {canReceiveReturns ? (
         <div className="mt-5">
@@ -863,7 +863,7 @@ export default async function WarehousePage({
       </div>
       )}
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
+{scanMode !== "print_label" ? <section className="mt-6 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
         <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
           <div>
             <h2 className="font-bold text-[#26372f]">
@@ -968,7 +968,7 @@ export default async function WarehousePage({
             })}
           </div>
         )}
-      </section>
+      </section> : null}
     </div>
   );
 }

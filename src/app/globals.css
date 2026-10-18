@@ -365,3 +365,20 @@ textarea:focus {
   .three-pl-manifest-print thead { display: table-header-group; }
   .three-pl-manifest-print tr { break-inside: avoid; }
 }
+
+
+@media print {
+  body.warehouse-label-report-mode * { visibility: hidden !important; }
+  body.warehouse-label-report-mode .warehouse-label-report,
+  body.warehouse-label-report-mode .warehouse-label-report * { visibility: visible !important; }
+  body.warehouse-label-report-mode .warehouse-label-report {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body.warehouse-label-report-mode .warehouse-label-report > div:last-child { max-height: none !important; overflow: visible !important; }
+}
