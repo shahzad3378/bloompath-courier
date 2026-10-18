@@ -189,3 +189,9 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - Accept AWBs and customer reference numbers with the same validation as the Edge Function. Keep search input transient (not in the URL), provide loading, empty history, not-found, and retryable service-error states, and format event times in the visitor's local timezone.
 - The public page uses BloomPath green branding, a selectable timezone, shipment summary, status-matched icons on the five-stage progress line and event history, and collapsible tracking history. Icons and status text both identify each milestone. Show the full customer-safe status text, AWB, last-update time, and timestamps; keep events newest-first with booking/earliest at the bottom. The page accepts AWB or exact customer reference lookups and queries Fast Drop only. Do not show 3PL/provider names, provider payloads, internal notes, delivery proof requiring a postal code, contact details, or locations not in the public tracking contract.
 - Manual warehouse milestones store the selected wall-clock date/time using the detected Canadian scan location timezone when applicable; operators can choose a different scan timezone. Stored timestamps are UTC instants and public display uses the selected viewer timezone. Nonexistent local daylight-saving times are rejected.
+
+
+### Warehouse scan-to-print log
+
+- Choosing a warehouse workflow immediately submits the selector. In Scan & print, scanner input, paste + Enter, and the inline search button share one tenant-scoped lookup and automatic print flow; repeated shipment summary panels are omitted.
+- Each label request sent to the browser print window is appended to a browser-local AWB report with piece number and Dubai timestamp. The report persists in that browser, exports as Excel-compatible CSV, and can be printed/saved as PDF. It records requests sent to the print dialog, not confirmation that paper physically printed.
