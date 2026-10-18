@@ -46,7 +46,6 @@ export function ScanPrintStation() {
       setAwb("");
       if (!lookup.ok) {
         if (printWindow && !printWindow.closed) printWindow.close();
-        printWindowRef.current = null;
         setResult(null);
         setMessage(lookup.message);
         inputRef.current?.focus();
