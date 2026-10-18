@@ -16,6 +16,11 @@ function addressLines(
   return [address, address2, city, state, postal, country].filter((line): line is string => Boolean(line));
 }
 
+function truncateLabelText(value: string | null | undefined, wordLimit: number) {
+  const words = String(value ?? "").trim().split(/\s+/).filter(Boolean);
+  return words.length > wordLimit ? `${words.slice(0, wordLimit).join(" ")}...` : words.join(" ");
+}
+
 function AddressBlock({
   eyebrow,
   name,
@@ -132,9 +137,9 @@ export function AwbPrintSheet({
       <footer className="bp-awb-footer">
         <div className="bp-awb-footer-copy">
           <p className="bp-awb-eyebrow">Contents</p>
-          <p className="bp-awb-contents">{shipment.parcel_description || "Parcel"}</p>
-          {shipment.delivery_instructions ? <p className="bp-awb-instructions"><b>Delivery note:</b> {shipment.delivery_instructions}</p> : null}
-          {shipment.service_zone_name ? <p className="bp-awb-zone">Service zone · {shipment.service_zone_name}</p> : null}
+          <p className="bp-awb-contents">{truncateLabelText(shipment.parcel_description || "Parcel", 8)}</p>
+          {shipment.delivery_instructions ? <p className="bp-awb-instructions"><b>Delivery note:</b> {truncateLabelText(shipment.delivery_instructions, 10)}</p> : null}
+          {shipment.service_zone_name ? <p className="bp-awb-zone">Service zone · {truncateLabelText(shipment.service_zone_name, 5)}</p> : null}
           <div className="bp-awb-footer-destination"><span>Destination</span><strong>{destination}</strong></div>
         </div>
         <div className="bp-awb-qr" aria-label={`QR code for AWB ${shipment.tracking_number}`}>
