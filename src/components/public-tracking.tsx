@@ -26,12 +26,18 @@ function formatDate(value: string | null, timeZone: string) {
 }
 
 function getMilestoneIndex(events: TrackingEvent[], currentStatus: string) {
-  const statusText = [currentStatus, ...events.map((event) => event.status)].join(" ").toLowerCase();
-  if (statusText.includes("out for delivery")) return 3;
-  if (statusText.includes("delivered") && !statusText.includes("undelivered")) return 4;
-  if (["transit", "airport", "customs", "clearance", "departed", "arrived"].some((term) => statusText.includes(term))) return 2;
-  if (["warehouse", "received", "picked up", "collected"].some((term) => statusText.includes(term))) return 1;
-  return 0;
+  function stageFor(status: string) {
+    const value = status.toLowerCase();
+    if (["out for delivery", "undelivered", "delivery attempt"].some((term) => value.includes(term))) return 3;
+    if (value.includes("delivered") && !value.includes("undelivered")) return 4;
+    if (["transit", "airport", "customs", "clearance", "departed", "arrived"].some((term) => value.includes(term))) return 2;
+    if (["warehouse", "received", "picked up", "collected"].some((term) => value.includes(term))) return 1;
+    if (["book", "label created"].some((term) => value.includes(term))) return 0;
+    return -1;
+  }
+  const currentStage = stageFor(currentStatus);
+  if (currentStage >= 0) return currentStage;
+  return Math.max(0, ...events.map((event) => stageFor(event.status)));
 }
 
 export function PublicTracking() {
