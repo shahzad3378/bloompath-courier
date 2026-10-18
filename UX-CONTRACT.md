@@ -32,6 +32,17 @@ This contract records observable workflow behavior for the authenticated courier
 
 ## Workflow ledger
 
+### Shipment browsing
+
+- `/shipments` starts with 50 rows and lets staff select 50, 100, 200, or 500 rows per page. Previous/Next controls state the visible range and result total.
+- Shipment rows use the document's vertical scroll so the full selected page can be reached by scrolling down; the table owns horizontal overflow only.
+- Search, status, shipper, driver, and date filters keep the existing tenant scoping and filter results before table display.
+
+### Dispatch and warehouse scan modes
+
+- `/dispatch` has an explicit Auto routing / Dispatch scan selector. Auto routing shows the existing warehouse route planner; Dispatch scan asks for an active driver, creates a draft route, and opens its AWB scanner.
+- `/warehouse` has one scan selector for Inbound warehouse scan, Driver return scan, and Manual customer status update. Each option opens its existing authorized scan/update workflow.
+- A driver return is only received after a physical warehouse scan; manual customer tracking updates do not change shipment custody.
 ### Warehouse custody
 
 - Shipment starts as Booked and is not counted as physically in warehouse.

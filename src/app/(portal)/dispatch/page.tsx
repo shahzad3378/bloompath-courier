@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { CreateDispatchRunForm } from "@/components/dispatch-forms";
 import { FleetRoutePlanner } from "@/components/fleet-route-planner";
+import { WorkflowModeSelector } from "@/components/workflow-mode-selector";
 import { requireProfile } from "@/lib/auth";
 import {
   dispatchStatusClass,
@@ -29,8 +30,10 @@ type DispatchListRow = DispatchRun & {
 
 type WarehouseZoneRow = { service_zone_name: string | null };
 
-export default async function DispatchPage() {
+export default async function DispatchPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
   const profile = await requireProfile(dispatchRoles);
+  const params = await searchParams;
+  const mode = params.mode === "scan" ? "scan" : "auto";
   const supabase = await createClient();
   const [
     { data: driverData, error: driverError },
@@ -152,6 +155,24 @@ export default async function DispatchPage() {
         </div>
       </div>
 
+      <div className="mt-6">
+        <WorkflowModeSelector
+          action="/dispatch"
+          name="mode"
+          selected={mode}
+          options={[
+            { value: "auto", label: "Auto routing" },
+            { value: "scan", label: "Dispatch scan · choose driver and scan AWBs" },
+          ]}
+          label="Dispatch workflow"
+        />
+        <p className="mt-2 text-xs text-[#74827b]">
+          {mode === "auto"
+            ? "Use automatic routing to organize warehouse shipments and assign them across drivers."
+            : "Choose a driver and start a manual route. The next screen is ready to scan each AWB into that driver's route."}
+        </p>
+      </div>
+
       {driverError ? (
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm text-[#a13f3f]">
           <AlertTriangle className="mt-0.5 size-5 shrink-0" />
@@ -177,14 +198,14 @@ export default async function DispatchPage() {
         </div>
       ) : null}
 
-      {warehouseError ? (
+      {mode === "auto" && warehouseError ? (
         <div className="mt-6 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Warehouse route-planning pool could not be loaded.</div>
-      ) : (
+      ) : mode === "auto" ? (
         <FleetRoutePlanner drivers={drivers} warehouseCount={warehouseCount} totalShipmentCount={totalCount} zones={zoneSummary} />
-      )}
+      ) : null}
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-[360px_1fr]">
-        <CreateDispatchRunForm drivers={drivers} />
+      <div className={`mt-7 grid gap-5 ${mode === "scan" ? "xl:grid-cols-[360px_1fr]" : ""}`}>
+        {mode === "scan" ? <CreateDispatchRunForm drivers={drivers} /> : null}
         <section className="overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
           <div className="flex items-center justify-between border-b border-[#e8eeeb] px-5 py-4">
             <div><h2 className="font-bold text-[#26372f]">Recent routes</h2><p className="mt-1 text-xs text-[#87938d]">Latest 100 dispatch runs</p></div>

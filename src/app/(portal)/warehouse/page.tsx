@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ClipboardList, ScanLine, Truck, Warehouse } from "lucide-react";
 import { WarehouseReceiveForm } from "@/components/warehouse-receive-form";
 import { WarehouseReturnForm } from "@/components/warehouse-return-form";
+import { WorkflowModeSelector } from "@/components/workflow-mode-selector";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import {
@@ -80,7 +81,7 @@ function agingClass(days: number | null | undefined) {
 export default async function WarehousePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; q?: string }>;
+  searchParams: Promise<{ view?: string; q?: string; scan?: string }>;
 }) {
   const profile = await requireProfile(internalRoles);
   const params = await searchParams;
@@ -101,6 +102,9 @@ export default async function WarehousePage({
   const supabase = await createClient();
 
   const lookupTracking = String(params.q ?? "").trim().toUpperCase();
+  const scanMode = ["receive", "driver_return", "manual_tracking"].includes(params.scan ?? "")
+    ? String(params.scan)
+    : "receive";
 
   const lookupResult = lookupTracking
     ? await supabase
@@ -381,10 +385,6 @@ export default async function WarehousePage({
               <p className="mt-1 text-xl font-black">{count}</p>
             </Link>
           ))}
-          <Link href="/warehouse/manual-tracking" className="rounded-xl border border-[#dce6e1] bg-white px-4 py-3 text-[#405048] transition hover:border-[#9fc8b4]">
-            <p className="text-[9px] font-bold uppercase tracking-wide text-[#7b8982]">Manual tracking</p>
-            <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-black text-[#13734b]"><ScanLine className="size-4" /> Update AWB</p>
-          </Link>
         </div>
       </div>
 
@@ -579,9 +579,30 @@ export default async function WarehousePage({
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[360px_1fr]">
         {canReceiveReturns ? (
-          <div className="space-y-5">
-            <WarehouseReceiveForm />
-            <WarehouseReturnForm autoFocus={false} />
+          <div className="space-y-4">
+            <WorkflowModeSelector
+              action="/warehouse"
+              name="scan"
+              selected={scanMode}
+              hiddenFields={{ view }}
+              options={[
+                { value: "receive", label: "Inbound warehouse scan" },
+                { value: "driver_return", label: "Driver return scan" },
+                { value: "manual_tracking", label: "Manual customer status update" },
+              ]}
+              label="Warehouse scan / update"
+            />
+            {scanMode === "receive" ? <WarehouseReceiveForm /> : null}
+            {scanMode === "driver_return" ? <WarehouseReturnForm /> : null}
+            {scanMode === "manual_tracking" ? (
+              <section className="rounded-2xl border border-[#dce6e1] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#e7f4ed] text-[#13734b]"><ScanLine className="size-5" aria-hidden="true" /></span>
+                  <div><h2 className="font-bold text-[#26372f]">Manual customer tracking</h2><p className="mt-1 text-xs leading-5 text-[#74827b]">Scan or enter an AWB, choose any customer-visible status, and enter the date and time it happened.</p></div>
+                </div>
+                <Link href="/warehouse/manual-tracking" className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-[#13734b] px-4 text-sm font-bold text-white transition hover:bg-[#0c5b3b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2b9466]/20"><ScanLine className="size-4" />Open manual tracking</Link>
+              </section>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-2xl border border-[#e4d5b8] bg-[#fffaf1] p-5 text-sm font-semibold text-[#8a651f]">
