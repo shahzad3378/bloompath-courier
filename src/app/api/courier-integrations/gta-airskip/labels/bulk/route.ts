@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const uniqueIds = [...new Set(ids as string[])];
   const admin = createAdminClient();
   const { data, error } = await admin.from("gta_airskip_bookings")
-    .select("id,partner_tracking_number,status,is_test,base_url,label_base64,label_format")
+    .select("id,partner_tracking_number,status,base_url,label_base64,label_format")
     .eq("organization_id", profile.organization_id)
     .in("id", uniqueIds)
     .in("status", ["generated", "ready", "needs_review"]);
@@ -57,8 +57,7 @@ export async function POST(request: Request) {
         const page = output.addPage([pageWidth, pageHeight]);
         page.drawImage(image, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
       } else if (bytes.subarray(0, 5).toString("ascii") === "%PDF-") {
-        const source = await PDFDocument.load(bytes);
-        const pages = await output.embedPdf(source);
+        const pages = await output.embedPdf(bytes);
         for (const label of pages) {
           const scale = Math.min(pageWidth / label.width, pageHeight / label.height);
           const width = label.width * scale, height = label.height * scale;
