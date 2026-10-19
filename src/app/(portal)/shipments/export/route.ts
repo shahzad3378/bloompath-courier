@@ -38,6 +38,8 @@ export async function GET(request: Request) {
   const to = url.searchParams.get("to");
   const shipper = url.searchParams.get("shipper");
   const driver = url.searchParams.get("driver");
+  const destinationCandidate = (url.searchParams.get("destination") ?? "").trim().toUpperCase();
+  const destination = /^[A-Z]{2}$/.test(destinationCandidate) ? destinationCandidate : "";
   const supabase = await createClient();
 
   let query = supabase.from("shipments").select("*")
@@ -48,6 +50,7 @@ export async function GET(request: Request) {
   if (profile.role === "shipper") query = query.eq("shipper_id", profile.id);
   else if (shipper) query = query.eq("shipper_id", shipper);
   if (driver) query = query.eq("assigned_driver_id", driver);
+  if (destination) query = query.eq("consignee_country_code", destination);
   if (status) query = profile.role === "shipper"
     ? query.or(`customer_tracking_status.eq.${status}${status === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${status})`}`)
     : query.eq("status", status);
