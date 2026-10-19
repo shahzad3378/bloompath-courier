@@ -20,10 +20,10 @@ const customerTones: Partial<Record<CustomerTrackingStatus, string>> = {
   customs_clearance_completed_warehouse_scanned: "bg-[#eeeaf8] text-[#6952a0]",
 };
 
-export function StatusBadge({ status, customerStatus }: { status: ShipmentStatus; customerStatus?: CustomerTrackingStatus | null }) {
+export function StatusBadge({ status, customerStatus, displayLabel }: { status: ShipmentStatus; customerStatus?: CustomerTrackingStatus | null; displayLabel?: string }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${customerStatus ? customerTones[customerStatus] ?? tones[status] : tones[status]}`}>
-      {customerStatus ? customerTrackingLabels[customerStatus] : statusLabels[status]}
+      {displayLabel ?? (customerStatus ? customerTrackingLabels[customerStatus] : statusLabels[status])}
     </span>
   );
 }
