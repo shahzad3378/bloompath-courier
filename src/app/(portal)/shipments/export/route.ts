@@ -51,9 +51,14 @@ export async function GET(request: Request) {
   else if (shipper) query = query.eq("shipper_id", shipper);
   if (driver) query = query.eq("assigned_driver_id", driver);
   if (destination) query = query.eq("consignee_country_code", destination);
-  if (status) query = profile.role === "shipper"
-    ? query.or(`customer_tracking_status.eq.${status}${status === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${status})`}`)
-    : query.eq("status", status);
+  if (status) {
+    const currentStatuses = status === "at_warehouse"
+      ? "at_warehouse,customs_clearance_completed_warehouse_scanned"
+      : status;
+    query = status === "in_transit"
+      ? query.eq("customer_tracking_status", status)
+      : query.or(`customer_tracking_status.in.(${currentStatuses}),and(customer_tracking_status.is.null,status.eq.${status})`);
+  }
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) query = query.gte("created_at", `${from}T00:00:00+04:00`);
   if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) query = query.lte("created_at", `${to}T23:59:59.999+04:00`);
 
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
     String(shipment.consignee_phone ?? "").toLowerCase().includes(q));
 
   const header = ["tracking_number","reference_number","created_at","sender_name","sender_phone","sender_city","consignee_name","consignee_phone","consignee_alt_phone","consignee_city","consignee_area","consignee_address","service_type","payment_type","pieces","weight_kg","cod_amount","currency","status","delivery_attempt_count","last_undelivered_reason","delivered_at"];
-  const csvRows = [header, ...rows.map((row) => [row.tracking_number,row.reference_number ?? "",dubaiDate(row.created_at),row.sender_name,row.sender_phone,row.sender_city,row.consignee_name,row.consignee_phone,row.consignee_alt_phone ?? "",row.consignee_city,row.consignee_area ?? "",row.consignee_address,row.service_type,row.payment_type,row.pieces,row.weight_kg,Number(row.cod_amount ?? 0).toFixed(2),row.currency ?? "",profile.role === "shipper" ? customerStatusLabel(row) : row.status,row.delivery_attempt_count,row.last_undelivered_reason ?? "",dubaiDate(row.delivered_at)])];
+  const csvRows = [header, ...rows.map((row) => [row.tracking_number,row.reference_number ?? "",dubaiDate(row.created_at),row.sender_name,row.sender_phone,row.sender_city,row.consignee_name,row.consignee_phone,row.consignee_alt_phone ?? "",row.consignee_city,row.consignee_area ?? "",row.consignee_address,row.service_type,row.payment_type,row.pieces,row.weight_kg,Number(row.cod_amount ?? 0).toFixed(2),row.currency ?? "",row.customer_tracking_status === "customs_clearance_completed_warehouse_scanned" ? "In warehouse" : row.customer_tracking_status === "arrived_at_destination_airport_customs_started" ? "Customs clearance started" : customerStatusLabel(row),row.delivery_attempt_count,row.last_undelivered_reason ?? "",dubaiDate(row.delivered_at)])];
   const csv = "\uFEFF" + csvRows.map((row) => row.map(csvCell).join(",")).join("\r\n");
   const dateStamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
   const filename = `${exportBaseName(status)}-${dateStamp}.csv`;
