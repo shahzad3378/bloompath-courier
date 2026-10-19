@@ -37,6 +37,8 @@ export async function GET(request: Request) {
   const to = url.searchParams.get("to");
   const shipper = url.searchParams.get("shipper");
   const driver = url.searchParams.get("driver");
+  const destinationCandidate = (url.searchParams.get("destination") ?? "").trim().toUpperCase();
+  const destination = /^[A-Z]{2}$/.test(destinationCandidate) ? destinationCandidate : "";
 
   const supabase = await createClient();
 
@@ -59,6 +61,10 @@ export async function GET(request: Request) {
 
   if (driver) {
     query = query.eq("assigned_driver_id", driver);
+  }
+
+  if (destination) {
+    query = query.eq("consignee_country_code", destination);
   }
 
   if (status) query = profile.role === "shipper"
