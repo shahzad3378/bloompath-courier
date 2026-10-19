@@ -261,14 +261,12 @@ textarea:focus {
 .bp-awb-reference-row { display: flex; min-height: 28px; flex: 0 0 28px; align-items: center; gap: 10px; padding: 3px 10px; overflow: hidden; border-bottom: 1px solid #c3cbc6; }
 .bp-awb-reference-row span { flex: 0 0 auto; color: var(--awb-muted); font-size: 6.8pt; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
 .bp-awb-reference-row strong { overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 9.2pt; font-weight: 900; }
-.bp-awb-service-band { display: grid; min-height: 54px; flex: 0 0 54px; grid-template-columns: minmax(0, 1fr) minmax(92px, 0.42fr); align-items: stretch; overflow: hidden; background: var(--awb-ink); color: #fff; }
+.bp-awb-service-band { display: grid; min-height: 54px; flex: 0 0 54px; grid-template-columns: minmax(0, 1fr) minmax(92px, 0.42fr); align-items: stretch; overflow: hidden; border-bottom: 2px solid var(--awb-ink); background: var(--awb-ink); color: #fff; }
 .bp-awb-service-name, .bp-awb-service-destination { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 5px 10px; }
 .bp-awb-service-name span, .bp-awb-service-destination span { font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; }
 .bp-awb-service-name strong { margin-top: 2px; font-size: 19pt; font-weight: 900; line-height: 0.98; text-transform: uppercase; }
 .bp-awb-service-destination { align-items: flex-end; border-left: 1px solid #ffffff8c; text-align: right; }
 .bp-awb-service-destination strong { max-width: 100%; margin-top: 3px; overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 16pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
-.bp-awb-booked { display: flex; min-height: 22px; flex: 0 0 22px; align-items: center; justify-content: flex-end; padding: 2px 10px; overflow: hidden; border-bottom: 2px solid var(--awb-ink); }
-.bp-awb-booked strong { font-size: 8pt; font-weight: 900; text-transform: uppercase; }
 .bp-awb-tracking { display: flex; min-height: 118px; flex: 0 0 118px; flex-direction: column; justify-content: center; padding: 6px 10px; overflow: hidden; border-bottom: 1px solid var(--awb-rule); text-align: center; }
 .bp-awb-tracking .bp-awb-eyebrow { margin-bottom: 5px; text-align: left; }
 .bp-awb-barcode { display: flex; justify-content: center; width: 100%; }
@@ -307,8 +305,6 @@ textarea:focus {
 .bp-awb-a4 .bp-awb-service-name span, .bp-awb-a4 .bp-awb-service-destination span { font-size: 9pt; }
 .bp-awb-a4 .bp-awb-service-name strong { font-size: 31pt; }
 .bp-awb-a4 .bp-awb-service-destination strong { font-size: 26pt; }
-.bp-awb-a4 .bp-awb-booked { min-height: 12mm; }
-.bp-awb-a4 .bp-awb-booked strong { font-size: 12pt; }
 .bp-awb-a4 .bp-awb-tracking { min-height: 47mm; padding: 4mm; }
 .bp-awb-a4 .bp-awb-tracking svg { height: 28mm; }
 .bp-awb-a4 .bp-awb-tracking-number { font-size: 22pt; }
