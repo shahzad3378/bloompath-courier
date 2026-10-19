@@ -18,6 +18,13 @@ test('domestic shipment uses bare GTA schema with references, cm/kg and no custo
  assert.equal(payload.IdempotencyKey,'persisted-uuid');assert.equal(payload.reference1,'FD10001');assert.equal(payload.shipment,undefined);assert.equal(payload.service,undefined);assert.equal(payload.fromCountry,'CA');
  const pkg=payload.packages[0];assert.equal(pkg.sizeType,0);assert.equal(pkg.weightType,0);assert.equal(pkg.items,undefined);assert.equal(pkg.customerTrackingNumbers,undefined);assert.equal(pkg.customerTrackingReference1,'FD10001');
 });
+test('Domestic selects GTA local service and Air Skip uses explicit service plus destination terminal',()=>{
+ const domestic=core.buildGtaShipment(shipment,{...options,service:'Domestic'});
+ assert.equal(domestic.service,undefined);
+ assert.throws(()=>core.buildGtaShipment({...shipment,consignee_country_code:'US'},{...options,service:'Domestic',items:[item]}),/same country/);
+ const air=core.buildGtaShipment(shipment,{...options,service:'AirSkip',destinationTerminal:'MISS2'});
+ assert.equal(air.service,'AirSkip');assert.equal(air.toTerminal,'MISS2');
+});
 test('cross-border / USPS requires actual item weight, HS, currency and quantity',()=>{
  assert.throws(()=>core.buildGtaShipment({...shipment,consignee_country_code:'US'},options),/customs items/);
  assert.throws(()=>core.buildGtaShipment(shipment,{...options,service:'USPS'}),/customs items/);
