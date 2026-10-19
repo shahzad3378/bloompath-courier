@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import { Code39Barcode } from "@/components/code39-barcode";
-import { formatDubaiDate, formatMoney, serviceLabels, type Shipment } from "@/lib/shipments";
+import { formatMoney, serviceLabels, type Shipment } from "@/lib/shipments";
 
 type Branding = { name: string; legalName?: string | null; logoUrl: string | null; location: string; currency?: string };
 
@@ -121,8 +121,6 @@ export function AwbPrintSheet({
         <div className="bp-awb-service-name"><span>Service</span><strong>{serviceLabels[shipment.service_type]}</strong></div>
         <div className="bp-awb-service-destination"><span>Zone / Destination</span><strong>{shortDestination}</strong></div>
       </section>
-      <div className="bp-awb-booked"><strong>Date: {formatDubaiDate(shipment.booked_at)}</strong></div>
-
       <section className="bp-awb-tracking">
         <p className="bp-awb-eyebrow">Tracking Number / AWB</p>
         <div className="bp-awb-barcode"><Code39Barcode value={shipment.tracking_number} height={54} /></div>
