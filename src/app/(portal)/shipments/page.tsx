@@ -85,11 +85,14 @@ export default async function ShipmentsPage({ searchParams }: {
   async function exactCount(statuses?: ShipmentStatus[]) {
     let countQuery = supabase.from("shipments").select("id", { count: "exact", head: true });
     countQuery = applyCommonFilters(countQuery);
-    if (isShipper && statuses?.length) {
-      const codes = statuses.join(",");
-      countQuery = countQuery.or(`customer_tracking_status.in.(${codes}),and(customer_tracking_status.is.null,status.in.(${codes}))`);
-    } else if (statuses?.length === 1) countQuery = countQuery.eq("status", statuses[0]);
-    else if (statuses && statuses.length > 1) countQuery = countQuery.in("status", statuses);
+    if (statuses?.length) {
+      const currentStatuses = statuses.flatMap((status) =>
+        status === "at_warehouse" ? ["at_warehouse", "customs_clearance_completed_warehouse_scanned"] : [status],
+      );
+      const currentCodes = currentStatuses.join(",");
+      const operationalCodes = statuses.join(",");
+      countQuery = countQuery.or(`customer_tracking_status.in.(${currentCodes}),and(customer_tracking_status.is.null,status.in.(${operationalCodes}))`);
+    }
     const { count } = await countQuery;
     return count ?? 0;
   }
@@ -117,9 +120,14 @@ export default async function ShipmentsPage({ searchParams }: {
   else if (params.shipper) query = query.eq("shipper_id", params.shipper);
   if (params.driver) query = query.eq("assigned_driver_id", params.driver);
   if (destinationCountryCode) query = query.eq("consignee_country_code", destinationCountryCode);
-  if (requestedStatus) query = isShipper
-    ? query.or(`customer_tracking_status.eq.${requestedStatus}${requestedStatus === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${requestedStatus})`}`)
-    : query.eq("status", requestedStatus);
+  if (requestedStatus) {
+    const currentStatuses = requestedStatus === "at_warehouse"
+      ? "at_warehouse,customs_clearance_completed_warehouse_scanned"
+      : requestedStatus;
+    query = requestedStatus === "in_transit"
+      ? query.eq("customer_tracking_status", requestedStatus)
+      : query.or(`customer_tracking_status.in.(${currentStatuses}),and(customer_tracking_status.is.null,status.eq.${requestedStatus})`);
+  }
   if (params.from) query = query.gte("created_at", `${params.from}T00:00:00+04:00`);
   if (params.to) query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
 
