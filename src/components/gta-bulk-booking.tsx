@@ -37,7 +37,6 @@ export function GtaBulkBooking({ configured, test, liveEnabled, pickup }: { conf
   }
   async function book() {
     if (busyRef.current || !waiting || !induction || (!test && (!liveEnabled || !confirmed))) return;
-    if (service === "AirSkip" && !destinationTerminal.trim()) { setMessage("Enter a destination terminal for Air Skip before booking."); return; }
     busyRef.current = true; stopRef.current = false; setStopping(false); setRunning(true); setMessage("Checking GTA access…");
     try {
       const connection = await checkGtaCredentials({ status: "idle", message: "" });
