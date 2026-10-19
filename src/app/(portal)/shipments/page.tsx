@@ -124,7 +124,7 @@ export default async function ShipmentsPage({ searchParams }: {
   if (params.to) query = query.lte("created_at", `${params.to}T23:59:59.999+04:00`);
 
   const { data, error } = await query;
-  const filteredShipments = ((data ?? []) as Shipment[]).map(row => ({ ...row, customer_tracking_status: isShipper ? row.customer_tracking_status : null })).filter((shipment) => {
+  const filteredShipments = ((data ?? []) as Shipment[]).filter((shipment) => {
     if (!queryText) return true;
     return (
       shipment.tracking_number.toLowerCase().includes(queryText) ||
@@ -267,7 +267,7 @@ export default async function ShipmentsPage({ searchParams }: {
       <section className="mt-5 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
         {error ? <div className="p-8 text-center text-sm font-semibold text-[#b74646]">Shipments could not be loaded.</div> : shipments.length === 0 ? (
           <div className="grid min-h-72 place-items-center p-8 text-center"><div><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#e7f4ed] text-[#188459]"><PackagePlus className="size-7" /></div><h2 className="mt-4 text-lg font-bold text-[#26372f]">No shipments found</h2><p className="mt-1 text-sm text-[#7a8881]">Create your first shipment to generate a printable AWB.</p><Link href="/shipments/new" className="mt-5 inline-flex rounded-xl bg-[#13734b] px-5 py-2.5 text-sm font-bold text-white">Create shipment</Link></div></div>
-        ) : <ShipmentSelectionTable shipments={shipments} archived={showArchived} currency={tenantCurrency} />}
+        ) : <ShipmentSelectionTable shipments={shipments} archived={showArchived} currency={tenantCurrency} showOperationalStatus={!isShipper} />}
       </section>
     </div>
   );
