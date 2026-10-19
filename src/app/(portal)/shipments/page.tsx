@@ -40,6 +40,7 @@ export default async function ShipmentsPage({ searchParams }: {
     to?: string;
     shipper?: string;
     driver?: string;
+    destination?: string;
     generated?: string;
     ids?: string;
   }>;
@@ -52,14 +53,18 @@ export default async function ShipmentsPage({ searchParams }: {
   const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus) ? params.status as ShipmentStatus : params.status === "in_transit" && profile.role === "shipper" ? "in_transit" : "";
   const supabase = await createClient();
   const isShipper = profile.role === "shipper";
+  const destinationCountryCodeCandidate = String(params.destination ?? "").trim().toUpperCase();
+  const destinationCountryCode = /^[A-Z]{2}$/.test(destinationCountryCodeCandidate) ? destinationCountryCodeCandidate : "";
 
-  const [{ data: shippers }, { data: drivers }, { data: orgSettings }] = await Promise.all([
+  const [{ data: shippers }, { data: drivers }, { data: orgSettings }, { data: destinationRows }] = await Promise.all([
     isShipper
       ? Promise.resolve({ data: [] })
       : supabase.from("profiles").select("id, full_name, email").eq("organization_id", profile.organization_id).eq("role", "shipper").eq("status", "active").order("full_name"),
     supabase.from("profiles").select("id, full_name, email").eq("organization_id", profile.organization_id).eq("role", "driver").eq("status", "active").order("full_name"),
     supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),
+    supabase.from("shipments").select("consignee_country_code").eq("organization_id", profile.organization_id).is("deleted_at", null).not("consignee_country_code", "is", null).limit(5000),
   ]);
+  const destinationCountryCodes = [...new Set((destinationRows ?? []).map((row) => String(row.consignee_country_code ?? "").trim().toUpperCase()).filter((code) => /^[A-Z]{2}$/.test(code)))].sort();
 
   const tenantCurrency = /^\d+$/.test(String(orgSettings?.currency ?? "").toUpperCase())
     ? String(orgSettings?.currency).toUpperCase()
@@ -71,6 +76,7 @@ export default async function ShipmentsPage({ searchParams }: {
     if (isShipper) q = q.eq("shipper_id", profile.id);
     else if (params.shipper) q = q.eq("shipper_id", params.shipper);
     if (params.driver) q = q.eq("assigned_driver_id", params.driver);
+    if (destinationCountryCode) q = q.eq("consignee_country_code", destinationCountryCode);
     if (params.from) q = q.gte("created_at", `${params.from}T00:00:00+04:00`);
     if (params.to) q = q.lte("created_at", `${params.to}T23:59:59.999+04:00`);
     return q as T;
@@ -110,6 +116,7 @@ export default async function ShipmentsPage({ searchParams }: {
   if (isShipper) query = query.eq("shipper_id", profile.id);
   else if (params.shipper) query = query.eq("shipper_id", params.shipper);
   if (params.driver) query = query.eq("assigned_driver_id", params.driver);
+  if (destinationCountryCode) query = query.eq("consignee_country_code", destinationCountryCode);
   if (requestedStatus) query = isShipper
     ? query.or(`customer_tracking_status.eq.${requestedStatus}${requestedStatus === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${requestedStatus})`}`)
     : query.eq("status", requestedStatus);
@@ -177,6 +184,7 @@ export default async function ShipmentsPage({ searchParams }: {
   if (params.to) exportParams.set("to", params.to);
   if (!isShipper && params.shipper) exportParams.set("shipper", params.shipper);
   if (params.driver) exportParams.set("driver", params.driver);
+  if (destinationCountryCode) exportParams.set("destination", destinationCountryCode);
   const exportHref = `/shipments/export?${exportParams.toString()}`;
   const excelExportHref = `/shipments/export-xlsx?${exportParams.toString()}`;
 
@@ -227,6 +235,7 @@ export default async function ShipmentsPage({ searchParams }: {
               if (params.to) href.set("to", params.to);
               if (!isShipper && params.shipper) href.set("shipper", params.shipper);
               if (params.driver) href.set("driver", params.driver);
+              if (destinationCountryCode) href.set("destination", destinationCountryCode);
               const active = status === "" ? !requestedStatus : requestedStatus === status;
               return (
                 <Link key={label} href={`/shipments?${href.toString()}`} className={`rounded-2xl border p-4 transition ${active ? "border-[#13734b] bg-[#13734b] text-white shadow-lg shadow-[#13734b]/10" : "border-[#e0e8e4] bg-white text-[#26372f] hover:border-[#9fc8b4]"}`}>
@@ -249,6 +258,7 @@ export default async function ShipmentsPage({ searchParams }: {
         {!isShipper ? (
           <select name="shipper" defaultValue={params.shipper ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All shippers</option>{(shippers ?? []).map((shipper) => <option key={shipper.id} value={shipper.id}>{shipper.full_name || shipper.email}</option>)}</select>
         ) : <input type="hidden" name="shipper" value="" />}
+        <select name="destination" defaultValue={destinationCountryCode} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All destination country codes</option>{destinationCountryCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select>
         <select name="driver" defaultValue={params.driver ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All drivers</option>{(drivers ?? []).map((driver) => <option key={driver.id} value={driver.id}>{driver.full_name || driver.email}</option>)}</select>
         <ShipmentDateFields initialFrom={params.from ?? ""} initialTo={params.to ?? ""} />
         <button className="h-11 rounded-xl bg-[#e7f4ed] px-5 text-sm font-bold text-[#13734b]">Apply filters</button>
