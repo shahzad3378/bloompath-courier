@@ -17,7 +17,7 @@ export function GtaBookingForm({configured,test,liveEnabled,initialAwb,pickup}:{
       <div className="rounded-2xl bg-[var(--background)] p-4"><h3 className="mb-4 text-sm font-bold">Shipment & service</h3><div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">FastDrop AWB<input name="awb" defaultValue={initialAwb} className="bp-input mt-2 font-mono" /></label>
         <label className="text-sm font-semibold">Sender terminals<input name="terminal" value={gtaSenderTerminals} readOnly className="bp-input mt-2" /><span className="mt-2 block text-xs font-normal text-[var(--muted)]">All four GTA terminals are sent together for rate shopping.</span></label>
-        <label className="text-sm font-semibold">Service (optional)<input name="service" maxLength={100} className="bp-input mt-2" /><span className="mt-1 block font-normal text-[var(--muted)]">Leave blank for GTA to select the appropriate service.</span></label>
+        <label className="text-sm font-semibold">GTA service<select name="service" defaultValue="Domestic" className="bp-input mt-2"><option value="Domestic">Domestic</option><option value="AirSkip">Air Skip</option></select><span className="mt-1 block font-normal text-[var(--muted)]">Domestic uses an account-enabled local service. Air Skip requires a destination terminal.</span></label>
         <label className="text-sm font-semibold">Destination terminal (middle-mile services)<input name="destination_terminal" maxLength={30} className="bp-input mt-2" /></label>
         <label className="text-sm font-semibold">Package type<input name="pieces_type" defaultValue="Box" placeholder="Provider-approved type, e.g. Box" maxLength={50} className="bp-input mt-2" /></label>
       </div></div>
