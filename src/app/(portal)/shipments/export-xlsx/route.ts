@@ -67,9 +67,14 @@ export async function GET(request: Request) {
     query = query.eq("consignee_country_code", destination);
   }
 
-  if (status) query = profile.role === "shipper"
-    ? query.or(`customer_tracking_status.eq.${status}${status === "in_transit" ? "" : `,and(customer_tracking_status.is.null,status.eq.${status})`}`)
-    : query.eq("status", status);
+  if (status) {
+    const currentStatuses = status === "at_warehouse"
+      ? "at_warehouse,customs_clearance_completed_warehouse_scanned"
+      : status;
+    query = status === "in_transit"
+      ? query.eq("customer_tracking_status", status)
+      : query.or(`customer_tracking_status.in.(${currentStatuses}),and(customer_tracking_status.is.null,status.eq.${status})`);
+  }
 
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
     query = query.gte(
@@ -172,7 +177,7 @@ export async function GET(request: Request) {
       weight_kg: Number(row.weight_kg ?? 0),
       cod_amount: Number(row.cod_amount ?? 0),
       currency: row.currency ?? "",
-      status: profile.role === "shipper" ? customerStatusLabel(row) : String(row.status ?? "").replaceAll("_", " "),
+      status: row.customer_tracking_status === "customs_clearance_completed_warehouse_scanned" ? "In warehouse" : row.customer_tracking_status === "arrived_at_destination_airport_customs_started" ? "Customs clearance started" : customerStatusLabel(row),
       delivery_attempt_count: Number(row.delivery_attempt_count ?? 0),
       last_undelivered_reason: String(
         row.last_undelivered_reason ?? "",
