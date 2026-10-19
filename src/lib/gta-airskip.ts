@@ -52,7 +52,6 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
   const service = options.service.trim();
   if (/^domestic$/i.test(service)) throw new Error("GTA Domestic service is not enabled. Use Air Skip.");
   if (service.length > 100 || options.destinationTerminal.length > 30) throw new Error("Service or destination terminal is too long.");
-  if (/^(airskip|zoneskip)$/i.test(service) && !options.destinationTerminal.trim()) throw new Error("A destination terminal is required for a middle-mile service.");
   if (!Array.isArray(options.items) || options.items.length > 100) throw new Error("Use at most 100 customs items.");
   if ((fromCountry !== toCountry || /usps/i.test(service)) && !options.items.length) throw new Error("Cross-border and USPS shipments require customs items with HS codes and actual item weights.");
   const items = options.items.map(item => {
@@ -78,7 +77,6 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     reference1: text(shipment.tracking_number, "FastDrop AWB", 100),
     ...address("sender", "from"), ...address("consignee", "to"), ToAddress2: shipment.consignee_address_2?.trim() || "", fromCountry, toCountry,
     fromTerminal: normalizeGtaSenderTerminals(options.terminal),
-    ...(options.destinationTerminal.trim() ? { toTerminal: options.destinationTerminal.trim() } : {}),
     signatureRequired: options.signature, insuranceRequired: options.insurance,
     packages: [{ customerTrackingReference1: shipment.tracking_number, description: shipment.parcel_description || "Parcel",
       sizeLength: positive(options.length, "Length (cm)"), sizeWidth: positive(options.width, "Width (cm)"), sizeHeight: positive(options.height, "Height (cm)"), sizeType: 0,
