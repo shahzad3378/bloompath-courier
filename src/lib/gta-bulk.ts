@@ -56,12 +56,15 @@ export function gtaParcelForm(parcel: GtaBulkParcel, confirmed: boolean) {
   parcel.options.items.forEach((item, i) => { for (const [field, key] of [["description", "description"], ["weight", "weight"], ["hs", "hsCode"], ["value", "declaredValue"], ["currency", "currency"], ["quantity", "quantity"]] as const) form.set(`${field}_${i}`, String(item[key])); });
   return form;
 }
-export async function processGtaBatch(parcels: GtaBulkParcel[], confirmed: boolean, book: (form: FormData) => Promise<GtaState>, update: (result: GtaBulkResult) => void, stop: () => boolean) {
+export async function processGtaBatch(parcels: GtaBulkParcel[], confirmed: boolean, book: (form: FormData) => Promise<GtaState>, update: (result: GtaBulkResult) => void, stop: () => boolean, service = "", destinationTerminal = "") {
   for (const parcel of parcels) {
     if (stop()) return "stopped";
     update({ awb: parcel.awb, rows: parcel.rows, status: "processing", message: "Generating label…" });
     try {
-      const result = await book(gtaParcelForm(parcel, confirmed));
+      const form = gtaParcelForm(parcel, confirmed);
+      form.set("service", service);
+      form.set("destination_terminal", destinationTerminal);
+      const result = await book(form);
       update({ ...result, awb: parcel.awb, rows: parcel.rows, status: result.status === "success" ? "success" : "error" });
       if (result.haltBatch) return "stopped";
     } catch { update({ awb: parcel.awb, rows: parcel.rows, status: "error", message: "Request interrupted. Check saved bookings and GTA before retrying. No automatic retry was sent." }); return "stopped"; }
