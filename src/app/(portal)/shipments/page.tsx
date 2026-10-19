@@ -251,7 +251,7 @@ export default async function ShipmentsPage({ searchParams }: {
         </>
       ) : null}
 
-      <form noValidate className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-4">
+      <form noValidate className="mt-7 grid gap-3 rounded-2xl border border-[#e0e8e4] bg-white p-4 shadow-[0_8px_30px_rgba(24,51,39,0.045)] md:grid-cols-2 xl:grid-cols-5">
         {showArchived ? <input type="hidden" name="view" value="archived" /> : null}
         <label className="relative"><Search className="absolute left-3.5 top-3.5 size-4 text-[#819088]" /><input name="q" defaultValue={params.q} className="h-11 w-full rounded-xl border border-[#dbe5e0] pl-10 pr-3 text-sm outline-none focus:border-[#2b9466] focus:ring-4 focus:ring-[#2b9466]/10" placeholder="AWB, reference, customer or phone" /></label>
         <select name="status" defaultValue={requestedStatus} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All statuses</option>{(isShipper ? [...shipmentStatuses, "in_transit" as const] : shipmentStatuses).map((status) => <option key={status} value={status}>{status === "in_transit" ? "In transit" : statusLabels[status]}</option>)}</select>
@@ -261,7 +261,7 @@ export default async function ShipmentsPage({ searchParams }: {
         <select name="destination" defaultValue={destinationCountryCode} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All destination country codes</option>{destinationCountryCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select>
         <select name="driver" defaultValue={params.driver ?? ""} className="h-11 rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm text-[#405048] outline-none focus:border-[#2b9466]"><option value="">All drivers</option>{(drivers ?? []).map((driver) => <option key={driver.id} value={driver.id}>{driver.full_name || driver.email}</option>)}</select>
         <ShipmentDateFields initialFrom={params.from ?? ""} initialTo={params.to ?? ""} />
-        <button className="h-11 rounded-xl bg-[#e7f4ed] px-5 text-sm font-bold text-[#13734b]">Apply filters</button>
+        <button className="h-11 self-end rounded-xl bg-[#e7f4ed] px-5 text-sm font-bold text-[#13734b]">Apply filters</button>
       </form>
 
       <section className="mt-5 overflow-hidden rounded-2xl border border-[#e0e8e4] bg-white shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
@@ -269,7 +269,6 @@ export default async function ShipmentsPage({ searchParams }: {
           <div className="grid min-h-72 place-items-center p-8 text-center"><div><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#e7f4ed] text-[#188459]"><PackagePlus className="size-7" /></div><h2 className="mt-4 text-lg font-bold text-[#26372f]">No shipments found</h2><p className="mt-1 text-sm text-[#7a8881]">Create your first shipment to generate a printable AWB.</p><Link href="/shipments/new" className="mt-5 inline-flex rounded-xl bg-[#13734b] px-5 py-2.5 text-sm font-bold text-white">Create shipment</Link></div></div>
         ) : <ShipmentSelectionTable shipments={shipments} archived={showArchived} currency={tenantCurrency} />}
       </section>
-      <p className="mt-3 text-right text-xs text-[#8a9690]">Loaded {shipments.length} shipment{shipments.length === 1 ? "" : "s"} · maximum 5,000 per view</p>
     </div>
   );
 }
