@@ -49,8 +49,12 @@ export function buildGtaShipment(shipment: Shipment, options: GtaOptions, idempo
     return value;
   };
   const fromCountry = country("sender"), toCountry = country("consignee");
-  const service = options.service.trim();
-  if (service.length > 100 || options.destinationTerminal.length > 30) throw new Error("Service or destination terminal is too long.");
+  const requestedService = options.service.trim();
+  const domestic = /^domestic$/i.test(requestedService);
+  if (requestedService.length > 100 || options.destinationTerminal.length > 30) throw new Error("Service or destination terminal is too long.");
+  if (domestic && fromCountry !== toCountry) throw new Error("Domestic service requires the sender and consignee to be in the same country.");
+  // Domestic is a UI choice; GTA chooses the account-enabled domestic carrier when service is omitted.
+  const service = domestic ? "" : requestedService;
   if (/^(airskip|zoneskip)$/i.test(service) && !options.destinationTerminal.trim()) throw new Error("A destination terminal is required for a middle-mile service.");
   if (!Array.isArray(options.items) || options.items.length > 100) throw new Error("Use at most 100 customs items.");
   if ((fromCountry !== toCountry || /usps/i.test(service)) && !options.items.length) throw new Error("Cross-border and USPS shipments require customs items with HS codes and actual item weights.");
