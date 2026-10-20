@@ -10,6 +10,7 @@ type TrackingResult = {
   currentStatus: string;
   updatedAt: string | null;
   events: TrackingEvent[];
+  podUrl?: string | null;
 };
 
 const milestones: Array<{ label: string; icon: LucideIcon }> = [
@@ -206,6 +207,7 @@ export function PublicTracking() {
                 <p className="text-xs text-[#6b7b72]">Last updated: {formatDate(result.updatedAt, timeZone)}</p>
                 <h2 className="mt-1 flex flex-wrap items-center gap-x-2 text-xl font-extrabold text-[#17231e] sm:text-2xl">Status: <span className="text-[#168459]">{result.currentStatus}</span></h2>
                 <p className="mt-2 break-all text-xs font-semibold text-[#53645b]">Tracking number: <span className="font-mono text-[#24372f]">{result.trackingNumber}</span></p>
+                {result.podUrl ? <a href={result.podUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-10 items-center rounded-lg bg-[#13734b] px-4 text-sm font-bold text-white transition hover:bg-[#0c5b3b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13734b] focus-visible:ring-offset-2">View proof of delivery</a> : null}
               </div>
               <span className="grid size-12 shrink-0 place-items-center self-start rounded-full border border-[#d9e7df] bg-[#e8f6ee] text-[#13734b] sm:self-center"><Truck className="size-6" aria-hidden="true" /></span>
             </div>

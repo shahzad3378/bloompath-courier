@@ -5,6 +5,7 @@ type PublicTrackingPayload = {
   currentStatus?: unknown;
   updatedAt?: unknown;
   events?: unknown;
+  podUrl?: unknown;
 };
 
 function json(body: unknown, status = 200) {
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
       currentStatus: payload.currentStatus,
       updatedAt: typeof payload.updatedAt === "string" ? payload.updatedAt : null,
       events,
+      podUrl: typeof payload.podUrl === "string" && payload.podUrl.startsWith("https://") ? payload.podUrl : null,
     });
   } catch {
     return json({ error: "Tracking is temporarily unavailable. Please try again." }, 503);
