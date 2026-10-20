@@ -144,7 +144,7 @@ export default async function ShipmentsPage({ searchParams }: {
 
   const visibleShipmentIds = filteredShipments.map((shipment) => shipment.id);
   const latestUndeliveredByShipment = new Map<number, string>();
-  const latestProofByShipment = new Map<number, { kind: "POA" | "POD"; attemptNumber: number }>();
+  const latestProofByShipment = new Map<number, { kind: "POA" | "POD"; attemptNumber: number; proofPath: string }>();
 
   for (let index = 0; index < visibleShipmentIds.length; index += 500) {
     const ids = visibleShipmentIds.slice(index, index + 500);
@@ -164,10 +164,19 @@ export default async function ShipmentsPage({ searchParams }: {
         latestProofByShipment.set(shipmentId, {
           kind: attempt.outcome === "delivered" ? "POD" : "POA",
           attemptNumber: Number(attempt.attempt_number),
+          proofPath: attempt.proof_path,
         });
       }
     }
   }
+
+  const latestProofUrlByShipment = new Map<number, string>();
+  await Promise.all(Array.from(latestProofByShipment.entries()).map(async ([shipmentId, proof]) => {
+    const { data: signedProof } = await supabase.storage
+      .from("delivery-proofs")
+      .createSignedUrl(proof.proofPath, 3600);
+    if (signedProof?.signedUrl) latestProofUrlByShipment.set(shipmentId, signedProof.signedUrl);
+  }));
 
   const shipments = filteredShipments.map((shipment) => {
     const lastUndeliveredAt = latestUndeliveredByShipment.get(shipment.id) ?? null;
@@ -178,6 +187,7 @@ export default async function ShipmentsPage({ searchParams }: {
       last_undelivered_at: lastUndeliveredAt,
       latest_proof_kind: latestProofByShipment.get(shipment.id)?.kind ?? null,
       latest_proof_attempt: latestProofByShipment.get(shipment.id)?.attemptNumber ?? null,
+      latest_proof_url: latestProofUrlByShipment.get(shipment.id) ?? null,
       undelivered_aging_days: lastUndeliveredAt && !agingClosed ? agingDaysSince(lastUndeliveredAt) : null,
     };
   });
