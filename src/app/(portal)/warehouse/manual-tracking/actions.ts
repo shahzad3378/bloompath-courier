@@ -79,11 +79,13 @@ export async function recordManualTrackingAction(
     return { status: "error", message: "Airport and customs statuses are only available for international shipments." };
   }
 
-  // The customs-cleared milestone explicitly means the parcel has been received into the
-  // destination warehouse. Keep operational inventory in sync so Dispatch does not ask for
-  // a second inbound scan. Historical updates must never move a later shipment state backwards.
+  // “At warehouse” and the customs-cleared / warehouse-scanned milestone both mean the
+  // parcel has been received into the warehouse. Keep dispatch inventory in sync so it does
+  // not ask for a second inbound scan. Historical updates must never move a later state backwards.
+  const marksWarehouseReceived =
+    status === "at_warehouse" || status === "customs_clearance_completed_warehouse_scanned";
   let movedIntoWarehouse = false;
-  if (status === "customs_clearance_completed_warehouse_scanned" && shipment.status !== "at_warehouse") {
+  if (marksWarehouseReceived && shipment.status !== "at_warehouse") {
     const canReceiveNow = ["booked", "ready_for_pickup", "picked_up"].includes(shipment.status);
     if (canReceiveNow) {
       const { data: received, error: receiveError } = await supabase
