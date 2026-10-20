@@ -128,13 +128,10 @@ export async function recordManualTrackingAction(
     return { status: "error", message: "Tracking update could not be saved. Check the AWB status sequence and try again." };
   }
 
-  revalidatePath("/warehouse/manual-tracking");
-  revalidatePath("/warehouse");
-  revalidatePath("/shipments");
-  revalidatePath("/dispatch");
-  revalidatePath("/dashboard");
-  revalidatePath(`/shipments/${shipment.id}`);
-  revalidatePath(`/track/${tracking}`);
+  // Manual tracking is the shared current status used by customer tracking,
+  // shipment lists, dashboards, warehouse, and dispatch. Invalidate the app
+  // layout so every module refreshes from the same saved shipment state.
+  revalidatePath("/", "layout");
   const warehouseMessage = movedIntoWarehouse || shipment.status === "at_warehouse"
     ? " The shipment is now in warehouse and ready for dispatch."
     : "";
