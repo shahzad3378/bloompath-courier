@@ -67,7 +67,7 @@ export async function recordManualTrackingAction(
   const supabase = await createClient();
   const { data: shipment, error: shipmentError } = await supabase
     .from("shipments")
-    .select("id, sender_country_code, consignee_country_code")
+    .select("id, status, sender_country_code, consignee_country_code")
     .eq("tracking_number", tracking)
     .eq("organization_id", profile.organization_id)
     .is("deleted_at", null)
@@ -77,6 +77,29 @@ export async function recordManualTrackingAction(
   const isInternational = Boolean(shipment.sender_country_code && shipment.consignee_country_code && shipment.sender_country_code !== shipment.consignee_country_code);
   if (!isInternational && (status === "arrived_at_destination_airport_customs_started" || status === "customs_clearance_completed_warehouse_scanned")) {
     return { status: "error", message: "Airport and customs statuses are only available for international shipments." };
+  }
+
+  // The customs-cleared milestone explicitly means the parcel has been received into the
+  // destination warehouse. Keep operational inventory in sync so Dispatch does not ask for
+  // a second inbound scan. Historical updates must never move a later shipment state backwards.
+  let movedIntoWarehouse = false;
+  if (status === "customs_clearance_completed_warehouse_scanned" && shipment.status !== "at_warehouse") {
+    const canReceiveNow = ["booked", "ready_for_pickup", "picked_up"].includes(shipment.status);
+    if (canReceiveNow) {
+      const { data: received, error: receiveError } = await supabase
+        .from("shipments")
+        .update({ status: "at_warehouse", warehouse_received_at: occurredAt, warehouse_location: null })
+        .eq("id", shipment.id)
+        .eq("organization_id", profile.organization_id)
+        .in("status", ["booked", "ready_for_pickup", "picked_up"])
+        .is("deleted_at", null)
+        .select("id")
+        .maybeSingle();
+      if (receiveError) {
+        return { status: "error", message: "Warehouse status could not be updated. Refresh the shipment and try again." };
+      }
+      movedIntoWarehouse = Boolean(received);
+    }
   }
 
   const { error } = await supabase.from("customer_tracking_events").insert({
@@ -89,14 +112,29 @@ export async function recordManualTrackingAction(
   });
 
   if (error) {
+    if (movedIntoWarehouse) {
+      await supabase.from("shipments")
+        .update({ status: shipment.status, warehouse_received_at: null, warehouse_location: null })
+        .eq("id", shipment.id)
+        .eq("organization_id", profile.organization_id)
+        .eq("status", "at_warehouse")
+        .eq("warehouse_received_at", occurredAt)
+        .is("deleted_at", null);
+    }
     if (error.code === "23505") return { status: "error", message: "This customs milestone has already been recorded for this AWB." };
     if (error.message.includes("earlier date and time")) return { status: "error", message: error.message };
     return { status: "error", message: "Tracking update could not be saved. Check the AWB status sequence and try again." };
   }
 
   revalidatePath("/warehouse/manual-tracking");
+  revalidatePath("/warehouse");
   revalidatePath("/shipments");
+  revalidatePath("/dispatch");
+  revalidatePath("/dashboard");
   revalidatePath(`/shipments/${shipment.id}`);
   revalidatePath(`/track/${tracking}`);
-  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}. Customer tracking has been refreshed.` };
+  const warehouseMessage = movedIntoWarehouse || shipment.status === "at_warehouse"
+    ? " The shipment is now in warehouse and ready for dispatch."
+    : "";
+  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}. Customer tracking has been refreshed.${warehouseMessage}` };
 }
