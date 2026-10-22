@@ -3,7 +3,41 @@ import { customerStatusLabel } from "@/lib/customer-tracking";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { shipmentStatuses, type ShipmentStatus } from "@/lib/shipments";
+import { bulkShipmentHeaders } from "@/lib/bulk-shipments";
 import { createClient } from "@/lib/supabase/server";
+
+const internationalShipmentHeaders = ["transport_mode", "length_cm", "width_cm", "height_cm", "hscode"] as const;
+
+const bulkColumnWidths: Partial<Record<(typeof bulkShipmentHeaders)[number], number>> = {
+  reference_number: 20,
+  service_type: 16,
+  payment_type: 14,
+  sender_name: 24,
+  sender_phone: 18,
+  sender_address: 36,
+  sender_address_2: 24,
+  sender_city: 18,
+  sender_state_province: 18,
+  sender_postal_code: 16,
+  sender_country_code: 14,
+  consignee_name: 24,
+  consignee_phone: 18,
+  consignee_alt_phone: 18,
+  consignee_address: 36,
+  consignee_address_2: 24,
+  consignee_city: 18,
+  consignee_state_province: 18,
+  consignee_postal_code: 16,
+  consignee_country_code: 14,
+  consignee_area: 22,
+  consignee_landmark: 24,
+  pieces: 10,
+  weight_kg: 12,
+  description: 24,
+  value: 14,
+  cod_amount: 14,
+  delivery_instructions: 32,
+};
 
 function dubaiDate(value: string | null | undefined) {
   if (!value) return "";
@@ -111,14 +145,13 @@ export async function GET(request: Request) {
 
   const workbook = new ExcelJS.Workbook();
 
-  workbook.creator = "BloomPath Courier";
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Shipments", {
     views: [{ state: "frozen", ySplit: 1 }],
   });
 
-  sheet.columns = [
+  const internalColumns = [
     { header: "AWB", key: "tracking_number", width: 22 },
     { header: "Reference", key: "reference_number", width: 20 },
     { header: "Booked At", key: "created_at", width: 20 },
@@ -147,7 +180,64 @@ export async function GET(request: Request) {
     { header: "Delivered At", key: "delivered_at", width: 20 },
   ];
 
+  const shipperColumns = [
+    { header: "AWB", key: "tracking_number", width: 22 },
+    ...bulkShipmentHeaders.map((header) => ({ header, key: header, width: bulkColumnWidths[header] ?? 18 })),
+    ...internationalShipmentHeaders.map((header) => ({ header, key: header, width: 16 })),
+    { header: "Status", key: "status", width: 24 },
+  ];
+
+  const isShipper = profile.role === "shipper";
+  sheet.columns = isShipper ? shipperColumns : internalColumns;
+
   for (const row of rows) {
+    const status = row.customer_tracking_status === "customs_clearance_completed_warehouse_scanned"
+      ? "In warehouse"
+      : row.customer_tracking_status === "arrived_at_destination_airport_customs_started"
+        ? "Customs clearance started"
+        : customerStatusLabel(row);
+
+    if (isShipper) {
+      sheet.addRow({
+        tracking_number: row.tracking_number,
+        reference_number: row.reference_number ?? "",
+        service_type: row.service_type ?? "",
+        payment_type: row.payment_type ?? "",
+        sender_name: row.sender_name ?? "",
+        sender_phone: row.sender_phone ?? "",
+        sender_address: row.sender_address ?? "",
+        sender_address_2: row.sender_address_2 ?? "",
+        sender_city: row.sender_city ?? "",
+        sender_state_province: row.sender_state_province ?? "",
+        sender_postal_code: row.sender_postal_code ?? "",
+        sender_country_code: row.sender_country_code ?? "",
+        consignee_name: row.consignee_name ?? "",
+        consignee_phone: row.consignee_phone ?? "",
+        consignee_alt_phone: row.consignee_alt_phone ?? "",
+        consignee_address: row.consignee_address ?? "",
+        consignee_address_2: row.consignee_address_2 ?? "",
+        consignee_city: row.consignee_city ?? "",
+        consignee_state_province: row.consignee_state_province ?? "",
+        consignee_postal_code: row.consignee_postal_code ?? "",
+        consignee_country_code: row.consignee_country_code ?? "",
+        consignee_area: row.consignee_area ?? "",
+        consignee_landmark: row.consignee_landmark ?? "",
+        pieces: Number(row.pieces ?? 0),
+        weight_kg: Number(row.weight_kg ?? 0),
+        description: row.parcel_description ?? "",
+        value: Number(row.declared_value ?? 0),
+        cod_amount: Number(row.cod_amount ?? 0),
+        delivery_instructions: row.delivery_instructions ?? "",
+        transport_mode: row.transport_mode ?? "",
+        length_cm: row.length_cm ?? "",
+        width_cm: row.width_cm ?? "",
+        height_cm: row.height_cm ?? "",
+        hscode: row.hs_code ?? "",
+        status,
+      });
+      continue;
+    }
+
     sheet.addRow({
       tracking_number: row.tracking_number,
       reference_number: row.reference_number ?? "",
@@ -177,7 +267,7 @@ export async function GET(request: Request) {
       weight_kg: Number(row.weight_kg ?? 0),
       cod_amount: Number(row.cod_amount ?? 0),
       currency: row.currency ?? "",
-      status: row.customer_tracking_status === "customs_clearance_completed_warehouse_scanned" ? "In warehouse" : row.customer_tracking_status === "arrived_at_destination_airport_customs_started" ? "Customs clearance started" : customerStatusLabel(row),
+      status,
       delivery_attempt_count: Number(row.delivery_attempt_count ?? 0),
       last_undelivered_reason: String(
         row.last_undelivered_reason ?? "",
@@ -194,13 +284,17 @@ export async function GET(request: Request) {
   };
   header.height = 24;
 
-  sheet.autoFilter = {
-    from: "A1",
-    to: "Z1",
-  };
+  sheet.autoFilter = { from: "A1", to: sheet.getCell(1, sheet.columnCount).address };
 
-  sheet.getColumn("U").numFmt = '#,##0.00';
-  sheet.getColumn("T").numFmt = '0.000';
+  if (isShipper) {
+    sheet.getColumn("pieces").numFmt = "0";
+    sheet.getColumn("weight_kg").numFmt = "0.000";
+    sheet.getColumn("value").numFmt = "#,##0.00";
+    sheet.getColumn("cod_amount").numFmt = "#,##0.00";
+  } else {
+    sheet.getColumn("U").numFmt = "#,##0.00";
+    sheet.getColumn("T").numFmt = "0.000";
+  }
 
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -222,7 +316,7 @@ export async function GET(request: Request) {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition":
-        `attachment; filename="bloompath-all-shipments-${dateStamp}.xlsx"`,
+        `attachment; filename="shipments-${dateStamp}.xlsx"`,
       "Cache-Control": "no-store",
     },
   });
