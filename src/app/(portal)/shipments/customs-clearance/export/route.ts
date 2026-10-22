@@ -91,12 +91,12 @@ export async function GET(request: Request) {
     Number(shipment.weight_kg ?? 0),
     "KGS",
     Number(shipment.declared_value ?? 0),
-    shipment.currency ?? "",
+    shipment.item_value === null || shipment.item_value === undefined ? "USD" : shipment.currency ?? "",
     shipment.incoterms ?? "",
     shipment.parcel_description ?? "",
     shipment.hs_code ?? "",
-    shipment.item_quantity ?? "",
-    shipment.item_value ?? "",
+    shipment.item_quantity ?? shipment.pieces ?? 1,
+    shipment.item_value ?? shipment.weight_kg ?? 0,
     shipment.country_of_origin ?? shipment.sender_country_code ?? "",
   ]);
 
