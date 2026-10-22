@@ -7,12 +7,19 @@ function loadTs(filename, imports = {}) {
 }
 const core=loadTs('src/lib/gta-airskip.ts');
 const server=loadTs('src/lib/gta-airskip-server.ts',{'server-only':{},'@/lib/gta-airskip':core});
+const partnerStatus=loadTs('src/lib/gta-airskip-status-sync.ts',{'@/lib/supabase/admin':{}});
 const shipment={tracking_number:'FD10001',pieces:1,weight_kg:2,payment_type:'prepaid',cod_amount:0,sender_name:'Sender',sender_address:'1 Street',sender_city:'Toronto',sender_state_province:'ON',sender_postal_code:'M5V 1A1',sender_country_code:'CA',consignee_name:'Receiver',consignee_address:'2 Street',consignee_city:'Toronto',consignee_state_province:'ON',consignee_postal_code:'M5V 1A1',consignee_country_code:'CA'};
 const options={terminal:core.gtaSenderTerminals,destinationTerminal:'',service:'',piecesType:'Box',length:10,width:8,height:4,signature:false,insurance:false,insuranceValue:NaN,items:[]};
 const item={description:'Shirt',weight:0.3,hsCode:'6109100012',declaredValue:20,currency:'USD',quantity:1};
 const label=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64');
 const response={isSuccess:true,data:{loadNumber:'LOAD1',cost:5,packages:[{trackingNumber:['GTA10001'],labelBase64:label}]}};
 const config={accountKey:'fixture-account',apiKey:'fixture-api',baseUrl:server.gtaQaUrl,test:true,liveEnabled:false};
+test('maps verified GTA event text to partner report milestones and ignores unknown wording',()=>{
+ const status=(text)=>partnerStatus.normalizeGtaPartnerStatus({status:text,events:[],date:'',standardStatus:null});
+ assert.equal(status('Delivered'),'delivered');assert.equal(status('Out for delivery'),'out_for_delivery');assert.equal(status('Delivery attempted'),'undelivered');
+ assert.equal(status('Returned to sender'),'returned_to_shipper');assert.equal(status('In transit'),'in_transit');assert.equal(status('Customs review'),null);
+ assert.equal(status('Not delivered yet'),null);
+});
 test('domestic shipment uses bare GTA schema with references, cm/kg and no customs or custom tracking',()=>{
  const payload=core.buildGtaShipment(shipment,options,'persisted-uuid');
  assert.equal(payload.IdempotencyKey,'persisted-uuid');assert.equal(payload.reference1,'FD10001');assert.equal(payload.shipment,undefined);assert.equal(payload.service,undefined);assert.equal(payload.fromCountry,'CA');
@@ -82,7 +89,7 @@ test('server action blocks production without activation/confirmation before res
  const keys=['GTA_AIRSKIP_ORGANIZATION_ID','GTA_AIRSKIP_ACCOUNT_KEY','GTA_AIRSKIP_API_KEY','GTA_AIRSKIP_BASE_URL','GTA_AIRSKIP_LIVE_ENABLED'];const old=keys.map(k=>process.env[k]);
  let adminCalls=0;
  const query={select(){return this;},eq(){return this;},is(){return this;},async maybeSingle(){return {data:shipment};}};
- const actions=loadTs('src/app/(portal)/courier-integrations/gta-airskip/actions.ts',{'next/cache':{revalidatePath(){}},'next/navigation':{unstable_rethrow(){}},'@/lib/auth':{async requireProfile(roles){assert.ok(roles.includes('dispatcher'));return {id:'actor',organization_id:'org'};}},'@/lib/gta-airskip':core,'@/lib/gta-airskip-server':server,'@/lib/supabase/server':{async createClient(){return {from(){return query;}};}},'@/lib/supabase/admin':{createAdminClient(){adminCalls++;throw new Error('Must not access booking storage');}}});
+ const actions=loadTs('src/app/(portal)/courier-integrations/gta-airskip/actions.ts',{'next/cache':{revalidatePath(){}},'next/navigation':{unstable_rethrow(){}},'@/lib/auth':{async requireProfile(roles){assert.ok(roles.includes('dispatcher'));return {id:'actor',organization_id:'org'};}},'@/lib/gta-airskip':core,'@/lib/gta-airskip-status-sync':{async syncGtaPartnerStatus(){}},'@/lib/gta-airskip-server':server,'@/lib/supabase/server':{async createClient(){return {from(){return query;}};}},'@/lib/supabase/admin':{createAdminClient(){adminCalls++;throw new Error('Must not access booking storage');}}});
  try{process.env.GTA_AIRSKIP_ORGANIZATION_ID='org';process.env.GTA_AIRSKIP_ACCOUNT_KEY='key';process.env.GTA_AIRSKIP_API_KEY='api';process.env.GTA_AIRSKIP_BASE_URL='https://tms-api.gtagsm.com';process.env.GTA_AIRSKIP_LIVE_ENABLED='false';
  const form=new FormData();form.set('awb','FD10001');form.set('confirm_induction','on');form.set('confirm_live','on');assert.match((await actions.generateGtaAwb({},form)).message,/must be enabled/);assert.equal(adminCalls,0);
  process.env.GTA_AIRSKIP_LIVE_ENABLED='true';form.delete('confirm_live');assert.match((await actions.generateGtaAwb({},form)).message,/explicitly confirmed/);assert.equal(adminCalls,0);
@@ -168,7 +175,7 @@ test('label recovery verifies tenant, environment and exact FastDrop reference; 
  const scope=[];
  const booking={id,status:'needs_review',base_url:server.gtaQaUrl,shipment_id:1,partner_tracking_number:null};
  const admin={from(table){const q={select(){return this;},eq(k,v){scope.push([table,k,v]);return this;},is(){return this;},update(){saves++;return this;},async maybeSingle(){return {data:table==='shipments'?{tracking_number:'FD10001'}:booking};}};return q;},async rpc(){return {error:null};}};
- const actions=loadTs('src/app/(portal)/courier-integrations/gta-airskip/actions.ts',{'next/cache':{revalidatePath(){}},'next/navigation':{unstable_rethrow(){}},'@/lib/auth':{async requireProfile(){return {id:'actor',organization_id:'org'};}},'@/lib/gta-airskip':core,'@/lib/gta-airskip-server':{...server,async requestGtaTrackingRecord(){return {Reference1:reference,LoadNumber:'LOAD1'};},async requestGtaReprint(){reprints++;return Buffer.from(label,'base64');},async requestGtaLabel(){throw new Error('Recovery must never create');}},'@/lib/supabase/admin':{createAdminClient(){return admin;}},'@/lib/supabase/server':{async createClient(){throw new Error('Unused during recovery');}}});
+ const actions=loadTs('src/app/(portal)/courier-integrations/gta-airskip/actions.ts',{'next/cache':{revalidatePath(){}},'next/navigation':{unstable_rethrow(){}},'@/lib/auth':{async requireProfile(){return {id:'actor',organization_id:'org'};}},'@/lib/gta-airskip':core,'@/lib/gta-airskip-status-sync':{async syncGtaPartnerStatus(){}},'@/lib/gta-airskip-server':{...server,async requestGtaTrackingRecord(){return {Reference1:reference,LoadNumber:'LOAD1'};},async requestGtaReprint(){reprints++;return Buffer.from(label,'base64');},async requestGtaLabel(){throw new Error('Recovery must never create');}},'@/lib/supabase/admin':{createAdminClient(){return admin;}},'@/lib/supabase/server':{async createClient(){throw new Error('Unused during recovery');}}});
  try{process.env.GTA_AIRSKIP_ORGANIZATION_ID='org';process.env.GTA_AIRSKIP_ACCOUNT_KEY='key';process.env.GTA_AIRSKIP_API_KEY='api';process.env.GTA_AIRSKIP_BASE_URL=server.gtaQaUrl;
  const form=new FormData();form.set('booking_id',id);form.set('tracking','GTA1');assert.match((await actions.recoverGtaLabel({},form)).message,/does not match/);assert.equal(saves,0);assert.equal(reprints,0);
  reference='FD10001';assert.equal((await actions.recoverGtaLabel({},form)).status,'success');assert.equal(reprints,1);assert.equal(saves,1);assert.ok(scope.filter(x=>x[1]==='organization_id').every(x=>x[2]==='org'));
@@ -177,7 +184,7 @@ test('label recovery verifies tenant, environment and exact FastDrop reference; 
 test('webhook ignores unknown bookings and cooldown duplicates; verified pulls replace no callback event values',async()=>{
  let pulls=0,claims=0;let booking=null;const updates=[];
  const admin={from(){return {select(){return this;},eq(){return this;},in(){return this;},is(){return this;},contains(){return this;},update(value){updates.push(value);claims++;return this;},async maybeSingle(){return {data:booking};},then(resolve){resolve({error:null});}};}};
- const route=loadTs('src/app/api/webhooks/gta-airskip/route.ts',{'@/lib/supabase/admin':{createAdminClient(){return admin;}},'@/lib/gta-airskip-server':{gtaProductionUrl:server.gtaProductionUrl,getGtaConfig(){return {...config,baseUrl:server.gtaProductionUrl,test:false};},async requestGtaTracking(){pulls++;return {status:'Created',standardStatus:10,date:'date',events:[]};}},'@/lib/gta-airskip-webhook':loadTs('src/lib/gta-airskip-webhook.ts')});
+ const route=loadTs('src/app/api/webhooks/gta-airskip/route.ts',{'@/lib/supabase/admin':{createAdminClient(){return admin;}},'@/lib/gta-airskip-status-sync':{async syncGtaPartnerStatus(){}},'@/lib/gta-airskip-server':{gtaProductionUrl:server.gtaProductionUrl,getGtaConfig(){return {...config,baseUrl:server.gtaProductionUrl,test:false};},async requestGtaTracking(){pulls++;return {status:'Created',standardStatus:10,date:'date',events:[]};}},'@/lib/gta-airskip-webhook':loadTs('src/lib/gta-airskip-webhook.ts')});
  const req=()=>new Request('https://app.example/api/webhooks/gta-airskip',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({TrackingNumber:'GTA1',LoadNumber:'LOAD1',EventStatus:'Delivered',ReceiverEmail:'private'})});
  assert.equal((await route.POST(req())).status,202);assert.equal(pulls,0);assert.equal(claims,0);
  booking={id:'uuid',response_metadata:{webhookPullAttempt:new Date().toISOString()}};await route.POST(req());assert.equal(pulls,0);
