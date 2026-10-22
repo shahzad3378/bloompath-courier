@@ -98,9 +98,18 @@ export function prepareInternationalRows(
   if (headerIndex < 0) return { ok: false, errors: [], message: "The international template header row was not found. Download a fresh template." };
 
   const headers = rawRows[headerIndex].map(normalizedHeader);
+  const customHeaderAliases: Record<string, string> = {
+    "shipper address 3": "sender_address_3",
+    address3: "consignee_address_3",
+    "consignee email": "consignee_email",
+    "item quantity": "item_quantity",
+    "item value": "item_value",
+    "country of origin": "country_of_origin",
+  };
+  const normalizedHeaders = headers.map((header) => customHeaderAliases[header] ?? header);
   const index = (name: string) => {
-    const alias = name === "description" && !headers.includes(name) ? "parcel_description" : name;
-    return headers.indexOf(alias);
+    const alias = name === "description" && !normalizedHeaders.includes(name) ? "parcel_description" : name;
+    return normalizedHeaders.indexOf(alias);
   };
   for (const field of ["transport_mode", "length_cm", "width_cm", "height_cm"]) {
     if (index(field) < 0) errors.push({ row: headerIndex + 1, field, message: "This column is required in the International Upload template." });
@@ -119,16 +128,34 @@ export function prepareInternationalRows(
     const widthCm = Number(read("width_cm"));
     const heightCm = Number(read("height_cm"));
     const hs = read("hscode");
+    const consigneeEmail = read("consignee_email");
+    const incoterms = read("incoterms");
+    const itemQuantityText = read("item_quantity");
+    const itemQuantity = itemQuantityText ? Number(itemQuantityText.replace(/,/g, "")) : null;
+    const itemValueText = read("item_value");
+    const itemValue = itemValueText ? Number(itemValueText.replace(/,/g, "")) : null;
+    const countryOfOrigin = read("country_of_origin").toUpperCase();
+    const customsCurrency = read("currency").toUpperCase();
+    const senderAddress3 = read("sender_address_3");
+    const consigneeAddress3 = read("consignee_address_3");
+    const pieces = parsed.shipment.pieces;
     const rowErrors = errors.length;
     if (!mode) errors.push({ row: parsed.row, field: "transport_mode", message: "Choose air or sea." });
     for (const [field, value] of [["length_cm", lengthCm], ["width_cm", widthCm], ["height_cm", heightCm]] as const) {
       if (!Number.isFinite(value) || value <= 0 || value > 10000) errors.push({ row: parsed.row, field, message: "Enter a dimension greater than 0 and no more than 10,000 cm." });
     }
     if (hs && !/^[0-9]{4,10}$/.test(hs)) errors.push({ row: parsed.row, field: "hscode", message: "HS code must contain 4–10 digits." });
+    if (consigneeEmail.length > 254 || (consigneeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(consigneeEmail))) errors.push({ row: parsed.row, field: "consignee_email", message: "Enter a valid consignee email address." });
+    if (incoterms.length > 20) errors.push({ row: parsed.row, field: "incoterms", message: "Incoterms must contain no more than 20 characters." });
+    if (senderAddress3.length > 200) errors.push({ row: parsed.row, field: "sender_address_3", message: "Shipper Address 3 must contain no more than 200 characters." });
+    if (consigneeAddress3.length > 200) errors.push({ row: parsed.row, field: "consignee_address_3", message: "Address3 must contain no more than 200 characters." });
+    if (itemQuantityText && (!Number.isSafeInteger(itemQuantity) || itemQuantity! < pieces)) errors.push({ row: parsed.row, field: "item_quantity", message: "Enter a whole item quantity at least equal to the number of pieces." });
+    if (itemValueText && (!Number.isFinite(itemValue) || itemValue! < 0)) errors.push({ row: parsed.row, field: "item_value", message: "Enter a non-negative item value." });
+    if (countryOfOrigin && !/^[A-Z]{2}$/.test(countryOfOrigin)) errors.push({ row: parsed.row, field: "country_of_origin", message: "Use a two-letter country code such as NP or AE." });
+    if (customsCurrency && !/^[A-Z]{3}$/.test(customsCurrency)) errors.push({ row: parsed.row, field: "currency", message: "Use a three-letter currency code such as CAD or USD." });
     if (parsed.shipment.sender_country_code === parsed.shipment.consignee_country_code) errors.push({ row: parsed.row, field: "consignee_country_code", message: "Sender and destination are in the same country. Use Local Bulk Upload." });
     if (errors.length !== rowErrors || !mode) continue;
 
-    const pieces = parsed.shipment.pieces;
     const pieceWeights = splitInternationalWeight(parsed.shipment.weight_kg, pieces);
     if (!pieceWeights) {
       errors.push({ row: parsed.row, field: "weight_kg", message: "Total weight must be at least 0.001 kg per bag so each AWB has a positive weight." });
@@ -172,6 +199,14 @@ export function prepareInternationalRows(
           chargeable_weight_kg: weights.chargeableWeightKg,
           chargeable_wm: weights.chargeableWm,
           hs_code: hs || null,
+          sender_address_3: senderAddress3 || null,
+          consignee_address_3: consigneeAddress3 || null,
+          consignee_email: consigneeEmail || null,
+          incoterms: incoterms || null,
+          item_quantity: itemQuantity === null ? null : Math.floor(itemQuantity / pieces) + (pieceIndex < itemQuantity % pieces ? 1 : 0),
+          item_value: itemValue,
+          country_of_origin: countryOfOrigin || parsed.shipment.sender_country_code,
+          currency: customsCurrency || parsed.shipment.currency,
         },
         calculation: {
           row: parsed.row,
