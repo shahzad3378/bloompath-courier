@@ -31,9 +31,11 @@ export async function GET(request: Request) {
     partner_tracking_number,
     created_at,
     partner_status,
+    third_party_carriers!inner(code),
     shipments!inner(organization_id, tracking_number, reference_number, consignee_name, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code, weight_kg, booked_at, deleted_at)
   `)
     .eq("organization_id", profile.organization_id)
+    .eq("third_party_carriers.code", "GTA_AIRSKIP")
     .eq("shipments.organization_id", profile.organization_id)
     .is("shipments.deleted_at", null)
     .gte("shipments.booked_at", start.toISOString())

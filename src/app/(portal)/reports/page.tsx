@@ -105,6 +105,7 @@ export default async function DeliveryReportsPage({
       cod_amount,
       service_type,
       status,
+      customer_tracking_status,
       delivery_attempt_count,
       booked_at,
       delivered_at,
@@ -188,9 +189,22 @@ export default async function DeliveryReportsPage({
   const shipments =
     shipmentData ?? [];
 
+  const gtaStatusByShipment = new Map<number, string>();
+  if (shipments.length) {
+    const { data: partnerLinks } = await supabase
+      .from("third_party_shipment_links")
+      .select("shipment_id, partner_status, third_party_carriers!inner(code)")
+      .eq("organization_id", profile.organization_id!)
+      .eq("third_party_carriers.code", "GTA_AIRSKIP")
+      .in("shipment_id", shipments.map((row) => Number(row.id)));
+    for (const link of partnerLinks ?? []) {
+      if (link.partner_status) gtaStatusByShipment.set(Number(link.shipment_id), link.partner_status);
+    }
+  }
+
   // Summary cards cover the entire selected period, not just the visible table page.
   let summaryQuery = supabase.from("shipments")
-    .select("status, cod_amount")
+    .select("status, customer_tracking_status, cod_amount")
     .eq("organization_id", profile.organization_id!)
     .is("deleted_at", null)
     .gte("booked_at", startIso)
@@ -199,7 +213,7 @@ export default async function DeliveryReportsPage({
   if (params.shipper) summaryQuery = summaryQuery.eq("shipper_id", params.shipper);
   if (params.driver) summaryQuery = summaryQuery.eq("assigned_driver_id", params.driver);
   if (params.status) summaryQuery = summaryQuery.eq("status", params.status);
-  const summaryRows: { status: string; cod_amount: number | null }[] = [];
+  const summaryRows: { status: string; customer_tracking_status: string | null; cod_amount: number | null }[] = [];
   let summaryError = false;
   for (let offset = 0; offset < (count ?? 0); offset += 1000) {
     const { data: batch, error: batchError } = await summaryQuery.range(offset, offset + 999);
@@ -267,6 +281,8 @@ export default async function DeliveryReportsPage({
 
       return {
         ...row,
+        report_status: row.customer_tracking_status ?? row.status,
+        three_pl_status: gtaStatusByShipment.get(Number(row.id)) ?? "—",
         last_undelivered_at:
           lastUndeliveredAt,
         aging_days:
@@ -284,27 +300,27 @@ export default async function DeliveryReportsPage({
 
   const delivered = summaryRows.filter(
     (row) =>
-      row.status === "delivered",
+      (row.customer_tracking_status ?? row.status) === "delivered",
   ).length;
 
   const outForDelivery =
     summaryRows.filter(
       (row) =>
-        row.status ===
+        (row.customer_tracking_status ?? row.status) ===
         "out_for_delivery",
     ).length;
 
   const undelivered =
     summaryRows.filter(
       (row) =>
-        row.status === "undelivered",
+        (row.customer_tracking_status ?? row.status) === "undelivered",
     ).length;
 
   const returns = summaryRows.filter(
     (row) =>
-      row.status ===
+      (row.customer_tracking_status ?? row.status) ===
         "return_initiated" ||
-      row.status ===
+      (row.customer_tracking_status ?? row.status) ===
         "returned_to_shipper",
   ).length;
 
@@ -651,6 +667,9 @@ export default async function DeliveryReportsPage({
                     Status
                   </th>
                   <th className="px-4 py-3">
+                    3PL Status
+                  </th>
+                  <th className="px-4 py-3">
                     Attempts
                   </th>
                   <th className="px-4 py-3">
@@ -716,11 +735,15 @@ export default async function DeliveryReportsPage({
 
                     <td className="px-4 py-4 capitalize">
                       {String(
-                        row.status,
+                        row.report_status,
                       ).replaceAll(
                         "_",
                         " ",
                       )}
+                    </td>
+
+                    <td className="px-4 py-4 capitalize">
+                      {row.three_pl_status}
                     </td>
 
                     <td className="px-4 py-4">

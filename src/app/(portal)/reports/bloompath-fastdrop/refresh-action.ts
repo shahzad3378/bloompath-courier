@@ -56,6 +56,8 @@ export async function refreshGtaReportStatuses(_state: RefreshStatusState, form:
   await Promise.all(Array.from({ length: Math.min(5, usable.length) }, () => refreshNext()));
 
   revalidatePath("/reports/bloompath-fastdrop");
+  revalidatePath("/reports");
+  revalidatePath("/shipments");
   revalidatePath("/dispatch/3pl");
   const message = `GTA tracking checked: ${updated} report statuses updated${skipped ? `, ${skipped} unchanged` : ""}${failed ? `, ${failed} checks failed` : ""}.`;
   return { status: failed && !updated ? "error" : "success", message };
