@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ReportDateFields } from "@/components/report-date-fields";
+import { RefreshStatusButton } from "./bloompath-fastdrop/refresh-status-button";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 import {
   ArrowDownRight,
@@ -401,6 +402,7 @@ export default async function DeliveryReportsPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <RefreshStatusButton range={range} from={params.from ?? ""} to={params.to ?? ""} page={pagination.page} pageSize={pagination.pageSize} />
           <Link href="/reports/bloompath-fastdrop" className="bp-button-secondary">
             BloomPath FastDrop
           </Link>
