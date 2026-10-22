@@ -65,7 +65,7 @@ export default async function CanadaCustomsClearancePage({ searchParams }: {
     <section className="mt-5 rounded-2xl border border-[#e0e8e4] bg-white p-5 text-sm leading-6 text-[#617068] shadow-[0_8px_30px_rgba(24,51,39,0.045)]">
       <h2 className="font-bold text-[#26372f]">Report fields</h2>
       <p className="mt-1">The exported columns and order match the attached customs file. Consignment, barcode and internal account number use the generated AWB; reference and customer-entered shipment details follow each uploaded shipment.</p>
-      <p className="mt-2">For future international uploads, use the customs columns for Consignee Email, Incoterm, Item Quantity, Item Value and Country Of Origin. Item quantity defaults to one per AWB; a missing item value defaults to USD 1 per parcel kg. These defaults also apply to older shipments when the report is downloaded.</p>
+      <p className="mt-2">For future international uploads, use the customs columns for Consignee Email, Incoterm, Item Quantity, Item Value and Country Of Origin. Item quantity defaults to one per AWB; a missing item value defaults to CAD 1 per parcel kg. These defaults also apply to older shipments when the report is downloaded.</p>
     </section>
   </div>;
 }
