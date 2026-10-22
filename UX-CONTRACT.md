@@ -37,7 +37,7 @@ This contract records observable workflow behavior for the authenticated courier
 - `/shipments` starts with 50 rows and lets staff select 50, 100, 200, or 500 rows per page. Previous/Next controls state the visible range and result total.
 - Shipment rows use the document's vertical scroll so the full selected page can be reached by scrolling down; the table owns horizontal overflow only.
 - Search, status, shipper, driver, and date filters keep the existing tenant scoping and filter results before table display.
-- Shippers can export all active shipments matching the current search and filters as an Excel workbook. The export remains tenant- and shipper-scoped and uses customer-safe shipment statuses; it does not depend on table selection or the current visible page.
+- Shippers can export all active shipments matching the current search and filters as an Excel workbook. The export remains tenant- and shipper-scoped, mirrors the bulk-upload fields (including international-only fields), adds AWB first and customer-safe status last, and excludes driver details and BloomPath branding. It does not depend on table selection or the current visible page.
 
 ### Dispatch and warehouse scan modes
 
