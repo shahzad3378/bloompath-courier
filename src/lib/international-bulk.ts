@@ -208,7 +208,7 @@ export function prepareInternationalRows(
           item_quantity: itemQuantity === null ? 1 : Math.floor(itemQuantity / pieces) + (pieceIndex < itemQuantity % pieces ? 1 : 0),
           item_value: itemValue === null && parsed.shipment.consignee_country_code !== "CA" ? null : pieceItemValues[pieceIndex],
           country_of_origin: countryOfOrigin || parsed.shipment.sender_country_code,
-          currency: customsCurrency || (parsed.shipment.consignee_country_code === "CA" ? "USD" : parsed.shipment.currency),
+          currency: customsCurrency || (parsed.shipment.consignee_country_code === "CA" ? "CAD" : parsed.shipment.currency),
         },
         calculation: {
           row: parsed.row,
