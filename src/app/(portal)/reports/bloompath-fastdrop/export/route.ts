@@ -30,7 +30,8 @@ export async function GET(request: Request) {
     shipment_id,
     partner_tracking_number,
     created_at,
-    shipments!inner(organization_id, tracking_number, reference_number, booked_at, deleted_at)
+    partner_status,
+    shipments!inner(organization_id, tracking_number, reference_number, consignee_name, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code, weight_kg, booked_at, deleted_at)
   `)
     .eq("organization_id", profile.organization_id)
     .eq("shipments.organization_id", profile.organization_id)
@@ -47,10 +48,23 @@ export async function GET(request: Request) {
     if ((data ?? []).length < 1000) break;
   }
 
-  const headers = ["Customer Reference Number", "FastDrop AWB", "3PL AWB"];
+  const headers = ["Customer Reference Number", "FastDrop AWB", "Consignee Name", "Address 1", "Address 2", "City", "State / Province", "Postal Code", "Country", "Weight (kg)", "3PL AWB", "3PL Status"];
   const rows = records.flatMap((record) => {
     const shipment = relation(record.shipments);
-    return shipment ? [[shipment.reference_number ?? "", shipment.tracking_number ?? "", record.partner_tracking_number ?? ""]] : [];
+    return shipment ? [[
+      shipment.reference_number ?? "",
+      shipment.tracking_number ?? "",
+      shipment.consignee_name ?? "",
+      shipment.consignee_address ?? "",
+      shipment.consignee_address_2 ?? "",
+      shipment.consignee_city ?? "",
+      shipment.consignee_state_province ?? "",
+      shipment.consignee_postal_code ?? "",
+      shipment.consignee_country_code ?? "",
+      shipment.weight_kg ?? "",
+      record.partner_tracking_number ?? "",
+      (record.partner_status ?? "pending").replaceAll("_", " "),
+    ]] : [];
   });
   const dateStamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
   const filename = `bloompath-fastdrop-${dateStamp}.${format === "csv" ? "csv" : "xlsx"}`;
@@ -67,12 +81,11 @@ export async function GET(request: Request) {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
   const sheet = workbook.addWorksheet("BloomPath FastDrop", { views: [{ state: "frozen", ySplit: 1 }] });
-  sheet.columns = headers.map((header) => ({ header, width: Math.max(24, header.length + 4) }));
-  sheet.addRow(headers);
+  sheet.columns = headers.map((header) => ({ header, width: Math.max(18, Math.min(34, header.length + 5)) }));
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF13734B" } };
   for (const row of rows) sheet.addRow(row);
-  sheet.autoFilter = { from: "A1", to: "C1" };
+  sheet.autoFilter = { from: "A1", to: "L1" };
   const bytes = await workbook.xlsx.writeBuffer();
   return new Response(bytes, { headers: {
     "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

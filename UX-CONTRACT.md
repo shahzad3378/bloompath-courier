@@ -202,3 +202,8 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 
 - Choosing a warehouse workflow immediately submits the selector. In Scan & print, scanner input, paste + Enter, and the inline search button share one tenant-scoped lookup and automatic print flow; repeated shipment summary panels are omitted.
 - Each label request sent to the browser print window is appended to a browser-local AWB report with piece number and Dubai timestamp. The report persists in that browser, exports as Excel-compatible CSV, and can be printed/saved as PDF. It records requests sent to the print dialog, not confirmation that paper physically printed.
+
+### BloomPath FastDrop report detail
+
+- `/reports/bloompath-fastdrop` displays customer reference, FastDrop AWB, consignee name, each consignee address component, weight in kg, linked 3PL AWB, and the 3PL partner status.
+- The report provides visible-row selection and select-all controls, retains the Dubai date filter, and exports all matching rows to CSV or Excel.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Download, FileSpreadsheet, PackageCheck } from "lucide-react";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { ReportDateFields } from "@/components/report-date-fields";
+import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { resolveReportDateRange } from "@/lib/report-date-range";
@@ -27,7 +28,8 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
   const query = supabase.from("third_party_shipment_links").select(`
     shipment_id,
     partner_tracking_number,
-    shipments!inner(organization_id, tracking_number, reference_number, booked_at, deleted_at)
+    partner_status,
+    shipments!inner(organization_id, tracking_number, reference_number, consignee_name, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code, weight_kg, booked_at, deleted_at)
   `, { count: "exact" })
     .eq("organization_id", profile.organization_id)
     .eq("shipments.organization_id", profile.organization_id)
@@ -45,6 +47,15 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
       customerReference: shipment.reference_number ?? "",
       fastDropAwb: shipment.tracking_number ?? "",
       threePlAwb: item.partner_tracking_number ?? "",
+      consigneeName: shipment.consignee_name ?? "",
+      address1: shipment.consignee_address ?? "",
+      address2: shipment.consignee_address_2 ?? "",
+      city: shipment.consignee_city ?? "",
+      stateProvince: shipment.consignee_state_province ?? "",
+      postalCode: shipment.consignee_postal_code ?? "",
+      country: shipment.consignee_country_code ?? "",
+      weightKg: shipment.weight_kg ?? "",
+      threePlStatus: item.partner_status ?? "pending",
     }] : [];
   });
 
@@ -75,11 +86,18 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
 
     <section className="bp-panel mt-5 overflow-hidden">
       <div className="bp-panel-header flex items-center justify-between gap-3">
-        <div><h2 className="font-black text-[#26372f]">Shipment AWB mapping</h2><p className="mt-1 text-xs text-[#87938d]">Customer reference · FastDrop AWB · 3PL AWB</p></div>
+        <div><h2 className="font-black text-[#26372f]">Shipment AWB mapping</h2><p className="mt-1 text-xs text-[#87938d]">Customer reference · FastDrop AWB · consignee · address · weight · 3PL AWB/status</p></div>
         <p className="inline-flex items-center gap-2 text-xs font-bold text-[#15905c]"><PackageCheck className="size-4" />{(count ?? 0).toLocaleString()} shipments</p>
       </div>
       <DataTableToolbar pathname="/reports/bloompath-fastdrop" params={params} page={pagination.page} pageSize={pagination.pageSize} total={count ?? 0} showDates={false} />
-      {error ? <p role="alert" className="p-8 text-center text-sm font-semibold text-[#b74646]">Report could not be loaded. Check the date range and try again.</p> : rows.length === 0 ? <p className="p-10 text-center text-sm text-[#87938d]">No 3PL-linked shipments found for this period.</p> : <div className="max-h-[680px] overflow-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="sticky top-0 bg-[#f8faf9] text-[11px] uppercase text-[#77847e]"><tr><th className="px-5 py-3">Customer Reference Number</th><th className="px-5 py-3">FastDrop AWB</th><th className="px-5 py-3">3PL AWB</th></tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.fastDropAwb}-${index}`} className="border-t border-[#edf1ef]"><td className="px-5 py-3.5">{row.customerReference || "—"}</td><td className="px-5 py-3.5 font-mono font-bold">{row.fastDropAwb}</td><td className="px-5 py-3.5 font-mono">{row.threePlAwb || "—"}</td></tr>)}</tbody></table></div>}
+      {error ? <p role="alert" className="p-8 text-center text-sm font-semibold text-[#b74646]">Report could not be loaded. Check the date range and try again.</p> : rows.length === 0 ? <p className="p-10 text-center text-sm text-[#87938d]">No 3PL-linked shipments found for this period.</p> : <SelectableTable visibleCount={rows.length}>
+        <table className="w-full min-w-[1480px] text-left text-sm"><thead className="sticky top-0 bg-[#f8faf9] text-[11px] uppercase text-[#77847e]"><tr>
+          <th className="px-4 py-3">Select</th><th className="px-4 py-3">Customer Reference Number</th><th className="px-4 py-3">FastDrop AWB</th><th className="px-4 py-3">Consignee Name</th><th className="px-4 py-3">Address 1</th><th className="px-4 py-3">Address 2</th><th className="px-4 py-3">City</th><th className="px-4 py-3">State / Province</th><th className="px-4 py-3">Postal Code</th><th className="px-4 py-3">Country</th><th className="px-4 py-3">Weight (kg)</th><th className="px-4 py-3">3PL AWB</th><th className="px-4 py-3">3PL Status</th>
+        </tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.fastDropAwb}-${index}`} className="border-t border-[#edf1ef]">
+          <td className="px-4 py-3.5"><input type="checkbox" data-table-row-select value={row.fastDropAwb} aria-label={`Select ${row.fastDropAwb}`} className="size-4 accent-[#13734b]" /></td>
+          <td className="px-4 py-3.5">{row.customerReference || "—"}</td><td className="px-4 py-3.5 font-mono font-bold">{row.fastDropAwb}</td><td className="px-4 py-3.5 font-semibold">{row.consigneeName}</td><td className="px-4 py-3.5">{row.address1}</td><td className="px-4 py-3.5">{row.address2}</td><td className="px-4 py-3.5">{row.city}</td><td className="px-4 py-3.5">{row.stateProvince}</td><td className="px-4 py-3.5">{row.postalCode}</td><td className="px-4 py-3.5">{row.country}</td><td className="px-4 py-3.5">{row.weightKg}</td><td className="px-4 py-3.5 font-mono">{row.threePlAwb || "—"}</td><td className="px-4 py-3.5 capitalize">{row.threePlStatus.replaceAll("_", " ")}</td>
+        </tr>)}</tbody></table>
+      </SelectableTable>}
       <div className="flex flex-wrap items-center gap-2 border-t border-[#e8eeeb] px-4 py-3 text-xs text-[#68766f]"><Link href="/reports" className="font-bold text-[#13734b] hover:underline">Back to Delivery Reports</Link></div>
     </section>
   </div>;
