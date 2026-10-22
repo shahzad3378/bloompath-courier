@@ -38,6 +38,7 @@ This contract records observable workflow behavior for the authenticated courier
 - Shipment rows use the document's vertical scroll so the full selected page can be reached by scrolling down; the table owns horizontal overflow only.
 - Search, status, shipper, driver, and date filters keep the existing tenant scoping and filter results before table display.
 - Shippers can export all active shipments matching the current search and filters as an Excel workbook. The export remains tenant- and shipper-scoped, mirrors the bulk-upload fields (including international-only fields), adds AWB first and customer-safe status last, and excludes driver details and BloomPath branding. It does not depend on table selection or the current visible page.
+- `/shipments/customs-clearance` provides a Canada Customs tab for Canada-bound international shipments. A Dubai-date range filters the same rows used by both downloads. CSV and Excel preserve the attached 34-column manifest order; generated AWBs populate consignment/barcode, customer references and uploaded details populate the corresponding fields, and shipper account numbers come from the internal shipper business profile. Optional consignee email, Incoterms, item quantity/value and country-of-origin columns in the international upload are persisted for the report; unavailable legacy/custom fields remain blank. Exports are tenant- and shipper-scoped.
 
 ### Dispatch and warehouse scan modes
 

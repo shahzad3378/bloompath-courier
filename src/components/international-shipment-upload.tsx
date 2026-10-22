@@ -65,9 +65,9 @@ export function InternationalShipmentUpload({ shippers, requiresShipperSelection
         <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">International shipment upload</h1>
         <p className="mt-2 max-w-2xl text-sm text-[#74827b]">Upload international shipments. Every bag or piece gets its own AWB and per-bag air or sea chargeable weight.</p>
       </div>
-      <a href="/shipments/import/international/template" className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-5 text-sm font-bold text-[#13734b]">
+      <Link href="/shipments/import/international/template" className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#bdd9ca] bg-white px-5 text-sm font-bold text-[#13734b]">
         <Download className="size-4" /> Download international template
-      </a>
+      </Link>
     </header>
 
     <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
@@ -88,7 +88,7 @@ export function InternationalShipmentUpload({ shippers, requiresShipperSelection
 
       <div className="rounded-2xl border border-[#e0e8e4] bg-white p-5 sm:p-6">
         <h2 className="font-bold text-[#26372f]">Upload international shipments</h2>
-        <p className="mt-1 text-sm text-[#7a8881]">CSV or Excel · up to 5,000 AWBs · dimensions required · pieces become separate AWBs</p>
+        <p className="mt-1 text-sm text-[#7a8881]">CSV or Excel · up to 5,000 AWBs · dimensions required · pieces become separate AWBs. Optional customs columns preserve address line 3, consignee email, Incoterms, item quantity/value, currency and origin for the Canada Customs report.</p>
         <form id="international-upload-form" onSubmit={preview} className="mt-5">
           {requiresShipperSelection ? <label className="mb-4 block text-xs font-bold text-[#516159]">Shipper for this batch *<select name="shipper_id" required defaultValue="" className="mt-2 h-11 w-full rounded-xl border border-[#dbe5e0] bg-white px-3 text-sm font-normal"><option value="" disabled>Select active shipper</option>{shippers.map((shipper) => <option key={shipper.id} value={shipper.id}>{shipper.full_name} · {shipper.email}</option>)}</select></label> : null}
           <label className="grid min-h-40 cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-[#bed5c9] bg-[#f8fbf9] p-6 text-center"><input type="file" name="file" accept=".csv,.xlsx" className="sr-only" required onChange={(e) => { setFilename(e.target.files?.[0]?.name ?? ""); setState(initial); }} /><span><FileSpreadsheet className="mx-auto size-8 text-[#13734b]" /><span className="mt-3 block font-bold text-[#26372f]">{filename || "Select international CSV or Excel"}</span></span></label>
