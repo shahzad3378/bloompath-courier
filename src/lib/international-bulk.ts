@@ -102,6 +102,7 @@ export function prepareInternationalRows(
     "shipper address 3": "sender_address_3",
     address3: "consignee_address_3",
     "consignee email": "consignee_email",
+    incoterm: "incoterms",
     "item quantity": "item_quantity",
     "item value": "item_value",
     "country of origin": "country_of_origin",
@@ -167,6 +168,7 @@ export function prepareInternationalRows(
       break;
     }
     const pieceValues = splitInternationalAmount(parsed.shipment.declared_value, pieces);
+    const pieceItemValues = splitInternationalAmount(itemValue ?? parsed.shipment.weight_kg, pieces);
     const pieceCod = splitInternationalAmount(parsed.shipment.cod_amount, pieces);
     for (let pieceIndex = 0; pieceIndex < pieces; pieceIndex += 1) {
       const referenceNumber = internationalPieceReference(parsed.shipment.reference_number, pieceIndex, pieces);
@@ -203,10 +205,10 @@ export function prepareInternationalRows(
           consignee_address_3: consigneeAddress3 || null,
           consignee_email: consigneeEmail || null,
           incoterms: incoterms || null,
-          item_quantity: itemQuantity === null ? null : Math.floor(itemQuantity / pieces) + (pieceIndex < itemQuantity % pieces ? 1 : 0),
-          item_value: itemValue,
+          item_quantity: itemQuantity === null ? 1 : Math.floor(itemQuantity / pieces) + (pieceIndex < itemQuantity % pieces ? 1 : 0),
+          item_value: itemValue === null && parsed.shipment.consignee_country_code !== "CA" ? null : pieceItemValues[pieceIndex],
           country_of_origin: countryOfOrigin || parsed.shipment.sender_country_code,
-          currency: customsCurrency || parsed.shipment.currency,
+          currency: customsCurrency || (parsed.shipment.consignee_country_code === "CA" ? "USD" : parsed.shipment.currency),
         },
         calculation: {
           row: parsed.row,

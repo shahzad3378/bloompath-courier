@@ -7,7 +7,7 @@ function csvCell(value: string | number) {
 
 export async function GET() {
   await requireProfile(["super_admin", "operations_admin", "dispatcher", "customer_service", "shipper"]);
-  const headers = [...bulkShipmentHeaders, "transport_mode", "length_cm", "width_cm", "height_cm", "hscode", "Shipper Address 3", "Address3", "Consignee Email", "Incoterms", "Item Quantity", "Item Value", "Currency", "Country Of Origin"];
+  const headers = [...bulkShipmentHeaders, "transport_mode", "length_cm", "width_cm", "height_cm", "hscode", "Shipper Address 3", "Address3", "Consignee Email", "Incoterm", "Item Quantity", "Item Value", "Currency", "Country Of Origin"];
   const sample: Record<string, string | number> = {
     reference_number: "INT-0001",
     service_type: "standard",
@@ -45,10 +45,10 @@ export async function GET() {
     "Shipper Address 3": "",
     Address3: "",
     "Consignee Email": "receiver@example.ca",
-    Incoterms: "DDP",
+    Incoterm: "DDP",
     "Item Quantity": 2,
-    "Item Value": 24.99,
-    Currency: "CAD",
+    "Item Value": 2,
+    Currency: "USD",
     "Country Of Origin": "AE",
   };
   const body = [headers, headers.map((header) => sample[header] ?? "")]

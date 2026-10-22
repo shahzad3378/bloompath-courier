@@ -18,6 +18,15 @@ function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function uppercase(value: unknown) {
+  return value === null || value === undefined ? "" : typeof value === "string" ? value.toUpperCase() : value;
+}
+
+function optionalAddress(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return /^(?:N\/?A|N\.?A\.?)$/i.test(normalized) ? "" : normalized;
+}
+
 function validDate(value: string | null) {
   if (!value) return "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -54,24 +63,14 @@ export async function GET(request: Request) {
     if ((data ?? []).length < 1000) break;
   }
 
-  const shipperIds = [...new Set(shipments.map((shipment) => shipment.shipper_id).filter((id): id is string => Boolean(id)))];
-  const accounts = new Map<string, string>();
-  for (let offset = 0; offset < shipperIds.length; offset += 500) {
-    const { data } = await supabase.from("shipper_business_profiles")
-      .select("shipper_id, account_number")
-      .eq("organization_id", profile.organization_id)
-      .in("shipper_id", shipperIds.slice(offset, offset + 500));
-    for (const account of data ?? []) accounts.set(account.shipper_id, account.account_number);
-  }
-
   const rows = shipments.map((shipment) => [
     shipment.tracking_number,
     shipment.reference_number ?? "",
     shipment.tracking_number,
-    accounts.get(shipment.shipper_id ?? "") ?? "",
+    shipment.tracking_number,
     shipment.sender_name,
     shipment.sender_address,
-    shipment.sender_address_2 ?? "",
+    optionalAddress(shipment.sender_address_2),
     shipment.sender_address_3 ?? "",
     shipment.sender_city,
     shipment.sender_state_province ?? "",
@@ -79,7 +78,7 @@ export async function GET(request: Request) {
     shipment.sender_country_code ?? "",
     shipment.consignee_name,
     shipment.consignee_address,
-    shipment.consignee_address_2 ?? "",
+    optionalAddress(shipment.consignee_address_2),
     shipment.consignee_address_3 ?? "",
     shipment.consignee_city,
     shipment.consignee_state_province ?? "",
@@ -102,9 +101,11 @@ export async function GET(request: Request) {
   ]);
 
   const dateStamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
-  const filename = `canada-customs-clearance-${dateStamp}.${format}`;
+  const filename = `CANADA-CUSTOMS-CLEARANCE-${dateStamp}.${format.toUpperCase()}`;
+  const exportHeaders = headers.map((header) => header.toUpperCase());
+  const exportRows = rows.map((row) => row.map(uppercase));
   if (format === "csv") {
-    const body = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+    const body = [exportHeaders, ...exportRows].map((row) => row.map(csvCell).join(",")).join("\r\n");
     return new Response(body, { headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
@@ -114,12 +115,12 @@ export async function GET(request: Request) {
 
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
-  const sheet = workbook.addWorksheet("Canada Customs", { views: [{ state: "frozen", ySplit: 1 }] });
-  sheet.addRow([...headers]);
+  const sheet = workbook.addWorksheet("CANADA CUSTOMS", { views: [{ state: "frozen", ySplit: 1 }] });
+  sheet.addRow([...exportHeaders]);
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF13734B" } };
-  sheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(16, Math.min(30, header.length + 3)) }));
-  for (const row of rows) sheet.addRow([...row]);
+  sheet.columns = exportHeaders.map((header) => ({ header, key: header, width: Math.max(16, Math.min(30, header.length + 3)) }));
+  for (const row of exportRows) sheet.addRow([...row]);
   const bytes = await workbook.xlsx.writeBuffer();
   return new Response(bytes, { headers: {
     "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
