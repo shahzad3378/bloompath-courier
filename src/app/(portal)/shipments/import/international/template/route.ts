@@ -48,7 +48,7 @@ export async function GET() {
     Incoterm: "DDP",
     "Item Quantity": 2,
     "Item Value": 2,
-    Currency: "USD",
+    Currency: "CAD",
     "Country Of Origin": "AE",
   };
   const body = [headers, headers.map((header) => sample[header] ?? "")]
