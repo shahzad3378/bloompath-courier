@@ -85,8 +85,8 @@ export async function checkGtaTracking(_state: GtaState, form: FormData): Promis
     await syncGtaPartnerStatus(admin, profile.organization_id, data.shipment_id, history);
     const metadata = data.response_metadata && typeof data.response_metadata === "object" && !Array.isArray(data.response_metadata) ? data.response_metadata as Record<string,unknown> : {};
     await admin.from("gta_airskip_bookings").update({response_metadata:{...metadata,trackingCheckedAt:new Date().toISOString(),tracking:history}}).eq("id",field(form,"booking_id")).eq("organization_id",profile.organization_id);
-    revalidatePath("/reports/bloompath-fastdrop"); revalidatePath("/dispatch/3pl");
-    return {status:"success",message:"Latest GTA tracking received and partner report status synced. FastDrop shipment custody is unchanged.",history};
+    revalidatePath("/reports"); revalidatePath("/reports/bloompath-fastdrop"); revalidatePath("/shipments"); revalidatePath("/dispatch/3pl");
+    return {status:"success",message:"Latest GTA tracking received. FastDrop shipment custody is unchanged.",history};
   } catch(issue) { return fail(safeGtaError(issue)); }
 }
 

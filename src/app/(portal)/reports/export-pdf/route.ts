@@ -66,6 +66,7 @@ export async function GET(
       cod_amount,
       service_type,
       status,
+      customer_tracking_status,
       delivery_attempt_count,
       booked_at,
       delivered_at,
@@ -149,6 +150,13 @@ export async function GET(
     rows.push(...(data ?? []));
     if ((data ?? []).length < 1000) break;
   }
+  const { data: partnerLinks } = rows.length ? await supabase
+    .from("third_party_shipment_links")
+    .select("shipment_id, partner_status, third_party_carriers!inner(code)")
+    .eq("organization_id", profile.organization_id!)
+    .eq("third_party_carriers.code", "GTA_AIRSKIP")
+    .in("shipment_id", rows.map((row) => Number(row.id))) : { data: [] };
+  const partnerStatusByShipment = new Map((partnerLinks ?? []).map((link) => [Number(link.shipment_id), link.partner_status ?? ""]));
 
   const company =
     settings?.display_name ||
@@ -286,9 +294,10 @@ export async function GET(
     ["Driver", 325],
     ["City", 435],
     ["Status", 510],
-    ["Attempts", 600],
-    ["COD", 670],
-    ["Delivered", 745],
+    ["3PL Status", 560],
+    ["Attempts", 630],
+    ["COD", 690],
+    ["Delivered", 755],
   ] as const;
 
   function header() {
@@ -384,7 +393,7 @@ export async function GET(
 
     draw(
       String(
-        row.status,
+        row.customer_tracking_status ?? row.status,
       )
         .replaceAll(
           "_",
@@ -398,7 +407,7 @@ export async function GET(
 
     draw(
       row.delivery_attempt_count,
-      610,
+      630,
       y,
       6.5,
     );
@@ -408,7 +417,7 @@ export async function GET(
         row.cod_amount ||
           0,
       ).toFixed(2),
-      670,
+      690,
       y,
       6.5,
     );
@@ -417,7 +426,14 @@ export async function GET(
       shortDate(
         row.delivered_at,
       ),
-      745,
+      755,
+      y,
+      6.5,
+    );
+
+    draw(
+      partnerStatusByShipment.get(Number(row.id)) || "-",
+      560,
       y,
       6.5,
     );

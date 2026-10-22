@@ -59,6 +59,7 @@ export async function GET(request: Request) {
       cod_amount,
       service_type,
       status,
+      customer_tracking_status,
       delivery_attempt_count,
       booked_at,
       delivered_at,
@@ -97,6 +98,13 @@ export async function GET(request: Request) {
   }
 
   const rows = allRows;
+  const { data: partnerLinks } = rows.length ? await supabase
+    .from("third_party_shipment_links")
+    .select("shipment_id, partner_status, third_party_carriers!inner(code)")
+    .eq("organization_id", profile.organization_id!)
+    .eq("third_party_carriers.code", "GTA_AIRSKIP")
+    .in("shipment_id", rows.map((row) => Number(row.id))) : { data: [] };
+  const partnerStatusByShipment = new Map((partnerLinks ?? []).map((link) => [Number(link.shipment_id), link.partner_status ?? ""]));
 
   const header = [
     "tracking_number",
@@ -110,6 +118,7 @@ export async function GET(request: Request) {
     "consignee_phone",
     "city",
     "status",
+    "3pl_status",
     "attempt_count",
     "undelivered_reason",
     "payment_type",
@@ -131,7 +140,8 @@ export async function GET(request: Request) {
       row.consignee_name,
       row.consignee_phone ?? "",
       row.consignee_city,
-      row.status,
+      row.customer_tracking_status ?? row.status,
+      partnerStatusByShipment.get(Number(row.id)) ?? "",
       row.delivery_attempt_count,
       row.last_undelivered_reason ?? "",
       row.payment_type,

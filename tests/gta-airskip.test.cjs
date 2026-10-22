@@ -14,10 +14,16 @@ const item={description:'Shirt',weight:0.3,hsCode:'6109100012',declaredValue:20,
 const label=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64');
 const response={isSuccess:true,data:{loadNumber:'LOAD1',cost:5,packages:[{trackingNumber:['GTA10001'],labelBase64:label}]}};
 const config={accountKey:'fixture-account',apiKey:'fixture-api',baseUrl:server.gtaQaUrl,test:true,liveEnabled:false};
-test('preserves the actual verified GTA status text for the partner report',()=>{
+test('preserves verified GTA status text and maps known milestones into system status',()=>{
  const status=(text)=>partnerStatus.normalizeGtaPartnerStatus({status:text,events:[],date:'',standardStatus:null});
  assert.equal(status('Delivered'),'Delivered');assert.equal(status('Out for delivery'),'Out for delivery');assert.equal(status('In transit'),'In transit');
  assert.equal(status('Customs review'),'Customs review');assert.equal(status('  '),null);assert.equal(status('x'.repeat(101)),null);
+ assert.equal(partnerStatus.mapGtaCustomerStatus('Label Generated'),'booked');
+ assert.equal(partnerStatus.mapGtaCustomerStatus('Undelivered'),'undelivered');
+ assert.equal(partnerStatus.mapGtaCustomerStatus('Out for delivery'),'out_for_delivery');
+ assert.equal(partnerStatus.mapGtaCustomerStatus('Shipment Delivered'),'delivered');
+ assert.equal(partnerStatus.mapGtaCustomerStatus('Customs review'),null);
+ assert.equal(partnerStatus.normalizeGtaPartnerStatus({status:'Label Generated',standardStatus:null,date:'2026-10-01T10:00:00Z',events:[{name:'Picked up',location:'Toronto',date:'2026-10-02T10:00:00Z'}]}),'Picked up');
 });
 test('domestic shipment uses bare GTA schema with references, cm/kg and no customs or custom tracking',()=>{
  const payload=core.buildGtaShipment(shipment,options,'persisted-uuid');
