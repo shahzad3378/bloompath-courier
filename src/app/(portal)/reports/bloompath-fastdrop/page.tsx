@@ -3,6 +3,7 @@ import { Download, FileSpreadsheet, PackageCheck } from "lucide-react";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { ReportDateFields } from "@/components/report-date-fields";
 import { SelectableTable } from "@/components/selectable-table";
+import { RefreshStatusButton } from "./refresh-status-button";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { resolveReportDateRange } from "@/lib/report-date-range";
@@ -73,7 +74,8 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
         <h1 className="bp-heading mt-1 text-3xl font-black">BloomPath FastDrop</h1>
         <p className="mt-2 text-sm text-[#74827b]">Match each customer reference and FastDrop AWB with its 3PL AWB.</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <RefreshStatusButton range={range} from={params.from ?? ""} to={params.to ?? ""} page={pagination.page} pageSize={pagination.pageSize} />
         <a href={csvHref} className="bp-button-secondary"><Download className="size-4" />CSV</a>
         <a href={excelHref} className="bp-button-primary"><FileSpreadsheet className="size-4" />Excel</a>
       </div>

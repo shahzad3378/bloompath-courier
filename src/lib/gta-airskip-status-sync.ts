@@ -2,17 +2,10 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 type Tracking = { status: string; standardStatus: number | null; date: string; events: { name: string; location: string; date: string }[] };
 
-/** Map only explicit carrier milestones. Unknown GTA wording never overwrites a known report status. */
+/** Keep the authenticated carrier's actual status text; never store a callback hint or invent a milestone. */
 export function normalizeGtaPartnerStatus(tracking: Tracking): string | null {
-  const text = `${tracking.status} ${tracking.events[0]?.name ?? ""}`.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-  if (/\b(undelivered|delivery attempted|attempted delivery|delivery failed)\b/.test(text)) return "undelivered";
-  if (/\b(delivered|successfully delivered)\b/.test(text) && !/\bnot delivered\b/.test(text)) return "delivered";
-  if (/\b(returned to shipper|returned to sender)\b/.test(text)) return "returned_to_shipper";
-  if (/\b(return initiated|return to sender|return requested)\b/.test(text)) return "return_initiated";
-  if (/\b(out for delivery|with delivery courier)\b/.test(text)) return "out_for_delivery";
-  if (/\b(in transit|picked up|received at|arrived at|departed|processed at|shipment accepted)\b/.test(text)) return "in_transit";
-  if (/\b(label generated|shipment created|created|pending pickup)\b/.test(text)) return "label_generated";
-  return null;
+  const status = tracking.status.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return status && status.length <= 100 ? status : null;
 }
 
 export async function syncGtaPartnerStatus(admin: ReturnType<typeof createAdminClient>, organizationId: string, shipmentId: number, tracking: Tracking) {
