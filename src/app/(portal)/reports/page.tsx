@@ -385,6 +385,10 @@ export default async function DeliveryReportsPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link href="/reports/bloompath-fastdrop" className="bp-button-secondary">
+            BloomPath FastDrop
+          </Link>
+
           <Link
             href={exportHref}
             className="bp-button-secondary"
