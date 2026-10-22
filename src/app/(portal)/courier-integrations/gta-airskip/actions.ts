@@ -6,6 +6,7 @@ import { buildGtaShipment, gtaField, type GtaOptions } from "@/lib/gta-airskip";
 import { getGtaConfig, getGtaBookingConfig, getGtaPickup, requestGtaReprint, requestGtaTrackingRecord, verifyGtaCredentials, requestGtaLabel, requestGtaRates, requestGtaTracking, safeGtaError, GtaApiError } from "@/lib/gta-airskip-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { syncGtaPartnerStatus } from "@/lib/gta-airskip-status-sync";
 import type { Shipment } from "@/lib/shipments";
 export type GtaState = { status: "idle" | "success" | "error"; message: string; haltBatch?: boolean; bookingId?: string; tracking?: string; rates?: {service: string; cost: number; tax: number | null}[]; history?: { status: string; standardStatus: number | null; date: string; events: {name: string; location: string; date: string}[] } };
 const roles = ["super_admin", "operations_admin", "dispatcher"] as const;
@@ -76,10 +77,16 @@ export async function checkGtaTracking(_state: GtaState, form: FormData): Promis
   if(!config || !profile.organization_id) return fail("GTA is not configured for this courier company.");
   if(!/^[0-9a-f-]{36}$/i.test(field(form,"booking_id"))) return fail("Select a saved GTA booking.");
   try {
-    const {data,error} = await createAdminClient().from("gta_airskip_bookings").select("partner_tracking_number,base_url").eq("id",field(form,"booking_id")).eq("organization_id",profile.organization_id).maybeSingle();
+    const admin = createAdminClient();
+    const {data,error} = await admin.from("gta_airskip_bookings").select("partner_tracking_number,base_url,shipment_id,response_metadata").eq("id",field(form,"booking_id")).eq("organization_id",profile.organization_id).maybeSingle();
     const bookingConfig = data ? getGtaBookingConfig(profile.organization_id, data.base_url) : null;
     if(error || !data?.partner_tracking_number || !bookingConfig) return fail("Tracking is unavailable for this booking in the configured API environment.");
-    return {status:"success",message:"Latest GTA tracking received. FastDrop shipment custody is unchanged.",history:await requestGtaTracking(data.partner_tracking_number,bookingConfig)};
+    const history = await requestGtaTracking(data.partner_tracking_number,bookingConfig);
+    await syncGtaPartnerStatus(admin, profile.organization_id, data.shipment_id, history);
+    const metadata = data.response_metadata && typeof data.response_metadata === "object" && !Array.isArray(data.response_metadata) ? data.response_metadata as Record<string,unknown> : {};
+    await admin.from("gta_airskip_bookings").update({response_metadata:{...metadata,trackingCheckedAt:new Date().toISOString(),tracking:history}}).eq("id",field(form,"booking_id")).eq("organization_id",profile.organization_id);
+    revalidatePath("/reports/bloompath-fastdrop"); revalidatePath("/dispatch/3pl");
+    return {status:"success",message:"Latest GTA tracking received and partner report status synced. FastDrop shipment custody is unchanged.",history};
   } catch(issue) { return fail(safeGtaError(issue)); }
 }
 

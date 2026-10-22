@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGtaConfig, requestGtaTracking, gtaProductionUrl } from "@/lib/gta-airskip-server";
 import { gtaWebhookHint } from "@/lib/gta-airskip-webhook";
+import { syncGtaPartnerStatus } from "@/lib/gta-airskip-status-sync";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const accepted = () => new Response(null,{status:202});
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   if(!hint) return new Response(null,{status:400});
   try {
     const admin = createAdminClient();
-    const {data:booking,error} = await admin.from("gta_airskip_bookings").select("id,response_metadata").eq("organization_id",organization!).eq("base_url",config.baseUrl).eq("is_test",false).eq("partner_tracking_number",hint.tracking).eq("load_number",hint.load).in("status",["generated","ready"]).maybeSingle();
+    const {data:booking,error} = await admin.from("gta_airskip_bookings").select("id,shipment_id,response_metadata").eq("organization_id",organization!).eq("base_url",config.baseUrl).eq("is_test",false).eq("partner_tracking_number",hint.tracking).eq("load_number",hint.load).in("status",["generated","ready"]).maybeSingle();
     if(error || !booking) return accepted();
     const metadata = booking.response_metadata && typeof booking.response_metadata === "object" && !Array.isArray(booking.response_metadata) ? booking.response_metadata as Record<string,unknown> : {};
     const previous = typeof metadata.webhookPullAttempt === "string" ? Date.parse(metadata.webhookPullAttempt) : NaN;
@@ -32,7 +33,8 @@ export async function POST(request: Request) {
     if(claimError || !claimed) return accepted();
     const tracking = await requestGtaTracking(hint.tracking,config);
     await admin.from("gta_airskip_bookings").update({response_metadata:{...metadata,webhookPullAttempt:now,trackingCheckedAt:new Date().toISOString(),tracking}}).eq("id",booking.id).eq("organization_id",organization!).contains("response_metadata",{webhookPullAttempt:now});
-    // Label/event checks do not change physical custody or delivery status.
+    await syncGtaPartnerStatus(admin, organization!, booking.shipment_id, tracking);
+    // Only the GTA partner-link status changes; FastDrop shipment custody remains untouched.
     return accepted();
   } catch {return accepted();} // GTA tries once; operator tracking checks remain the fallback.
 }
