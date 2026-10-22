@@ -135,6 +135,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: FileText,
         children: [
           { label: "Delivery Reports", href: "/reports" },
+          { label: "BloomPath FastDrop", href: "/reports/bloompath-fastdrop" },
           { label: "Revenue Reports", href: "/reports/revenue" },
           { label: "Rider Reports", href: "/reports/riders" },
           { label: "Custom Reports", href: "/reports/custom" },

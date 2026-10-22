@@ -40,6 +40,11 @@ This contract records observable workflow behavior for the authenticated courier
 - Shippers can export all active shipments matching the current search and filters as an Excel workbook. The export remains tenant- and shipper-scoped, mirrors the bulk-upload fields (including international-only fields), adds AWB first and customer-safe status last, and excludes driver details and BloomPath branding. It does not depend on table selection or the current visible page.
 - `/shipments/customs-clearance` provides a Canada Customs tab for Canada-bound international shipments. A Dubai-date range filters the same rows used by both downloads. CSV and Excel preserve the attached 34-column manifest order in uppercase; generated AWBs populate consignment, barcode and internal account number, and customer references and uploaded details populate the corresponding fields. Empty/NA address2 values remain blank. International upload supports consignee email, Incoterm, item quantity/value and country of origin; item quantity defaults to one per AWB and missing Canada item value defaults to CAD 1 per parcel kg, including during export of legacy shipments. Other unavailable legacy/custom fields remain blank. Exports are tenant- and shipper-scoped.
 
+### BloomPath FastDrop report
+
+- Reports navigation includes `/reports/bloompath-fastdrop` for internal roles. A Dubai-date range filters shipment booking dates and matches each customer's reference number and FastDrop AWB to its linked 3PL AWB.
+- The report reads the tenant-scoped shipment row and its `third_party_shipment_links` record. Missing customer references or partner AWBs remain blank. The table is paginated; CSV and Excel downloads include all matching rows for the selected date range and only the three requested columns.
+
 ### Dispatch and warehouse scan modes
 
 - `/dispatch` has an explicit Auto routing / Dispatch scan selector. Auto routing shows the existing warehouse route planner; Dispatch scan asks for an active driver, creates a draft route, and opens its AWB scanner.
