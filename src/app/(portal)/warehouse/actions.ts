@@ -85,15 +85,23 @@ export async function receiveWarehouseShipmentAction(
   const profile = await requireProfile(warehouseRoles);
   const tracking = trackingNumber(formData);
   if (!profile.organization_id || !tracking) {
-    return { status: "error", message: "Scan or enter a valid AWB number." };
+    return { status: "error", message: "Scan or enter a valid AWB or reference number." };
   }
   const supabase = await createClient();
-  const { data: shipment, error: lookupError } = await supabase.from("shipments")
+  const { data: byAwb, error: awbLookupError } = await supabase.from("shipments")
     .select("id,status,assigned_driver_id,delivery_attempt_count")
     .eq("organization_id", profile.organization_id).eq("tracking_number", tracking)
     .is("deleted_at", null).maybeSingle();
+  if (awbLookupError) return { status: "error", message: "Shipment lookup failed. Try the scan again." };
+  const { data: shipment, error: referenceLookupError } = byAwb
+    ? { data: byAwb, error: null }
+    : await supabase.from("shipments")
+      .select("id,status,assigned_driver_id,delivery_attempt_count")
+      .eq("organization_id", profile.organization_id).eq("reference_number", tracking)
+      .is("deleted_at", null).maybeSingle();
+  const lookupError = referenceLookupError;
   if (lookupError) return { status: "error", message: "Shipment lookup failed. Try the scan again." };
-  if (!shipment) return { status: "error", message: `AWB ${tracking} was not found in this courier company.` };
+  if (!shipment) return { status: "error", message: `AWB or reference ${tracking} was not found in this courier company.` };
   if (shipment.status === "at_warehouse") return { status: "error", message: `AWB ${tracking} is already in the warehouse.` };
   if (!["booked", "picked_up", "ready_for_pickup"].includes(shipment.status)) {
     return { status: "error", message: `AWB ${tracking} cannot be received as a new inbound shipment. Use Driver return scan for undelivered returns.` };
