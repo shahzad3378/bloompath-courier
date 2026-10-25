@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       return json({ error: "Tracking is temporarily unavailable. Please try again." }, 503);
     }
 
-    const events = Array.isArray(payload.events)
+    const rawEvents = Array.isArray(payload.events)
       ? payload.events.slice(0, 50).flatMap((event) => {
           if (!event || typeof event !== "object") return [];
           const item = event as { status?: unknown; timestamp?: unknown };
@@ -68,9 +68,26 @@ export async function POST(request: Request) {
         })
       : [];
 
+    // A shipment has one booking milestone. Keep the original (earliest)
+    // booking in its history and drop later duplicate booking events that can
+    // otherwise make a delivered shipment look newly booked again.
+    const bookingEvents = rawEvents
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => /^(shipment\s+)?booked$/i.test(event.status.trim()));
+    const originalBooking = bookingEvents.reduce<number | null>((earliest, current) => {
+      if (earliest === null) return current.index;
+      const currentTime = current.event.timestamp ? Date.parse(current.event.timestamp) : Number.POSITIVE_INFINITY;
+      const earliestTime = rawEvents[earliest].timestamp ? Date.parse(rawEvents[earliest].timestamp!) : Number.POSITIVE_INFINITY;
+      return currentTime < earliestTime ? current.index : earliest;
+    }, null);
+    const events = rawEvents.filter((event, index) =>
+      !/^(shipment\s+)?booked$/i.test(event.status.trim()) || index === originalBooking,
+    );
+    const currentStatus = events[0]?.status ?? payload.currentStatus;
+
     return json({
       trackingNumber: typeof payload.trackingNumber === "string" ? payload.trackingNumber : trackingNumber,
-      currentStatus: payload.currentStatus,
+      currentStatus,
       updatedAt: typeof payload.updatedAt === "string" ? payload.updatedAt : null,
       events,
       podUrl: typeof payload.podUrl === "string" && payload.podUrl.startsWith("https://") ? payload.podUrl : null,
