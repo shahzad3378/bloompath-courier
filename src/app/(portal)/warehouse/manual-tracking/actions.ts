@@ -74,6 +74,39 @@ export async function recordManualTrackingAction(
     .maybeSingle();
 
   if (shipmentError || !shipment) return { status: "error", message: `AWB ${tracking} was not found in this courier account.` };
+
+  // A delivered parcel is terminal. Never let a late/manual booking update
+  // replace its customer-visible status or add duplicate delivery operations.
+  const { data: latestEvent, error: latestEventError } = await supabase
+    .from("customer_tracking_events")
+    .select("status")
+    .eq("shipment_id", shipment.id)
+    .eq("organization_id", profile.organization_id)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestEventError) return { status: "error", message: "Shipment tracking history could not be checked. Refresh and try again." };
+  if (shipment.status === "delivered" || latestEvent?.status === "delivered") {
+    return { status: "error", message: `AWB ${tracking} is already delivered. No further tracking operation is allowed.` };
+  }
+  if (status === "booked") {
+    const { data: priorBooking, error: bookingCheckError } = await supabase
+      .from("customer_tracking_events")
+      .select("id")
+      .eq("shipment_id", shipment.id)
+      .eq("organization_id", profile.organization_id)
+      .eq("status", "booked")
+      .limit(1)
+      .maybeSingle();
+    if (bookingCheckError) return { status: "error", message: "Booking history could not be checked. Refresh and try again." };
+    if (shipment.status !== "booked" || priorBooking || (latestEvent && latestEvent.status !== "booked")) {
+      return { status: "error", message: `AWB ${tracking} has already moved forward. It cannot be booked again.` };
+    }
+  }
+  if (status === "at_warehouse" && shipment.status === "at_warehouse") {
+    return { status: "error", message: `AWB ${tracking} is already received in the warehouse.` };
+  }
   const isInternational = Boolean(shipment.sender_country_code && shipment.consignee_country_code && shipment.sender_country_code !== shipment.consignee_country_code);
   if (!isInternational && (status === "arrived_at_destination_airport_customs_started" || status === "customs_clearance_completed_warehouse_scanned")) {
     return { status: "error", message: "Airport and customs statuses are only available for international shipments." };
@@ -125,6 +158,7 @@ export async function recordManualTrackingAction(
     }
     if (error.code === "23505") return { status: "error", message: "This customs milestone has already been recorded for this AWB." };
     if (error.message.includes("earlier date and time")) return { status: "error", message: error.message };
+    if (error.message.includes("already delivered") || error.message.includes("booked again") || error.message.includes("already received")) return { status: "error", message: error.message };
     return { status: "error", message: "Tracking update could not be saved. Check the AWB status sequence and try again." };
   }
 
