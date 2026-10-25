@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { DispatchRouteMapProps } from "@/components/dispatch-route-map";
+import type { DispatchDeliveryMapProps, DispatchRouteMapProps } from "@/components/dispatch-route-map";
 
 const DispatchRouteMap = dynamic(
   () =>
@@ -22,4 +22,16 @@ export function DispatchRouteMapLoader(
   props: DispatchRouteMapProps,
 ) {
   return <DispatchRouteMap {...props} />;
+}
+
+const DispatchDeliveryMap = dynamic(
+  () => import("@/components/dispatch-route-map").then((module) => module.DispatchDeliveryMap),
+  {
+    ssr: false,
+    loading: () => <div className="mt-4 h-[220px] animate-pulse rounded-xl border border-[#dce6e1] bg-[#f6f9f7]" />,
+  },
+);
+
+export function DispatchDeliveryMapLoader(props: DispatchDeliveryMapProps) {
+  return <DispatchDeliveryMap {...props} />;
 }
