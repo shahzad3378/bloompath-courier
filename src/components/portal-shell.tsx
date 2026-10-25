@@ -62,13 +62,21 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
           { label: "Pickup Manifests", href: "/pickup-manifests" },
           { label: "Rider Support", href: "/driver-support" },
           { label: "Warehouse", href: "/warehouse" },
-          { label: "Fulfillment", href: "/fulfillment" },
           { label: "Manual Tracking", href: "/warehouse/manual-tracking" },
           { label: "Dispatch", href: "/dispatch" },
           { label: "Live Map", href: "/live-map" },
           { label: "Returns / RTO", href: "/returns" },
           { label: "Reverse & Exchange", href: "/reverse-exchange" },
           { label: "Service Zones", href: "/service-zones" },
+        ],
+      },
+      {
+        key: "fulfillment",
+        label: "Fulfillment",
+        icon: Boxes,
+        children: [
+          { label: "Inventory", href: "/fulfillment" },
+          { label: "Fulfillment Orders", href: "/fulfillment/orders" },
         ],
       },
     ],
@@ -152,6 +160,9 @@ const shipperNav: SimpleNavItem[] = [
   { label: "New Shipment", href: "/shipments/new", icon: ClipboardList },
   { label: "Local Bulk Upload", href: "/shipments/import", icon: ScanLine },
   { label: "International Bulk Upload", href: "/shipments/import/international", icon: Globe2 },
+  { label: "Fulfillment Stock & Orders", href: "/shipper/fulfillment", icon: Boxes },
+  { label: "Fulfillment Orders", href: "/shipper/fulfillment/orders", icon: PackageCheck },
+  { label: "Fulfillment Bulk Upload", href: "/shipper/fulfillment/bulk-upload", icon: ScanLine },
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText },
@@ -164,6 +175,7 @@ const driverNav: SimpleNavItem[] = [
 
 function pathIsActive(pathname: string, href: string) {
   const cleanHref = href.split("#")[0];
+  if (cleanHref === "/fulfillment" || cleanHref === "/shipper/fulfillment") return pathname === cleanHref;
   if (cleanHref === "/") return pathname === "/";
   return pathname === cleanHref || pathname.startsWith(`${cleanHref}/`);
 }
