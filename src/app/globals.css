@@ -379,65 +379,73 @@ textarea:focus {
   body.warehouse-label-report-mode .warehouse-label-report > div:last-child { max-height: none !important; overflow: visible !important; }
 }
 
-/* Fast Drop's customer-facing shipper workspace: white surfaces with flag-inspired blue and red accents. */
-[data-portal-theme="fastdrop-shipper"] {
-  --shipper-blue: #174ea6;
-  --shipper-blue-dark: #123b7a;
-  --shipper-blue-soft: #edf4ff;
-  --shipper-red: #d62828;
-  --shipper-line: #dce4ef;
+/* Courier portal theme: white workspace surfaces, blue primary actions, red accents, and green success states. */
+[data-portal-theme="courier"] {
+  --portal-blue: #174ea6;
+  --portal-blue-dark: #123b7a;
+  --portal-blue-soft: #edf4ff;
+  --portal-red: #d62828;
+  --portal-line: #dce4ef;
   background: #fff !important;
 }
 
-[data-portal-theme="fastdrop-shipper"] .bp-button-primary {
-  background: var(--shipper-blue);
+[data-portal-theme="courier"] .bp-button-primary {
+  background: var(--portal-blue);
   box-shadow: 0 8px 20px rgb(23 78 166 / 16%);
 }
-[data-portal-theme="fastdrop-shipper"] .bp-button-primary:hover {
-  background: var(--shipper-blue-dark);
+[data-portal-theme="courier"] .bp-button-primary:hover {
+  background: var(--portal-blue-dark);
   box-shadow: 0 11px 24px rgb(23 78 166 / 22%);
 }
-[data-portal-theme="fastdrop-shipper"] header.sticky {
-  border-top: 3px solid var(--shipper-red);
+[data-portal-theme="courier"] header.sticky {
+  border-top: 3px solid var(--portal-red);
 }
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f6f8f7]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f7f9f8]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f5f8f6]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f9fbfa]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#fafcfb]"] {
+[data-portal-theme="courier"] [class~="bg-[#f4f7f6]"],
+[data-portal-theme="courier"] [class~="bg-[#f6f9f7]"],
+[data-portal-theme="courier"] [class~="bg-[#f6f8f7]"],
+[data-portal-theme="courier"] [class~="bg-[#f2f5f4]"],
+[data-portal-theme="courier"] [class~="bg-[#eef4f1]"],
+[data-portal-theme="courier"] [class~="bg-[#f7f9f8]"],
+[data-portal-theme="courier"] [class~="bg-[#f5f8f6]"],
+[data-portal-theme="courier"] [class~="bg-[#f9fbfa]"],
+[data-portal-theme="courier"] [class~="bg-[#fafcfb]"] {
   background-color: #fff !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#13734b]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#15905c]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#138253]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#168052]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#116840]"] {
-  background-color: var(--shipper-blue) !important;
+[data-portal-theme="courier"] [class~="bg-[#13734b]"],
+[data-portal-theme="courier"] [class~="bg-[#15905c]"],
+[data-portal-theme="courier"] [class~="bg-[#138253]"],
+[data-portal-theme="courier"] [class~="bg-[#168052]"],
+[data-portal-theme="courier"] [class~="bg-[#116840]"] {
+  background-color: var(--portal-blue) !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#eef8f2]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#edf8f2]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f0faf5]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f0faf4]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e9f7ef]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#edf3ff]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e7f4ed]"] {
-  background-color: var(--shipper-blue-soft) !important;
+[data-portal-theme="courier"] [class~="bg-[#eaf8f0]"],
+[data-portal-theme="courier"] [class~="bg-[#daf2e4]"],
+[data-portal-theme="courier"] [class~="bg-[#eef8f2]"],
+[data-portal-theme="courier"] [class~="bg-[#edf8f2]"],
+[data-portal-theme="courier"] [class~="bg-[#f0faf5]"],
+[data-portal-theme="courier"] [class~="bg-[#f0faf4]"],
+[data-portal-theme="courier"] [class~="bg-[#e9f7ef]"],
+[data-portal-theme="courier"] [class~="bg-[#edf3ff]"],
+[data-portal-theme="courier"] [class~="bg-[#e7f4ed]"] {
+  background-color: var(--portal-blue-soft) !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="text-[#13734b]"],
-[data-portal-theme="fastdrop-shipper"] [class~="text-[#188459]"],
-[data-portal-theme="fastdrop-shipper"] [class~="text-[#15905c]"],
-[data-portal-theme="fastdrop-shipper"] [class~="text-[#138253]"] {
-  color: var(--shipper-blue) !important;
+[data-portal-theme="courier"] [class~="text-[#13734b]"],
+[data-portal-theme="courier"] [class~="text-[#188459]"],
+[data-portal-theme="courier"] [class~="text-[#15905c]"],
+[data-portal-theme="courier"] [class~="text-[#138253]"] {
+  color: var(--portal-blue) !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="border-[#13734b]"],
-[data-portal-theme="fastdrop-shipper"] [class~="border-[#188459]"] {
-  border-color: var(--shipper-blue) !important;
+[data-portal-theme="courier"] [class~="border-[#13734b]"],
+[data-portal-theme="courier"] [class~="border-[#188459]"],
+[data-portal-theme="courier"] [class~="border-[#bdd9ca]"],
+[data-portal-theme="courier"] [class~="border-[#cde3d7]"] {
+  border-color: var(--portal-blue) !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="ring-[#13734b]/10"] {
+[data-portal-theme="courier"] [class~="ring-[#13734b]/10"] {
   --tw-ring-color: rgb(23 78 166 / 10%) !important;
 }
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e8f7ef]"][class~="text-[#13734b]"],
-[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e4f3ea]"][class~="text-[#13734b]"] {
+[data-portal-theme="courier"] [class~="bg-[#e8f7ef]"][class~="text-[#13734b]"],
+[data-portal-theme="courier"] [class~="bg-[#e4f3ea]"][class~="text-[#13734b]"] {
   color: #13734b !important;
 }
 
