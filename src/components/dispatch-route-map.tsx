@@ -35,6 +35,56 @@ export type DispatchRouteMapProps = {
   googleMapsLinks: DispatchRouteMapLink[];
 };
 
+export type DispatchDeliveryMapProps = {
+  latitude: number | null;
+  longitude: number | null;
+  consigneeName: string;
+  address: string;
+  googleMapsUrl: string | null;
+};
+
+export function DispatchDeliveryMap({
+  latitude,
+  longitude,
+  consigneeName,
+  address,
+  googleMapsUrl,
+}: DispatchDeliveryMapProps) {
+  const hasPoint = latitude !== null && longitude !== null;
+  const point: [number, number] = hasPoint ? [latitude, longitude] : [0, 0];
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-[#dce6e1] bg-[#f6f9f7]">
+      {hasPoint ? (
+        <MapContainer center={point} zoom={15} scrollWheelZoom={false} className="h-[220px] w-full">
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <CircleMarker
+            center={point}
+            radius={11}
+            pathOptions={{ color: "#166b47", fillColor: "#2ca66e", fillOpacity: 0.95, weight: 2 }}
+          >
+            <Popup>
+              <div className="min-w-[180px]"><strong>{consigneeName}</strong><br />{address}</div>
+            </Popup>
+          </CircleMarker>
+        </MapContainer>
+      ) : (
+        <div className="grid h-[140px] place-items-center px-5 text-center text-xs leading-5 text-[#74827b]">
+          Delivery coordinates have not been saved for this shipment yet. Map the route to show its location here.
+        </div>
+      )}
+      {googleMapsUrl ? (
+        <a href={googleMapsUrl} target="_blank" rel="noreferrer" className="block border-t border-[#dce6e1] bg-white px-3 py-2.5 text-center text-xs font-bold text-[#376eb1] hover:bg-[#f6f9f7]">
+          Open directions in Google Maps
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function FitRouteBounds({
   positions,
 }: {
