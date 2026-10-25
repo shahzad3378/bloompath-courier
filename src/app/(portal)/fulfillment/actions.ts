@@ -91,9 +91,12 @@ export async function bulkReceiveFulfillmentStockAction(_previous: BulkFulfillme
 
 export async function createShipperFulfillmentOrderAction(_previous: string, form: FormData): Promise<string> {
  await requireProfile(["shipper"]);
- const productId=clean(form,"product_id",36), quantity=Number(clean(form,"quantity",8));
- if(!/^[0-9a-f-]{36}$/i.test(productId)||!Number.isInteger(quantity)||quantity<1||quantity>1000)return "Choose a product and valid quantity.";
- const payload=[{product_id:productId,quantity,recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120)}];
+ let items:{product_id:string;quantity:number}[];
+ try { items=JSON.parse(clean(form,"items_json",20000)); } catch { return "Choose at least one product and quantity."; }
+ if(!Array.isArray(items)||!items.length||items.length>50||items.some(item=>!item||!/^[0-9a-f-]{36}$/i.test(item.product_id)||!Number.isInteger(Number(item.quantity))||Number(item.quantity)<1||Number(item.quantity)>1000))return "Choose products and valid quantities.";
+ const merged=new Map<string,number>(); for(const item of items)merged.set(item.product_id,(merged.get(item.product_id)??0)+Number(item.quantity));
+ if([...merged.values()].some(quantity=>quantity>1000))return "Total quantity for a product cannot exceed 1,000 per order.";
+ const payload=[{recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120),items:[...merged].map(([product_id,quantity])=>({product_id,quantity}))}];
  const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
  if(error){console.error("SHIPPER_FULFILLMENT_ORDER",error.message);return error.message.includes("stock")?"Not enough available stock for this order.":"Could not place the order. Check the recipient details and try again.";}
  revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");
@@ -118,22 +121,29 @@ export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string
  if(productError)return "Could not load the available product list.";
  const productIndex=new Map<string,Array<{id:string;name:string;quantity_on_hand:number;quantity_reserved:number}>>();
  for(const product of products??[]){const key=product.name.trim().toLocaleLowerCase();productIndex.set(key,[...(productIndex.get(key)??[]),product]);}
- const payload:Array<Record<string,unknown>>=[]; const problems:string[]=[];
+ const groups=new Map<string,{recipient_name:string;recipient_phone:string;delivery_address:string;order_reference:string;items:Map<string,number>}>(); const problems:string[]=[];
  sheet.eachRow((row,rowNumber)=>{
   if(rowNumber===1)return;
-  const value=(name:string)=>String(row.getCell(col(name)).text??"").trim();
+  const value=(name:string)=>{const column=col(name);return column?String(row.getCell(column).text??"").trim():"";};
   if(!["recipient_name","recipient_phone","delivery_address","product_name","quantity"].some(name=>value(name)))return;
   const productMatches=productIndex.get(value("product_name").toLocaleLowerCase())??[];
   const quantity=Number(value("quantity"));
   if(productMatches.length!==1){problems.push(`row ${rowNumber}: product name must match one available product`);return;}
   if(!Number.isInteger(quantity)||quantity<1||quantity>1000){problems.push(`row ${rowNumber}: quantity must be 1–1000`);return;}
-  payload.push({product_id:productMatches[0].id,quantity,recipient_name:value("recipient_name"),recipient_phone:value("recipient_phone"),delivery_address:value("delivery_address"),order_reference:value("order_reference")});
+  const recipient_name=value("recipient_name"),recipient_phone=value("recipient_phone"),delivery_address=value("delivery_address"),order_reference=value("order_reference");
+  if(recipient_name.length<2||recipient_name.length>160||recipient_phone.length<3||recipient_phone.length>50||delivery_address.length<5||delivery_address.length>500){problems.push(`row ${rowNumber}: recipient name, phone, or address is missing or too long`);return;}
+  const key=order_reference?`ref:${order_reference}`:`row:${rowNumber}`; let group=groups.get(key);
+  if(!group){group={recipient_name,recipient_phone,delivery_address,order_reference,items:new Map()};groups.set(key,group);}
+  else if(group.recipient_name!==recipient_name||group.recipient_phone!==recipient_phone||group.delivery_address!==delivery_address){problems.push(`row ${rowNumber}: recipient details must match other rows with order reference ${order_reference}`);return;}
+  group.items.set(productMatches[0].id,(group.items.get(productMatches[0].id)??0)+quantity);
+  if((group.items.get(productMatches[0].id)??0)>1000)problems.push(`row ${rowNumber}: combined quantity for a product in one order exceeds 1,000`);
  });
  if(problems.length)return `Fix Excel ${problems.slice(0,3).join("; ")}${problems.length>3?`; and ${problems.length-3} more row(s)`:""}.`;
- if(!payload.length)return "No order rows found. Fill in the template and upload it again.";
- if(payload.length>200)return "Upload up to 200 orders at a time.";
+ if(!groups.size)return "No order rows found. Fill in the template and upload it again.";
+ if(groups.size>200)return "Upload up to 200 customer orders at a time.";
+ const payload=[...groups.values()].map(group=>({recipient_name:group.recipient_name,recipient_phone:group.recipient_phone,delivery_address:group.delivery_address,order_reference:group.order_reference,items:[...group.items].map(([product_id,quantity])=>({product_id,quantity}))}));
  const supabase=await createClient(); const {data,error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
  if(error){console.error("SHIPPER_FULFILLMENT_BULK",error.message);return error.message.includes("stock")?"Upload was not submitted because one or more products do not have enough available stock.":"Upload was not submitted. Check the recipient details and stock, then try again.";}
  revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");
- return `${Number(data)} fulfillment order(s) submitted successfully.`;
+ return `${Number(data)} customer order(s) submitted successfully.`;
 }

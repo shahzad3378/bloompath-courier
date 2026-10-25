@@ -73,10 +73,8 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: Boxes,
         children: [
           { label: "Inventory", href: "/fulfillment" },
-          { label: "Add Product", href: "/fulfillment#add-product" },
-          { label: "Bulk Upload Products", href: "/fulfillment/products/bulk" },
-          { label: "Receive Stock", href: "/fulfillment#receive-stock" },
-          { label: "Bulk Upload Stock", href: "/fulfillment/stock/bulk" },
+          { label: "Products", href: "/fulfillment/products" },
+          { label: "Receive Stock", href: "/fulfillment/stock" },
           { label: "Fulfillment Orders", href: "/fulfillment/orders" },
         ],
       },
@@ -161,9 +159,6 @@ const shipperNav: SimpleNavItem[] = [
   { label: "New Shipment", href: "/shipments/new", icon: ClipboardList },
   { label: "Local Bulk Upload", href: "/shipments/import", icon: ScanLine },
   { label: "International Bulk Upload", href: "/shipments/import/international", icon: Globe2 },
-  { label: "Fulfillment Stock & Orders", href: "/shipper/fulfillment", icon: Boxes },
-  { label: "Fulfillment Orders", href: "/shipper/fulfillment/orders", icon: PackageCheck },
-  { label: "Fulfillment Bulk Upload", href: "/shipper/fulfillment/bulk-upload", icon: ScanLine },
   { label: "Pickup Manifests", href: "/pickup-manifests", icon: ClipboardList },
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText },
@@ -176,7 +171,6 @@ const shipperFulfillmentGroup: NavGroup = {
   children: [
     { label: "Stock & Orders", href: "/shipper/fulfillment" },
     { label: "Fulfillment Orders", href: "/shipper/fulfillment/orders" },
-    { label: "Bulk Upload Orders", href: "/shipper/fulfillment/bulk-upload" },
   ],
 };
 

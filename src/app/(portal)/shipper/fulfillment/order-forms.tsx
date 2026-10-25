@@ -1,27 +1,19 @@
 "use client";
-
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { bulkCreateShipperFulfillmentOrdersAction, createShipperFulfillmentOrderAction } from "@/app/(portal)/fulfillment/actions";
-
-type Product = { id: string; name: string; sku: string; quantity_on_hand: number; quantity_reserved: number };
-const field="bp-input w-full";
-
-function Result({message}:{message:string}){return message?<p aria-live="polite" className={`rounded-lg px-3 py-2 text-xs font-semibold ${message.includes("submitted")||message.includes("successfully")?"bg-blue-50 text-blue-800":"bg-red-50 text-red-700"}`}>{message}</p>:null;}
-
-export function ShipperOrderForm({products}:{products:Product[]}){
- const [message,action,pending]=useActionState(createShipperFulfillmentOrderAction,"");
- const available=products.filter(p=>p.quantity_on_hand>p.quantity_reserved);
- return <form action={action} className="space-y-3">
-  <input className={field} name="order_reference" placeholder="Your order reference (optional)" maxLength={120}/>
-  <input className={field} name="recipient_name" placeholder="Consignee name" required maxLength={160}/>
-  <input className={field} name="recipient_phone" placeholder="Phone number" required maxLength={50}/>
-  <textarea className={`${field} min-h-20`} name="delivery_address" placeholder="Delivery address" required maxLength={500}/>
-  <div className="grid grid-cols-[1fr_100px] gap-2"><select name="product_id" className={field} required defaultValue=""><option value="" disabled>Select product</option>{available.map(p=><option key={p.id} value={p.id}>{p.name} · {p.quantity_on_hand-p.quantity_reserved} available</option>)}</select><input className={field} name="quantity" type="number" min="1" max="1000" defaultValue="1" required/></div>
-  <Result message={message}/><button disabled={pending||!available.length} className="bp-button-primary w-full disabled:opacity-50">{pending?"Submitting…":"Submit fulfillment order"}</button>
- </form>;
+export type Product = { id: string; name: string; sku: string; quantity_on_hand: number; quantity_reserved: number };
+const field = "bp-input w-full";
+function Result({ message }: { message: string }) { return message ? <p aria-live="polite" className={`rounded-lg px-3 py-2 text-xs font-semibold ${message.includes("submitted") || message.includes("successfully") ? "bg-blue-50 text-blue-800" : "bg-red-50 text-red-700"}`}>{message}</p> : null; }
+export function ShipperOrderForm({ products }: { products: Product[] }) {
+  const [message, action, pending] = useActionState(createShipperFulfillmentOrderAction, ""); const available = products.filter(p => p.quantity_on_hand > p.quantity_reserved); const [items, setItems] = useState([{ product_id: "", quantity: "1" }]);
+  function setItem(index: number, key: "product_id" | "quantity", value: string) { setItems(current => current.map((item, i) => i === index ? { ...item, [key]: value } : item)); }
+  return <form action={action} className="space-y-3"><input className={field} name="order_reference" placeholder="Your order reference (optional)" maxLength={120}/><input className={field} name="recipient_name" placeholder="Consignee name" required maxLength={160}/><input className={field} name="recipient_phone" placeholder="Phone number" required maxLength={50}/><textarea className={`${field} min-h-20`} name="delivery_address" placeholder="Delivery address" required maxLength={500}/>
+    <div className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-bold text-[#526159]">Products in this order</p><button type="button" onClick={() => setItems(current => [...current, { product_id: "", quantity: "1" }])} className="text-xs font-bold text-[#174ea6]">+ Add product</button></div>{items.map((item, index) => <div key={index} className="grid grid-cols-[1fr_92px_auto] gap-2"><select aria-label={`Product ${index + 1}`} value={item.product_id} onChange={event => setItem(index, "product_id", event.target.value)} className={field} required><option value="" disabled>Select product</option>{available.map(p => <option key={p.id} value={p.id}>{p.name} · {p.quantity_on_hand - p.quantity_reserved} available</option>)}</select><input aria-label={`Quantity ${index + 1}`} className={field} type="number" min="1" max="1000" value={item.quantity} onChange={event => setItem(index, "quantity", event.target.value)} required/><button type="button" aria-label="Remove product" disabled={items.length === 1} onClick={() => setItems(current => current.filter((_, i) => i !== index))} className="rounded-lg px-2 text-sm font-bold text-[#78858f] disabled:opacity-30">×</button></div>)}</div>
+    <input type="hidden" name="items_json" value={JSON.stringify(items)}/><Result message={message}/><button disabled={pending || !available.length} className="bp-button-primary w-full disabled:opacity-50">{pending ? "Submitting…" : "Submit fulfillment order"}</button>
+  </form>;
 }
-
-export function ShipperBulkUploadForm(){
- const [message,action,pending]=useActionState(bulkCreateShipperFulfillmentOrdersAction,"");
- return <form action={action} className="space-y-3"><label className="block text-xs font-bold text-[#526159]">Excel file (.xlsx, up to 200 orders)<input className={`${field} mt-2`} type="file" name="file" accept=".xlsx" required/></label><Result message={message}/><button disabled={pending} className="bp-button-primary w-full disabled:opacity-50">{pending?"Uploading…":"Upload fulfillment orders"}</button></form>;
+export function ShipperBulkUploadForm() { const [message, action, pending] = useActionState(bulkCreateShipperFulfillmentOrdersAction, ""); return <form action={action} className="space-y-3"><label className="block text-xs font-bold text-[#526159]">Excel file (.xlsx, up to 200 orders)<input className={`${field} mt-2`} type="file" name="file" accept=".xlsx" required/></label><Result message={message}/><button disabled={pending} className="bp-button-primary w-full disabled:opacity-50">{pending ? "Uploading…" : "Upload fulfillment orders"}</button></form>; }
+export function ShipperOrderTabs({ products, defaultTab = "Create Order" }: { products: Product[]; defaultTab?: string }) {
+  const [tab, setTab] = useState(defaultTab === "bulk" ? "Bulk Upload" : "Create Order"); const available = products.filter(p => p.quantity_on_hand > p.quantity_reserved);
+  return <section className="bp-panel space-y-5 p-5"><div className="flex gap-2 border-b border-[#e8edf3] pb-3">{["Create Order", "Bulk Upload"].map(name => <button type="button" key={name} onClick={() => setTab(name)} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === name ? "bg-[#174ea6] text-white" : "bg-[#f2f5f9] text-[#526159]"}`}>{name}</button>)}</div>{tab === "Create Order" ? <><p className="text-xs text-[#78858f]">Choose products with available stock. Add multiple products to one customer order.</p><ShipperOrderForm products={available}/></> : <><div className="rounded-xl bg-[#f7f9fc] p-4 text-xs leading-5 text-[#65736c]">Repeat the same <b>order_reference</b> on multiple rows to group products into one customer order. Recipient details must match across those rows.<br/><a href="/shipper/fulfillment/template" className="mt-2 inline-block font-bold text-[#174ea6]">Download Excel template</a></div><ShipperBulkUploadForm/></>}</section>;
 }
