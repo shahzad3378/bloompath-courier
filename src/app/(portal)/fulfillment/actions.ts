@@ -10,7 +10,9 @@ const clean = (form: FormData, key: string, max = 200) => String(form.get(key) ?
 export async function createFulfillmentProductAction(form: FormData) {
  const profile = await requireProfile(roles); if (!profile.organization_id) return;
  const sku=clean(form,"sku",80).toUpperCase(), name=clean(form,"name",180), location=clean(form,"location",80)||"MAIN"; if(!sku||!name)return;
- const supabase=await createClient(); const {error}=await supabase.from("fulfillment_products").insert({organization_id:profile.organization_id,sku,name,location}); if(error)console.error("FULFILLMENT_PRODUCT_CREATE",error.message); revalidatePath("/fulfillment");
+ const shipperId=clean(form,"shipper_id",36), unitCostText=clean(form,"unit_cost",30), unitCost=Number(unitCostText), currency=clean(form,"currency",3).toUpperCase();
+ if(!/^[0-9a-f-]{36}$/i.test(shipperId)||!unitCostText||!Number.isFinite(unitCost)||unitCost<0||!/^[A-Z]{3}$/.test(currency))return;
+ const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_import_products",{p_shipper_id:shipperId,p_products:[{sku,name,location,unit_cost:unitCost,currency}]}); if(error)console.error("FULFILLMENT_PRODUCT_CREATE",error.message); revalidatePath("/fulfillment"); revalidatePath("/fulfillment/products");
 }
 export async function receiveFulfillmentStockAction(form: FormData) {
  await requireProfile(roles); const productId=clean(form,"product_id",36), quantity=Number(clean(form,"quantity",8)); if(!/^[0-9a-f-]{36}$/i.test(productId)||!Number.isInteger(quantity)||quantity<1||quantity>100000)return;
@@ -41,23 +43,26 @@ async function fulfillmentBulkRows(form: FormData) {
 export async function bulkCreateFulfillmentProductsAction(_previous: BulkFulfillmentState, form: FormData): Promise<BulkFulfillmentState> {
  try {
   const profile=await requireProfile(roles); if(!profile.organization_id)return {status:"error",message:"Your account is not linked to an organization."};
+  const shipperId=clean(form,"shipper_id",36), currency=clean(form,"currency",3).toUpperCase();
+  if(!/^[0-9a-f-]{36}$/i.test(shipperId)||!/^[A-Z]{3}$/.test(currency))return {status:"error",message:"Select a shipper and enter a 3-letter rate currency."};
   const rows=await fulfillmentBulkRows(form);
   const headerIndex=rows.slice(0,10).findIndex(row=>{const set=new Set(row.map(normalizeBulkHeader));return set.has("sku")&&set.has("name");});
-  if(headerIndex<0)return {status:"error",message:"Required columns: sku, name. Keep the template header row unchanged."};
+  if(headerIndex<0)return {status:"error",message:"Required columns: sku, name, unit_cost. Keep the template header row unchanged."};
   const headers=rows[headerIndex].map(normalizeBulkHeader); const index=(name:string)=>headers.indexOf(name);
   const records:Record<string,unknown>[]=[]; const seen=new Set<string>();
   for(let i=headerIndex+1;i<rows.length;i++){
    const row=rows[i]; if(!row.some(value=>bulkCellText(value)))continue;
-   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const name=bulkCellText(row[index("name")]); const location=index("location")>=0?bulkCellText(row[index("location")])||"MAIN":"MAIN";
-   if(!sku||sku.length>80||!name||name.length>180||location.length>80)return {status:"error",message:`Row ${i+1}: SKU, product name, or location is missing or too long.`};
+   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const name=bulkCellText(row[index("name")]); const location=index("location")>=0?bulkCellText(row[index("location")])||"MAIN":"MAIN"; const costText=bulkCellText(row[index("unit_cost")]); const unitCost=Number(costText);
+   if(!sku||sku.length>80||!name||name.length>180||location.length>80||!costText||!Number.isFinite(unitCost)||unitCost<0)return {status:"error",message:`Row ${i+1}: SKU, name, location, or unit cost is invalid.`};
    if(seen.has(sku))return {status:"error",message:`Duplicate SKU ${sku} in the upload. No products were added.`}; seen.add(sku);
-   records.push({organization_id:profile.organization_id,sku,name,location});
+   records.push({sku,name,location,unit_cost:unitCost,currency});
    if(records.length>5000)return {status:"error",message:"Upload a maximum of 5,000 products at a time."};
   }
   if(!records.length)return {status:"error",message:"The spreadsheet has no product rows."};
-  const supabase=await createClient(); const {error}=await supabase.from("fulfillment_products").insert(records);
-  if(error)return {status:"error",message:error.code==="23505"?"A SKU already exists in this inventory. Remove duplicate SKUs and retry; no rows were added.":"Products were not added. Check required columns and try again."};
-  revalidatePath("/fulfillment"); return {status:"success",message:`${records.length} product(s) uploaded successfully.`};
+  const supabase=await createClient(); const {data,error}=await supabase.rpc("fulfillment_import_products",{p_shipper_id:shipperId,p_products:records});
+  if(error)return {status:"error",message:"Products and rates were not saved. Check the selected shipper, currency, and product values, then try again."};
+  revalidatePath("/fulfillment"); revalidatePath("/fulfillment/products"); revalidatePath("/shipper/fulfillment");
+  return {status:"success",message:`${Number(data)} product rate(s) saved for the selected shipper. Matching SKUs were linked to existing inventory products.`};
  } catch(error) { return {status:"error",message:error instanceof Error?error.message:"Product upload failed."}; }
 }
 

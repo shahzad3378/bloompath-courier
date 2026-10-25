@@ -76,6 +76,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
           { label: "Products", href: "/fulfillment/products" },
           { label: "Receive Stock", href: "/fulfillment/stock" },
           { label: "Fulfillment Orders", href: "/fulfillment/orders" },
+          { label: "3PL Fulfillment Rates", href: "/fulfillment/rates" },
         ],
       },
     ],
@@ -237,7 +238,8 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
         ...group,
         children: group.children.filter((child) =>
           (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
-          && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role)),
+          && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
+          && (child.href !== "/fulfillment/rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role)),
         ),
       })),
   }));

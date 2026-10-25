@@ -38,7 +38,7 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   const profile = await requireProfile(rateRoles);
   if (!profile.organization_id) return { status: "error", message: "This account is not linked to a courier company." };
   const shipperId = value(form, "shipper_id");
-  if (!/^[0-9a-f-]{36}$/i.test(shipperId)) return { status: "error", message: "Open the rate upload from a valid shipper account." };
+  if (shipperId && !/^[0-9a-f-]{36}$/i.test(shipperId)) return { status: "error", message: "Open the rate upload from a valid shipper account." };
   const file = form.get("file");
   if (!(file instanceof File) || !file.size || file.size > carrierRateMaxBytes) return { status: "error", message: "Choose an .xlsx rate workbook up to 5 MB." };
   if (!/\.xlsx$/i.test(file.name)) return { status: "error", message: "Upload an Excel .xlsx workbook." };
@@ -55,8 +55,10 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   catch (issue) { return { status: "error", message: issue instanceof Error ? issue.message : "The workbook could not be read." }; }
 
   const admin = createAdminClient();
-  const { data: shipper, error: shipperError } = await admin.from("profiles").select("id").eq("id", shipperId).eq("organization_id", profile.organization_id).eq("role", "shipper").maybeSingle();
-  if (shipperError || !shipper) return { status: "error", message: "This shipper is not available in your courier account." };
+  if (shipperId) {
+    const { data: shipper, error: shipperError } = await admin.from("profiles").select("id").eq("id", shipperId).eq("organization_id", profile.organization_id).eq("role", "shipper").maybeSingle();
+    if (shipperError || !shipper) return { status: "error", message: "This shipper is not available in your courier account." };
+  }
 
   const code = carrierCode(carrierName);
   const { data: carrier, error: carrierError } = await admin.from("third_party_carriers").upsert({
@@ -74,7 +76,7 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
 
   const { data: card, error: cardError } = await admin.from("carrier_rate_cards").insert({
     organization_id: profile.organization_id,
-    shipper_id: shipperId,
+    shipper_id: shipperId || null,
     carrier_id: carrier.id,
     card_name: parsed.cardName,
     country_code: parsed.countryCode,
@@ -97,7 +99,9 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
     await upsertInBatches(admin, "carrier_postal_zone_map", postalRows, "rate_card_id,service_code,origin_terminal,postal_code");
     const { error: activateError } = await admin.from("carrier_rate_cards").update({ import_status: "active", is_active: true, grid_row_count: gridRows.length, postal_mapping_count: postalRows.length, activated_at: new Date().toISOString() }).eq("id", card.id).eq("organization_id", profile.organization_id);
     if (activateError) throw new Error(activateError.message);
-    const { error: deactivateError } = await admin.from("carrier_rate_cards").update({ is_active: false }).eq("organization_id", profile.organization_id).eq("shipper_id", shipperId).eq("carrier_id", carrier.id).eq("country_code", parsed.countryCode).neq("id", card.id);
+    let deactivateQuery = admin.from("carrier_rate_cards").update({ is_active: false }).eq("organization_id", profile.organization_id).eq("carrier_id", carrier.id).eq("country_code", parsed.countryCode).neq("id", card.id);
+    deactivateQuery = shipperId ? deactivateQuery.eq("shipper_id", shipperId) : deactivateQuery.is("shipper_id", null);
+    const { error: deactivateError } = await deactivateQuery;
     if (deactivateError) throw new Error(deactivateError.message);
   } catch (issue) {
     console.error("CARRIER_RATE_IMPORT_ERROR", { cardId: card.id, issue });
@@ -108,5 +112,6 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   revalidatePath(`/shippers/${shipperId}/carrier-rates`);
   revalidatePath(`/shippers/${shipperId}`);
   revalidatePath("/shippers");
+  revalidatePath("/fulfillment/rates");
   return { status: "success", cardId: card.id, gridCount: gridRows.length, postalCount: postalRows.length, message: `Imported ${gridRows.length.toLocaleString()} rate rows and ${postalRows.length.toLocaleString()} postal-zone mappings for ${carrierName}.` };
 }
