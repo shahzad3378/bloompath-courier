@@ -48,7 +48,9 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   const currency = value(form, "currency") || "CAD";
   const cardName = value(form, "card_name");
   const effectiveFrom = value(form, "effective_from");
+  const copyMappingsFrom = value(form, "copy_zone_mappings_from");
   if (carrierName.length < 2 || carrierName.length > 120) return { status: "error", message: "Enter a valid 3PL name." };
+  if (copyMappingsFrom && !/^[0-9a-f-]{36}$/i.test(copyMappingsFrom)) return { status: "error", message: "The rate card being updated is not valid. Reload and try again." };
 
   let parsed: Awaited<ReturnType<typeof parseCarrierRateWorkbook>>;
   try { parsed = await parseCarrierRateWorkbook(file, { countryCode, currency, cardName, effectiveFrom }); }
@@ -74,6 +76,20 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
     return { status: "error", message: "3PL could not be added. Check its name and try again." };
   }
 
+  let previousZoneMaps: Array<{ service_zone_id: number; zone_code: string }> = [];
+  if (copyMappingsFrom) {
+    const { data: oldCard, error: oldCardError } = await admin.from("carrier_rate_cards")
+      .select("id,carrier_id,shipper_id,country_code,import_status")
+      .eq("id", copyMappingsFrom).eq("organization_id", profile.organization_id).maybeSingle();
+    if (oldCardError || !oldCard || oldCard.carrier_id !== carrier.id || oldCard.shipper_id !== (shipperId || null) || oldCard.country_code !== parsed.countryCode || oldCard.import_status !== "active") {
+      return { status: "error", message: "The selected active rate card could not be verified. No updated card was created." };
+    }
+    const { data: oldMaps, error: oldMapsError } = await admin.from("carrier_service_zone_map")
+      .select("service_zone_id,zone_code").eq("organization_id", profile.organization_id).eq("rate_card_id", copyMappingsFrom);
+    if (oldMapsError) return { status: "error", message: "The existing Service Zone mappings could not be read. No updated card was created." };
+    previousZoneMaps = (oldMaps ?? []) as Array<{ service_zone_id: number; zone_code: string }>;
+  }
+
   const { data: card, error: cardError } = await admin.from("carrier_rate_cards").insert({
     organization_id: profile.organization_id,
     shipper_id: shipperId || null,
@@ -94,9 +110,18 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
 
   const gridRows = parsed.grid.map((row) => ({ ...row, organization_id: profile.organization_id, rate_card_id: card.id }));
   const postalRows = parsed.postalZones.map((row) => ({ ...row, organization_id: profile.organization_id, rate_card_id: card.id }));
+  const newZoneCodes = new Set(parsed.grid.map(row => row.zone_code));
+  const copiedZoneMaps = previousZoneMaps.filter(row => newZoneCodes.has(row.zone_code)).map(row => ({
+    organization_id: profile.organization_id!, rate_card_id: card.id, service_zone_id: row.service_zone_id,
+    zone_code: row.zone_code, created_by: profile.id, updated_at: new Date().toISOString(),
+  }));
   try {
     await upsertInBatches(admin, "carrier_rate_grid", gridRows, "rate_card_id,service_code,origin_terminal,zone_code,weight_value,weight_unit,rate_basis");
     await upsertInBatches(admin, "carrier_postal_zone_map", postalRows, "rate_card_id,service_code,origin_terminal,postal_code");
+    if (copiedZoneMaps.length) {
+      const { error: mapCopyError } = await admin.from("carrier_service_zone_map").upsert(copiedZoneMaps, { onConflict: "rate_card_id,service_zone_id" });
+      if (mapCopyError) throw new Error(mapCopyError.message);
+    }
     const { error: activateError } = await admin.from("carrier_rate_cards").update({ import_status: "active", is_active: true, grid_row_count: gridRows.length, postal_mapping_count: postalRows.length, activated_at: new Date().toISOString() }).eq("id", card.id).eq("organization_id", profile.organization_id);
     if (activateError) throw new Error(activateError.message);
     let deactivateQuery = admin.from("carrier_rate_cards").update({ is_active: false }).eq("organization_id", profile.organization_id).eq("carrier_id", carrier.id).eq("country_code", parsed.countryCode).neq("id", card.id);
@@ -113,5 +138,7 @@ export async function importCarrierRateCardAction(_state: CarrierRateImportState
   revalidatePath(`/shippers/${shipperId}`);
   revalidatePath("/shippers");
   revalidatePath("/fulfillment/rates");
-  return { status: "success", cardId: card.id, gridCount: gridRows.length, postalCount: postalRows.length, message: `Imported ${gridRows.length.toLocaleString()} rate rows and ${postalRows.length.toLocaleString()} postal-zone mappings for ${carrierName}.` };
+  const skippedMappings = previousZoneMaps.length - copiedZoneMaps.length;
+  const mappingMessage = copyMappingsFrom ? ` Copied ${copiedZoneMaps.length} Service Zone mapping${copiedZoneMaps.length === 1 ? "" : "s"}${skippedMappings ? `; ${skippedMappings} need remapping because the 3PL zone code changed` : ""}.` : "";
+  return { status: "success", cardId: card.id, gridCount: gridRows.length, postalCount: postalRows.length, message: `Imported ${gridRows.length.toLocaleString()} rate rows and ${postalRows.length.toLocaleString()} postal-zone mappings for ${carrierName}.${mappingMessage}` };
 }

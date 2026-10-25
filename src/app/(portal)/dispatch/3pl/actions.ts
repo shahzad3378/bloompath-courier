@@ -152,7 +152,6 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   if (!cards?.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: tariff.reason || `No active rate card is mapped to ${shipperName} for ${(shipment.consignee_country_code || "unknown destination").toUpperCase()}.`, quotes: [], unmatchedCards: [] };
   const postal = (shipment.consignee_postal_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const prefixes = postal.length >= 3 ? Array.from({ length: postal.length - 2 }, (_, i) => postal.slice(0, i + 3)) : [];
-  if (!prefixes.length) return { ...initialRateCheck, status: "success", trackingNumber: tracking, shipperName, weightKg, weightSource, billedAmount, billedCurrency, message: "Shipment has no usable destination postal code; saved postal-zone cards cannot be compared.", quotes: [], unmatchedCards: cards.map((card) => card.card_name) };
   const carrierIds = [...new Set(cards.map((card) => card.carrier_id))];
   const { data: carrierRows, error: carrierError } = await admin.from("third_party_carriers").select("id,name").eq("organization_id", profile.organization_id).in("id", carrierIds);
   if (carrierError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Carrier names could not be loaded. Please retry." };
@@ -161,6 +160,39 @@ export async function compareThreePLRatesAction(_state: ThreePLRateCheckState, f
   const unmatchedCards: string[] = [];
   if (Number(shipment.pieces) !== 1) unmatchedCards.push("Multi-piece shipment: per-piece weights are not stored, so package tariffs were not compared.");
   else for (const card of cards) {
+    if (shipment.service_zone_id) {
+      const { data: serviceZoneMap, error: serviceZoneMapError } = await admin.from("carrier_service_zone_map")
+        .select("zone_code").eq("organization_id", profile.organization_id).eq("rate_card_id", card.id)
+        .eq("service_zone_id", shipment.service_zone_id).maybeSingle();
+      if (serviceZoneMapError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Service-zone rate mappings could not be checked. Please retry." };
+      if (serviceZoneMap) {
+        const { data: serviceRows, error: serviceError } = await admin.from("carrier_rate_grid")
+          .select("service_code,origin_terminal").eq("organization_id", profile.organization_id)
+          .eq("rate_card_id", card.id).eq("zone_code", serviceZoneMap.zone_code);
+        if (serviceError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Mapped rate rows could not be checked. Please retry." };
+        const services = [...new Set((serviceRows ?? []).map(row => row.service_code))];
+        const rows = services.length ? await fetchRateRows(admin, card.id, services, [serviceZoneMap.zone_code]) : [];
+        const origins = [...new Set(rows.map(row => row.origin_terminal))];
+        const comparableOrigins = origins.includes("ANY") ? ["ANY"] : origins.length === 1 ? origins : [];
+        if (!comparableOrigins.length) {
+          unmatchedCards.push(`${card.card_name}: map points to ${serviceZoneMap.zone_code}, but the rate card has multiple origin terminals and needs origin-specific mapping.`);
+          continue;
+        }
+        const quoteCountBeforeMappedCard = quotes.length;
+        for (const service of services) {
+          const matching = rows.filter(row => row.service_code === service && comparableOrigins.includes(row.origin_terminal));
+          const amount = estimateRate(matching, weightKg);
+          if (amount === null) continue;
+          quotes.push({ carrierId: card.carrier_id, carrierName: carrierNames.get(card.carrier_id) || "3PL", cardName: card.card_name, service, origin: comparableOrigins[0], zone: serviceZoneMap.zone_code, currency: card.currency, amount, weightKg, rateNotes: card.rate_notes, margin: billedAmount !== null && billedCurrency === card.currency ? billedAmount - amount : null });
+        }
+        if (quotes.length === quoteCountBeforeMappedCard) unmatchedCards.push(`${card.card_name}: no matching rate row for mapped 3PL zone ${serviceZoneMap.zone_code} at this weight.`);
+        continue;
+      }
+    }
+    if (!prefixes.length) {
+      unmatchedCards.push(`${card.card_name}: shipment has no postal-code mapping and its Service Zone has not been mapped to this rate card.`);
+      continue;
+    }
     const { data: maps, error: mapError } = await admin.from("carrier_postal_zone_map")
       .select("service_code,origin_terminal,postal_code,zone_code").eq("rate_card_id", card.id).in("postal_code", prefixes);
     if (mapError) return { ...initialRateCheck, status: "error", trackingNumber: tracking, message: "Postal-zone mappings could not be checked. Please retry." };

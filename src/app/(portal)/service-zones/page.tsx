@@ -10,6 +10,7 @@ import {
   ServiceZoneForm,
   type ZoneMarket,
 } from "@/components/service-zone-form";
+import { ServiceZoneEditForm, type EditableServiceZone } from "@/components/service-zone-edit-form";
 import {
   deleteServiceZoneAction,
   toggleServiceZoneAction,
@@ -79,6 +80,8 @@ export default async function ServiceZonesPage({
 }: {
   searchParams: Promise<{
     created?: string;
+    updated?: string;
+    deleted?: string;
     error?: string;
   }>;
 }) {
@@ -163,8 +166,7 @@ export default async function ServiceZonesPage({
         </h1>
 
         <p className="mt-2 max-w-2xl text-sm text-[#74827b]">
-          Configure automatic delivery-location mapping
-          for each operating market.
+          Configure automatic delivery-location mapping for each operating market. To link these areas to a 3PL rate card, open that shipper’s 3PL Rate Cards and choose “Map Service Zones”.
         </p>
       </div>
 
@@ -174,10 +176,11 @@ export default async function ServiceZonesPage({
         </div>
       ) : null}
 
+      {params.updated === "1" ? <div role="status" className="mt-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">Zone changes saved. Existing shipments keep their saved zone details.</div> : null}
+      {params.deleted === "1" ? <div role="status" className="mt-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">Unused service zone deleted.</div> : null}
       {params.error ? (
-        <div className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
-          Service zone could not be saved. Check
-          the market and mapping values.
+        <div role="alert" className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">
+          {params.error === "in_use" ? "This zone is linked to existing shipments or rate settings, so it cannot be deleted. Disable it to keep history intact." : params.error === "update" ? "Zone changes were not saved. Reload the page and try again." : "Service zone could not be saved. Check the market and mapping values."}
         </div>
       ) : null}
 
@@ -337,24 +340,20 @@ export default async function ServiceZonesPage({
                           </button>
                         </form>
 
-                        <form
-                          action={
-                            deleteServiceZoneAction
-                          }
-                        >
-                          <input
-                            type="hidden"
-                            name="zone_id"
-                            value={row.id}
-                          />
-
-                          <button
-                            title="Delete zone"
-                            className="inline-grid size-9 place-items-center rounded-lg border border-[#edd1d1] text-[#a13f3f]"
-                          >
+                        <ServiceZoneEditForm zone={row as EditableServiceZone} />
+                        <details className="relative text-left">
+                          <summary aria-label={`Delete ${row.name}`} className="inline-grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-[#edd1d1] text-[#a13f3f] hover:bg-[#fff5f5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a13f3f]">
                             <Trash2 className="size-4" />
-                          </button>
-                        </form>
+                          </summary>
+                          <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-[#edd1d1] bg-white p-4 text-left shadow-lg">
+                            <p className="text-sm font-bold text-[#34453c]">Delete {row.name}?</p>
+                            <p className="mt-1 text-xs leading-5 text-[#74827b]">Only zones with no shipment or rate history can be deleted. You can disable a zone instead.</p>
+                            <form action={deleteServiceZoneAction} className="mt-3 flex justify-end">
+                              <input type="hidden" name="zone_id" value={row.id} />
+                              <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#a13f3f] px-3 text-xs font-bold text-white hover:bg-[#8e3232]">Delete zone</button>
+                            </form>
+                          </div>
+                        </details>
                       </div>
                     </td>
                   </tr>

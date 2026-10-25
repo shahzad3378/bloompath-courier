@@ -168,6 +168,48 @@ export async function createServiceZoneAction(
   redirect("/service-zones?created=1");
 }
 
+export async function updateServiceZoneAction(formData: FormData) {
+  const profile = await requireProfile(zoneRoles);
+  const id = Number(String(formData.get("zone_id") ?? ""));
+  const zoneType = String(formData.get("zone_type") ?? "");
+  const city = text(formData, "city", 120);
+  const postalPrefix = text(formData, "postal_prefix", 30)?.toUpperCase() ?? null;
+  const postalFrom = text(formData, "postal_from", 30)?.toUpperCase() ?? null;
+  const postalTo = text(formData, "postal_to", 30)?.toUpperCase() ?? null;
+  const district = text(formData, "district", 120);
+  const area = text(formData, "area", 120);
+
+  if (!profile.organization_id || !Number.isInteger(id) || id <= 0 ||
+      !serviceZoneTypes.includes(zoneType as (typeof serviceZoneTypes)[number]) || !city ||
+      (zoneType === "postal_prefix" && !postalPrefix) ||
+      (zoneType === "postal_range" && (!postalFrom || !postalTo)) ||
+      (zoneType === "district" && !district) ||
+      (zoneType === "area" && !area)) {
+    redirect("/service-zones?error=invalid");
+  }
+
+  const name = zoneType === "district" ? `${city} · ${district}` : zoneType === "area" ? `${city} · ${area}` : city;
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin.from("service_zones").update({
+    name,
+    zone_type: zoneType,
+    postal_prefix: zoneType === "postal_prefix" ? postalPrefix : null,
+    postal_from: zoneType === "postal_range" ? postalFrom : null,
+    postal_to: zoneType === "postal_range" ? postalTo : null,
+    city,
+    district: zoneType === "district" ? district : null,
+    area: zoneType === "area" ? area : null,
+  }).eq("id", id).eq("organization_id", profile.organization_id).select("id").maybeSingle();
+
+  if (error || !updated) {
+    console.error("Service zone update failed:", error?.message || "zone not found");
+    redirect("/service-zones?error=update");
+  }
+  revalidatePath("/service-zones");
+  revalidatePath("/shipments/new");
+  redirect("/service-zones?updated=1");
+}
+
 export async function toggleServiceZoneAction(
   formData: FormData,
 ) {
@@ -191,7 +233,7 @@ export async function toggleServiceZoneAction(
 
   const admin = createAdminClient();
 
-  await admin
+  const { error } = await admin
     .from("service_zones")
     .update({
       is_active: active,
@@ -202,6 +244,7 @@ export async function toggleServiceZoneAction(
       profile.organization_id,
     );
 
+  if (error) console.error("Service zone activation update failed:", error.message);
   revalidatePath("/service-zones");
 }
 
@@ -229,7 +272,7 @@ export async function deleteServiceZoneAction(
    * Delete only when no shipment references this zone.
    * FK protection will reject unsafe deletion.
    */
-  await admin
+  const { error } = await admin
     .from("service_zones")
     .delete()
     .eq("id", id)
@@ -238,5 +281,10 @@ export async function deleteServiceZoneAction(
       profile.organization_id,
     );
 
+  if (error) {
+    console.error("Service zone deletion failed:", error.message);
+    redirect("/service-zones?error=in_use");
+  }
   revalidatePath("/service-zones");
+  redirect("/service-zones?deleted=1");
 }
