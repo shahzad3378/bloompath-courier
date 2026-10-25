@@ -249,7 +249,7 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
   function toggleGroup(key: string) { if (sidebarCollapsed) { setSidebarCollapsed(false); setExpandedGroup(key); return; } setExpandedGroup((current) => current === key ? null : key); }
   function submitGlobalSearch(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const value = searchText.trim(); if (!value) return; router.push(`/shipments?q=${encodeURIComponent(value)}`); setSearchText(""); }
 
-  return <div className={`min-h-screen bg-[#f6f8f7] lg:grid ${sidebarCollapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[245px_1fr]"}`}>
+  return <div data-portal-theme={profile.role === "shipper" && branding.displayName === "Fast Drop" ? "fastdrop-shipper" : undefined} className={`min-h-screen bg-[#f6f8f7] lg:grid ${sidebarCollapsed ? "lg:grid-cols-[76px_1fr]" : "lg:grid-cols-[245px_1fr]"}`}>
     {mobileOpen ? <button aria-label="Close navigation" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} /> : null}
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-[245px] flex-col border-r border-[#e7ece9] bg-white text-[#25352d] shadow-[4px_0_24px_rgba(23,35,30,0.025)] transition-all duration-300 lg:sticky lg:top-0 lg:h-screen ${sidebarCollapsed ? "lg:w-[76px]" : "lg:w-[245px]"} ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
       <div className={`flex h-20 items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
