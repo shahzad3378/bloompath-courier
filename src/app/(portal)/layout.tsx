@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { PortalShell } from "@/components/portal-shell";
 import { DriverLocationTracker } from "@/components/driver-location-tracker";
 import { requireProfile } from "@/lib/auth";
@@ -18,6 +19,7 @@ export default async function PortalLayout({
   };
 
   const admin = createAdminClient();
+  const portalBrand = (await cookies()).get("bp_portal_brand")?.value;
 
   if (profile.role === "shipper" && profile.organization_id) {
     const { data: shipperBusiness } = await admin
@@ -58,6 +60,10 @@ export default async function PortalLayout({
         "BloomPath",
       logoUrl: settings?.logo_url || null,
     };
+  }
+
+  if (profile.role === "shipper" && portalBrand === "fastdrop") {
+    branding = { displayName: "Fast Drop", logoUrl: null };
   }
 
   return (
