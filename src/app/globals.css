@@ -378,3 +378,225 @@ textarea:focus {
   }
   body.warehouse-label-report-mode .warehouse-label-report > div:last-child { max-height: none !important; overflow: visible !important; }
 }
+
+/* Fast Drop's customer-facing shipper workspace: white surfaces with flag-inspired blue and red accents. */
+[data-portal-theme="fastdrop-shipper"] {
+  --shipper-blue: #174ea6;
+  --shipper-blue-dark: #123b7a;
+  --shipper-blue-soft: #edf4ff;
+  --shipper-red: #d62828;
+  --shipper-line: #dce4ef;
+  background: #fff !important;
+}
+
+[data-portal-theme="fastdrop-shipper"] .bp-button-primary {
+  background: var(--shipper-blue);
+  box-shadow: 0 8px 20px rgb(23 78 166 / 16%);
+}
+[data-portal-theme="fastdrop-shipper"] .bp-button-primary:hover {
+  background: var(--shipper-blue-dark);
+  box-shadow: 0 11px 24px rgb(23 78 166 / 22%);
+}
+[data-portal-theme="fastdrop-shipper"] header.sticky {
+  border-top: 3px solid var(--shipper-red);
+}
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f6f8f7]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f7f9f8]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f5f8f6]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f9fbfa]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#fafcfb]"] {
+  background-color: #fff !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#13734b]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#15905c]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#138253]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#168052]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#116840]"] {
+  background-color: var(--shipper-blue) !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#eef8f2]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#edf8f2]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f0faf5]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#f0faf4]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e9f7ef]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#edf3ff]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e7f4ed]"] {
+  background-color: var(--shipper-blue-soft) !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="text-[#13734b]"],
+[data-portal-theme="fastdrop-shipper"] [class~="text-[#188459]"],
+[data-portal-theme="fastdrop-shipper"] [class~="text-[#15905c]"],
+[data-portal-theme="fastdrop-shipper"] [class~="text-[#138253]"] {
+  color: var(--shipper-blue) !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="border-[#13734b]"],
+[data-portal-theme="fastdrop-shipper"] [class~="border-[#188459]"] {
+  border-color: var(--shipper-blue) !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="ring-[#13734b]/10"] {
+  --tw-ring-color: rgb(23 78 166 / 10%) !important;
+}
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e8f7ef]"][class~="text-[#13734b]"],
+[data-portal-theme="fastdrop-shipper"] [class~="bg-[#e4f3ea]"][class~="text-[#13734b]"] {
+  color: #13734b !important;
+}
+
+.bp-awb-sheet {
+  --awb-ink: #111714;
+  --awb-muted: #65736b;
+  --awb-rule: #8a948e;
+  box-sizing: border-box;
+  display: flex;
+  width: 4in;
+  height: 6in;
+  flex-direction: column;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  color: var(--awb-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt;
+  line-height: 1.22;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.bp-awb-header { display: flex; min-height: 58px; flex: 0 0 58px; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 2px solid var(--awb-ink); }
+.bp-awb-brand { display: flex; min-width: 0; align-items: center; gap: 9px; }
+.bp-awb-logo { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; overflow: hidden; }
+.bp-awb-logo img { width: 100%; height: 100%; object-fit: contain; }
+.bp-awb-logo-initials { background: var(--awb-ink); color: white; font-size: 11pt; font-weight: 900; letter-spacing: -0.05em; }
+.bp-awb-brand-copy { min-width: 0; }
+.bp-awb-brand-name { overflow-wrap: anywhere; font-size: 14pt; font-weight: 900; line-height: 1.02; letter-spacing: -0.025em; }
+.bp-awb-brand-location { margin-top: 3px; color: var(--awb-muted); font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.055em; }
+.bp-awb-piece { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; line-height: 1; }
+.bp-awb-piece span { color: var(--awb-muted); font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
+.bp-awb-piece strong { margin-top: 5px; font-family: var(--font-geist-mono), monospace; font-size: 16pt; font-weight: 900; }
+.bp-awb-piece i { font-size: 8pt; font-style: normal; }
+.bp-awb-address-grid { display: grid; min-height: 100px; flex: 0 0 100px; grid-template-columns: 1fr 1fr; overflow: hidden; border-bottom: 1px solid var(--awb-rule); }
+.bp-awb-address { min-width: 0; padding: 8px 10px 7px 9px; overflow-wrap: anywhere; }
+.bp-awb-address + .bp-awb-address { padding-left: 13px; }
+.bp-awb-eyebrow { color: var(--awb-muted); font-size: 6.7pt; font-weight: 800; line-height: 1.15; text-transform: uppercase; letter-spacing: 0.08em; }
+.bp-awb-address-name { margin-top: 5px; font-size: 9.1pt; font-weight: 900; line-height: 1.08; }
+.bp-awb-address-phone { margin-top: 4px; font-size: 8pt; font-weight: 600; }
+.bp-awb-address-lines { margin-top: 3px; font-size: 7.7pt; line-height: 1.22; }
+.bp-awb-address-note { margin-top: 3px; color: var(--awb-muted); font-size: 6.6pt; }
+.bp-awb-reference-row { display: flex; min-height: 28px; flex: 0 0 28px; align-items: center; gap: 10px; padding: 3px 10px; overflow: hidden; border-bottom: 1px solid #c3cbc6; }
+.bp-awb-reference-row span { flex: 0 0 auto; color: var(--awb-muted); font-size: 6.8pt; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
+.bp-awb-reference-row strong { overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 9.2pt; font-weight: 900; }
+.bp-awb-service-band { display: grid; min-height: 54px; flex: 0 0 54px; grid-template-columns: minmax(0, 1fr) minmax(92px, 0.42fr); align-items: stretch; overflow: hidden; border-bottom: 2px solid var(--awb-ink); background: var(--awb-ink); color: #fff; }
+.bp-awb-service-name, .bp-awb-service-destination { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 5px 10px; }
+.bp-awb-service-name span, .bp-awb-service-destination span { font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; }
+.bp-awb-service-name strong { margin-top: 2px; font-size: 19pt; font-weight: 900; line-height: 0.98; text-transform: uppercase; }
+.bp-awb-service-destination { align-items: flex-end; border-left: 1px solid #ffffff8c; text-align: right; }
+.bp-awb-service-destination strong { max-width: 100%; margin-top: 3px; overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 16pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
+.bp-awb-tracking { display: flex; min-height: 118px; flex: 0 0 118px; flex-direction: column; justify-content: center; padding: 6px 10px; overflow: hidden; border-bottom: 1px solid var(--awb-rule); text-align: center; }
+.bp-awb-tracking .bp-awb-eyebrow { margin-bottom: 5px; text-align: left; }
+.bp-awb-barcode { display: flex; justify-content: center; width: 100%; }
+.bp-awb-barcode svg { display: block; width: 100%; max-width: 100%; height: 55px; margin-inline: auto; }
+.bp-awb-tracking-number { margin-top: 4px; overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 13.5pt; font-weight: 900; line-height: 1; letter-spacing: 0.045em; text-align: center; }
+.bp-awb-shipment-facts { display: flex; min-height: 56px; flex: 0 0 56px; flex-direction: column; justify-content: center; gap: 4px; padding: 5px 10px; overflow: hidden; border-bottom: 1px solid var(--awb-rule); }
+.bp-awb-facts-primary { overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 11pt; font-weight: 900; }
+.bp-awb-facts-payment { font-size: 8pt; font-weight: 900; text-transform: uppercase; }
+.bp-awb-footer { display: flex; min-height: 140px; flex: 1 1 140px; align-items: stretch; justify-content: space-between; gap: 9px; padding: 7px 10px 8px; overflow: hidden; }
+.bp-awb-footer-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; }
+.bp-awb-contents { display: -webkit-box; margin-top: 3px; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 8pt; font-weight: 800; line-height: 1.18; }
+.bp-awb-instructions { display: -webkit-box; margin-top: 3px; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 7pt; line-height: 1.15; }
+.bp-awb-zone { margin-top: 2px; overflow: hidden; font-size: 6.5pt; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.bp-awb-footer-destination { display: flex; min-width: 0; flex: 0 0 auto; flex-direction: column; gap: 2px; margin-top: auto; padding-top: 4px; }
+.bp-awb-footer-destination span { color: var(--awb-muted); font-size: 6.8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; }
+.bp-awb-footer-destination strong { max-height: 2em; overflow: hidden; overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 12pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
+.bp-awb-qr { display: flex; width: 80px; flex: 0 0 80px; align-items: flex-end; justify-content: center; }
+.bp-awb-qr svg { display: block; width: 80px; height: 80px; }
+.bp-awb-a4 { width: 190mm; height: 270mm; padding: 10mm; font-size: 10pt; }
+.bp-awb-a4 .bp-awb-header { min-height: 23mm; padding: 3mm 2mm; }
+.bp-awb-a4 .bp-awb-logo { width: 18mm; height: 18mm; }
+.bp-awb-a4 .bp-awb-brand-name { font-size: 22pt; }
+.bp-awb-a4 .bp-awb-brand-location, .bp-awb-a4 .bp-awb-eyebrow { font-size: 9pt; }
+.bp-awb-a4 .bp-awb-piece span { font-size: 9pt; }
+.bp-awb-a4 .bp-awb-piece strong { font-size: 30pt; }
+.bp-awb-a4 .bp-awb-address-grid { min-height: 45mm; }
+.bp-awb-a4 .bp-awb-address { padding: 4mm 3mm; }
+.bp-awb-a4 .bp-awb-address-name { font-size: 17pt; }
+.bp-awb-a4 .bp-awb-address-phone, .bp-awb-a4 .bp-awb-address-lines { font-size: 12pt; }
+.bp-awb-a4 .bp-awb-address-note { font-size: 10pt; }
+.bp-awb-a4 .bp-awb-reference-row { min-height: 13mm; padding: 3mm 2mm; }
+.bp-awb-a4 .bp-awb-reference-row span { font-size: 9pt; }
+.bp-awb-a4 .bp-awb-reference-row strong { font-size: 11pt; }
+.bp-awb-a4 .bp-awb-service-band { min-height: 23mm; }
+.bp-awb-a4 .bp-awb-service-name, .bp-awb-a4 .bp-awb-service-destination { padding: 3mm; }
+.bp-awb-a4 .bp-awb-service-name span, .bp-awb-a4 .bp-awb-service-destination span { font-size: 9pt; }
+.bp-awb-a4 .bp-awb-service-name strong { font-size: 31pt; }
+.bp-awb-a4 .bp-awb-service-destination strong { font-size: 26pt; }
+.bp-awb-a4 .bp-awb-tracking { min-height: 47mm; padding: 4mm; }
+.bp-awb-a4 .bp-awb-tracking svg { height: 28mm; }
+.bp-awb-a4 .bp-awb-tracking-number { font-size: 22pt; }
+.bp-awb-a4 .bp-awb-shipment-facts { min-height: 22mm; padding: 3mm; }
+.bp-awb-a4 .bp-awb-facts-primary { font-size: 16pt; }
+.bp-awb-a4 .bp-awb-facts-payment { font-size: 11pt; }
+.bp-awb-a4 .bp-awb-footer { min-height: 40mm; padding: 4mm 3mm; }
+.bp-awb-a4 .bp-awb-contents { font-size: 12pt; }
+.bp-awb-a4 .bp-awb-instructions, .bp-awb-a4 .bp-awb-zone { font-size: 10pt; }
+.bp-awb-a4 .bp-awb-footer-destination span { font-size: 9pt; }
+.bp-awb-a4 .bp-awb-footer-destination strong { font-size: 22pt; }
+.bp-awb-a4 .bp-awb-qr { width: 46mm; flex-basis: 46mm; }
+.bp-awb-a4 .bp-awb-qr svg { width: 46mm; height: 46mm; }
+.awb-bulk-item + .awb-bulk-item { margin-top: 20px; }
+
+@page label-page { size: 4in 6in; margin: 0; }
+@page a4-page { size: A4; margin: 10mm; }
+
+@media print {
+  body { background: #fff; }
+  body:has(.awb-embed) { min-height: 0; }
+  .print-controls { display: none !important; }
+  .bp-awb-sheet { margin: 0 auto; box-shadow: none; }
+  .bp-awb-logo img { filter: grayscale(1) contrast(1.8); }
+  .bp-awb-4x6 { page: label-page; width: 4in; height: 6in; }
+  .bp-awb-a4 { page: a4-page; width: 190mm; height: 270mm; }
+  .awb-bulk-item { break-after: page; page-break-after: always; }
+  .awb-bulk-item:last-child { break-after: auto; page-break-after: auto; }
+  .awb-bulk-item + .awb-bulk-item { margin-top: 0; }
+}
+
+@import "leaflet/dist/leaflet.css";
+
+
+/* Number labels used by the dispatcher route map. */
+.bp-route-stop-label {
+  min-width: 22px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+
+.bp-route-stop-label::before {
+  display: none;
+}
+
+@media print {
+  .three-pl-manifest-print { page: a4-page; }
+  .three-pl-manifest-print thead { display: table-header-group; }
+  .three-pl-manifest-print tr { break-inside: avoid; }
+}
+
+
+@media print {
+  body.warehouse-label-report-mode * { visibility: hidden !important; }
+  body.warehouse-label-report-mode .warehouse-label-report,
+  body.warehouse-label-report-mode .warehouse-label-report * { visibility: visible !important; }
+  body.warehouse-label-report-mode .warehouse-label-report {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body.warehouse-label-report-mode .warehouse-label-report > div:last-child { max-height: none !important; overflow: visible !important; }
+}
