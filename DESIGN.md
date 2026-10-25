@@ -62,7 +62,7 @@ The interface should feel like a well-run parcel control room: quiet surfaces, p
 
 ## Colors
 
-The internal operations workspace keeps the green custody palette. Fast Drop shipper accounts use a white surface with blue navigation and primary actions, plus restrained red accents. Green remains available for successful shipment states; amber remains for recoverable attention; red status and destructive actions keep their semantic meaning. The theme is selected by the verified shipper role and the `bp_portal_brand` session cookie, then scoped by `data-portal-theme="fastdrop-shipper"` in `PortalShell` and adapter rules in `src/app/globals.css`; it does not recolor internal staff screens.
+The internal operations workspace keeps the green custody palette. Fast Drop shipper accounts use a white surface with blue navigation and primary actions (`#174ea6`, hover `#123b7a`), pale blue selected states (`#edf4ff`), restrained red accents (`#d62828`), and cool borders (`#dce4ef`). Green remains available for successful shipment states; amber remains for recoverable attention; red status and destructive actions keep their semantic meaning. The theme is selected by the verified shipper role and the `bp_portal_brand` session cookie, then scoped by `data-portal-theme="fastdrop-shipper"` in `PortalShell` and adapter rules in `src/app/globals.css`; it does not recolor internal staff screens.
 
 ## Typography
 
