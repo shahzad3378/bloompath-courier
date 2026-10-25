@@ -90,7 +90,7 @@ export async function bulkReceiveFulfillmentStockAction(_previous: BulkFulfillme
 }
 
 export async function createShipperFulfillmentOrderAction(_previous: string, form: FormData): Promise<string> {
- await requireProfile(["shipper"]);
+ await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);
  let items:{product_id:string;quantity:number}[];
  try { items=JSON.parse(clean(form,"items_json",20000)); } catch { return "Choose at least one product and quantity."; }
  if(!Array.isArray(items)||!items.length||items.length>50||items.some(item=>!item||!/^[0-9a-f-]{36}$/i.test(item.product_id)||!Number.isInteger(Number(item.quantity))||Number(item.quantity)<1||Number(item.quantity)>1000))return "Choose products and valid quantities.";
@@ -104,7 +104,7 @@ export async function createShipperFulfillmentOrderAction(_previous: string, for
 }
 
 export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string, form: FormData): Promise<string> {
- const profile=await requireProfile(["shipper"]);
+ const profile=await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);
  const file=form.get("file");
  if(!(file instanceof File)||file.size<1||file.size>900_000)return "Choose an .xlsx file under 900 KB.";
  const workbook=new ExcelJS.Workbook();

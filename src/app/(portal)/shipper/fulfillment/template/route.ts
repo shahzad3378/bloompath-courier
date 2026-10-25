@@ -3,7 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(){
- const profile=await requireProfile(["shipper"]);const db=await createClient();
+ const profile=await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);const db=await createClient();
  const {data,error}=await db.from("fulfillment_products").select("name,quantity_on_hand,quantity_reserved").eq("organization_id",profile.organization_id!).eq("active",true).order("name").limit(1000);
  if(error)return new Response("Could not load product list",{status:500});
  const available=[...new Set((data??[]).filter(p=>p.quantity_on_hand>p.quantity_reserved).map(p=>p.name))];
