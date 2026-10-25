@@ -6,7 +6,6 @@ import {
   BadgeDollarSign,
   Bell,
   Boxes,
-  Braces,
   Building2,
   ChevronDown,
   CircleUserRound,
@@ -24,10 +23,8 @@ import {
   Search,
   Settings,
   Truck,
-  UserPlus,
   UserRoundCog,
   UsersRound,
-  Warehouse,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -76,6 +73,10 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: Boxes,
         children: [
           { label: "Inventory", href: "/fulfillment" },
+          { label: "Add Product", href: "/fulfillment#add-product" },
+          { label: "Bulk Upload Products", href: "/fulfillment/products/bulk" },
+          { label: "Receive Stock", href: "/fulfillment#receive-stock" },
+          { label: "Bulk Upload Stock", href: "/fulfillment/stock/bulk" },
           { label: "Fulfillment Orders", href: "/fulfillment/orders" },
         ],
       },
@@ -167,6 +168,17 @@ const shipperNav: SimpleNavItem[] = [
   { label: "Returns", href: "/shipper/returns", icon: RotateCcw },
   { label: "Invoices", href: "/shipper/invoices", icon: FileText },
 ];
+
+const shipperFulfillmentGroup: NavGroup = {
+  key: "shipper-fulfillment",
+  label: "Fulfillment",
+  icon: Boxes,
+  children: [
+    { label: "Stock & Orders", href: "/shipper/fulfillment" },
+    { label: "Fulfillment Orders", href: "/shipper/fulfillment/orders" },
+    { label: "Bulk Upload Orders", href: "/shipper/fulfillment/bulk-upload" },
+  ],
+};
 
 const driverNav: SimpleNavItem[] = [
   { label: "My Route", href: "/driver", icon: Truck },
@@ -270,7 +282,7 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
         <button aria-label="Close navigation" className="text-[#78857e] lg:hidden" onClick={() => setMobileOpen(false)}><X className="size-5" /></button>
       </div>
       <nav className={`flex-1 overflow-y-auto pb-5 pt-2 ${sidebarCollapsed ? "px-2" : "px-3"}`}>
-        {simpleNav ? <div>{!sidebarCollapsed ? <p className="mb-2 px-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">Workspace</p> : null}<div className="space-y-0.5">{simpleNav.map((item) => <div key={item.label} title={sidebarCollapsed ? item.label : undefined} className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}><SimpleNavigationItem item={item} pathname={pathname} closeNavigation={() => setMobileOpen(false)} /></div>)}</div></div> : <div className="space-y-5">{visibleInternalSections.map((section) => <section key={section.label}>{!sidebarCollapsed ? <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">{section.label}</p> : null}<div className="space-y-0.5">{(section.direct ?? []).map((item) => <div key={item.label} title={sidebarCollapsed ? item.label : undefined} className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}><SimpleNavigationItem item={item} pathname={pathname} closeNavigation={() => setMobileOpen(false)} /></div>)}{(section.groups ?? []).map((group) => <div key={group.key} title={sidebarCollapsed ? group.label : undefined} className={sidebarCollapsed ? "[&>div>button]:justify-center [&>div>button]:px-0 [&>div>button>span]:hidden [&>div>button>svg:last-child]:hidden" : ""}><ExpandableNavigationGroup group={group} pathname={pathname} expanded={!sidebarCollapsed && expandedGroup === group.key} onToggle={() => toggleGroup(group.key)} closeNavigation={() => setMobileOpen(false)} /></div>)}</div></section>)}</div>}
+        {simpleNav ? <div>{!sidebarCollapsed ? <p className="mb-2 px-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">Workspace</p> : null}<div className="space-y-0.5">{simpleNav.map((item) => <div key={item.label} title={sidebarCollapsed ? item.label : undefined} className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}><SimpleNavigationItem item={item} pathname={pathname} closeNavigation={() => setMobileOpen(false)} /></div>)}{profile.role === "shipper" ? <ExpandableNavigationGroup group={shipperFulfillmentGroup} pathname={pathname} expanded={!sidebarCollapsed && expandedGroup === shipperFulfillmentGroup.key} onToggle={() => toggleGroup(shipperFulfillmentGroup.key)} closeNavigation={() => setMobileOpen(false)} /> : null}</div></div> : <div className="space-y-5">{visibleInternalSections.map((section) => <section key={section.label}>{!sidebarCollapsed ? <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#9ba8ba]">{section.label}</p> : null}<div className="space-y-0.5">{(section.direct ?? []).map((item) => <div key={item.label} title={sidebarCollapsed ? item.label : undefined} className={sidebarCollapsed ? "[&>a]:justify-center [&>a]:px-0 [&>a]:text-[0px]" : ""}><SimpleNavigationItem item={item} pathname={pathname} closeNavigation={() => setMobileOpen(false)} /></div>)}{(section.groups ?? []).map((group) => <div key={group.key} title={sidebarCollapsed ? group.label : undefined} className={sidebarCollapsed ? "[&>div>button]:justify-center [&>div>button]:px-0 [&>div>button>span]:hidden [&>div>button>svg:last-child]:hidden" : ""}><ExpandableNavigationGroup group={group} pathname={pathname} expanded={!sidebarCollapsed && expandedGroup === group.key} onToggle={() => toggleGroup(group.key)} closeNavigation={() => setMobileOpen(false)} /></div>)}</div></section>)}</div>}
       </nav>
       <div className={`border-t border-[#edf1ef] bg-white ${sidebarCollapsed ? "p-2" : "p-3"}`}>{!sidebarCollapsed ? <div className="rounded-xl bg-[#f0faf5] p-2"><Link href="/help" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-white"><span className="grid size-9 place-items-center rounded-full bg-[#daf2e4] text-[#15905c]"><LifeBuoy className="size-[17px]" /></span><span className="min-w-0"><span className="block text-[12px] font-bold text-[#26372f]">Need help?</span><span className="block text-[10px] text-[#83908a]">Visit support center</span></span></Link></div> : null}<div className="mt-2 space-y-0.5">{profile.role !== "shipper" && profile.role !== "driver" ? <Link href="/settings" onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[12px] font-medium transition ${pathname === "/settings" ? "bg-[#eef8f2] text-[#13734b]" : "text-[#66756e] hover:bg-[#f5f8f6] hover:text-[#17231e]"}`}><Settings className="size-[16px]" />{!sidebarCollapsed ? "Settings" : null}</Link> : null}<form action={logoutAction}><button title={sidebarCollapsed ? "Sign out" : undefined} className={`flex w-full items-center gap-3 rounded-lg py-2 text-[12px] font-medium text-[#66756e] transition hover:bg-[#fff3f3] hover:text-[#a84444] ${sidebarCollapsed ? "justify-center px-0" : "px-3"}`}><LogOut className="size-[16px]" />{!sidebarCollapsed ? "Sign out" : null}</button></form></div></div>
     </aside>

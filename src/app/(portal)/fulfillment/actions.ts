@@ -2,6 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readBulkFileRows } from "@/lib/bulk-shipments";
+import type { CellValue } from "read-excel-file/node";
 import ExcelJS from "exceljs";
 const roles = ["super_admin", "operations_admin", "warehouse_staff"] as const;
 const clean = (form: FormData, key: string, max = 200) => String(form.get(key) ?? "").trim().slice(0, max);
@@ -23,8 +25,72 @@ export async function updateFulfillmentOrderAction(form: FormData) {
  const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_advance_order",{p_order_id:orderId,p_next_status:nextStatus}); if(error)console.error("FULFILLMENT_ORDER_ADVANCE",error.message); revalidatePath("/fulfillment"); revalidatePath("/fulfillment/orders"); revalidatePath("/shipper/fulfillment/orders");
 }
 
+type BulkFulfillmentState = { message: string; status: "idle" | "error" | "success" };
+const bulkCellText = (value: CellValue | null | undefined) => value instanceof Date ? value.toISOString() : String(value ?? "").trim();
+const normalizeBulkHeader = (value: CellValue | null | undefined) => bulkCellText(value).replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+async function fulfillmentBulkRows(form: FormData) {
+ const file=form.get("file");
+ if(!(file instanceof File)||!file.size)throw new Error("Choose an Excel (.xlsx) or CSV file.");
+ if(file.size>5_500_000)throw new Error("The upload must be under 5 MB.");
+ let rows: (CellValue|null)[][];
+ try { rows=await readBulkFileRows(file); } catch { throw new Error("This file could not be read. Use the downloadable .xlsx template or a .csv file."); }
+ return rows;
+}
+
+export async function bulkCreateFulfillmentProductsAction(_previous: BulkFulfillmentState, form: FormData): Promise<BulkFulfillmentState> {
+ try {
+  const profile=await requireProfile(roles); if(!profile.organization_id)return {status:"error",message:"Your account is not linked to an organization."};
+  const rows=await fulfillmentBulkRows(form);
+  const headerIndex=rows.slice(0,10).findIndex(row=>{const set=new Set(row.map(normalizeBulkHeader));return set.has("sku")&&set.has("name");});
+  if(headerIndex<0)return {status:"error",message:"Required columns: sku, name. Keep the template header row unchanged."};
+  const headers=rows[headerIndex].map(normalizeBulkHeader); const index=(name:string)=>headers.indexOf(name);
+  const records:Record<string,unknown>[]=[]; const seen=new Set<string>();
+  for(let i=headerIndex+1;i<rows.length;i++){
+   const row=rows[i]; if(!row.some(value=>bulkCellText(value)))continue;
+   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const name=bulkCellText(row[index("name")]); const location=index("location")>=0?bulkCellText(row[index("location")])||"MAIN":"MAIN";
+   if(!sku||sku.length>80||!name||name.length>180||location.length>80)return {status:"error",message:`Row ${i+1}: SKU, product name, or location is missing or too long.`};
+   if(seen.has(sku))return {status:"error",message:`Duplicate SKU ${sku} in the upload. No products were added.`}; seen.add(sku);
+   records.push({organization_id:profile.organization_id,sku,name,location});
+   if(records.length>5000)return {status:"error",message:"Upload a maximum of 5,000 products at a time."};
+  }
+  if(!records.length)return {status:"error",message:"The spreadsheet has no product rows."};
+  const supabase=await createClient(); const {error}=await supabase.from("fulfillment_products").insert(records);
+  if(error)return {status:"error",message:error.code==="23505"?"A SKU already exists in this inventory. Remove duplicate SKUs and retry; no rows were added.":"Products were not added. Check required columns and try again."};
+  revalidatePath("/fulfillment"); return {status:"success",message:`${records.length} product(s) uploaded successfully.`};
+ } catch(error) { return {status:"error",message:error instanceof Error?error.message:"Product upload failed."}; }
+}
+
+export async function bulkReceiveFulfillmentStockAction(_previous: BulkFulfillmentState, form: FormData): Promise<BulkFulfillmentState> {
+ try {
+  const profile=await requireProfile(roles); if(!profile.organization_id)return {status:"error",message:"Your account is not linked to an organization."};
+  const rows=await fulfillmentBulkRows(form);
+  const headerIndex=rows.slice(0,10).findIndex(row=>{const set=new Set(row.map(normalizeBulkHeader));return set.has("sku")&&set.has("quantity");});
+  if(headerIndex<0)return {status:"error",message:"Required columns: sku, quantity. Keep the template header row unchanged."};
+  const headers=rows[headerIndex].map(normalizeBulkHeader); const index=(name:string)=>headers.indexOf(name);
+  const lines:{sku:string;quantity:number;note:string|null;row:number}[]=[];
+  for(let i=headerIndex+1;i<rows.length;i++){
+   const row=rows[i]; if(!row.some(value=>bulkCellText(value)))continue;
+   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const quantity=Number(bulkCellText(row[index("quantity")])); const note=index("note")>=0?bulkCellText(row[index("note")]).slice(0,240):"";
+   if(!sku||!Number.isInteger(quantity)||quantity<1||quantity>100000)return {status:"error",message:`Row ${i+1}: enter an existing SKU and a whole quantity from 1 to 100,000.`};
+   lines.push({sku,quantity,note:note||null,row:i+1}); if(lines.length>5000)return {status:"error",message:"Upload a maximum of 5,000 stock rows at a time."};
+  }
+  if(!lines.length)return {status:"error",message:"The spreadsheet has no stock rows."};
+  const supabase=await createClient(); const skus=[...new Set(lines.map(line=>line.sku))];
+  const {data:products,error}=await supabase.from("fulfillment_products").select("id,sku").eq("organization_id",profile.organization_id).eq("active",true).in("sku",skus);
+  if(error)return {status:"error",message:"Could not match SKUs to inventory products."};
+  const bySku=new Map((products??[]).map(product=>[product.sku,product.id]));
+  const missing=skus.find(sku=>!bySku.has(sku)); if(missing)return {status:"error",message:`SKU ${missing} was not found. No stock was received.`};
+  const payload=lines.map(line=>({product_id:bySku.get(line.sku),quantity:line.quantity,note:line.note}));
+  const {error:rpcError}=await supabase.rpc("fulfillment_bulk_receive_stock",{p_items:payload});
+  if(rpcError)return {status:"error",message:"Stock upload was not applied. Check quantities and retry; no rows were received."};
+  revalidatePath("/fulfillment"); revalidatePath("/shipper/fulfillment");
+  return {status:"success",message:`Stock received for ${lines.length} row(s). Inventory is updated.`};
+ } catch(error) { return {status:"error",message:error instanceof Error?error.message:"Stock upload failed."}; }
+}
+
 export async function createShipperFulfillmentOrderAction(_previous: string, form: FormData): Promise<string> {
- const profile = await requireProfile(["shipper"]);
+ await requireProfile(["shipper"]);
  const productId=clean(form,"product_id",36), quantity=Number(clean(form,"quantity",8));
  if(!/^[0-9a-f-]{36}$/i.test(productId)||!Number.isInteger(quantity)||quantity<1||quantity>1000)return "Choose a product and valid quantity.";
  const payload=[{product_id:productId,quantity,recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120)}];
