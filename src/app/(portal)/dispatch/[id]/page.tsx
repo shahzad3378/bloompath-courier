@@ -10,7 +10,10 @@ import {
 } from "@/app/(portal)/dispatch/actions";
 import { DispatchAwbScanForm } from "@/components/dispatch-forms";
 import { DispatchRouteMapActionButton } from "@/components/dispatch-route-map-action-button";
-import { DispatchRouteMapLoader } from "@/components/dispatch-route-map-loader";
+import {
+  DispatchDeliveryMapLoader,
+  DispatchRouteMapLoader,
+} from "@/components/dispatch-route-map-loader";
 import { CopyDispatchUpdateButton } from "@/components/copy-dispatch-update-button";
 import { requireProfile } from "@/lib/auth";
 import {
@@ -300,6 +303,10 @@ export default async function DispatchRunPage({
                       const mapUrl = address
                         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
                         : null;
+                      const deliveryPoint = parseCoordinatePair(
+                        shipment.delivery_latitude,
+                        shipment.delivery_longitude,
+                      );
                       const currentStatus = item.completed_at && item.outcome
                         ? item.outcome
                         : shipment.status;
@@ -345,7 +352,7 @@ export default async function DispatchRunPage({
                                     <p className="mt-3 text-sm leading-6 text-[#53645b]">{fullAddress || "Address not provided"}</p>
                                     {shipment.consignee_landmark ? <p className="mt-2 text-xs text-[#74827b]">Landmark: {shipment.consignee_landmark}</p> : null}
                                     {shipment.delivery_instructions ? <p className="mt-3 rounded-lg bg-[#fff9ed] p-3 text-xs leading-5 text-[#755c33]">Delivery instructions: {shipment.delivery_instructions}</p> : null}
-                                    {mapUrl ? <a href={mapUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs font-bold text-[#376eb1]">Open address in Google Maps</a> : null}
+                                    <DispatchDeliveryMapLoader latitude={deliveryPoint?.latitude ?? null} longitude={deliveryPoint?.longitude ?? null} consigneeName={shipment.consignee_name} address={fullAddress || "Address not provided"} googleMapsUrl={mapUrl} />
                                   </section>
                                   <section className="rounded-xl border border-[#e3ebe6] bg-white p-4">
                                     <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">Shipment & delivery</p>
