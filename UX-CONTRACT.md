@@ -4,6 +4,10 @@
 
 This contract records observable workflow behavior for the authenticated courier product. Business lifecycle rules remain implemented and authorized by the server/database domain model.
 
+### Shipper workspace theme
+
+Shippers who sign in through the Fast Drop branded login receive the customer-facing white workspace with blue primary navigation/actions and restrained red accents. Green remains reserved for successful shipment states, amber for recoverable attention, and red for errors/destructive actions. A server-set, HTTP-only session cookie selects this cosmetic tenant theme only after the authenticated profile is verified as a shipper. It does not change tenant data access, internal staff workflows, or access controls; logout clears the cookie.
+
 ## Canonical owners
 
 | Capability | Canonical owner | Required behavior |
