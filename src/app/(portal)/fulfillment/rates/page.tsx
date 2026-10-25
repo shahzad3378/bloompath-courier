@@ -4,7 +4,7 @@ import { saveFulfillmentGroupChargeAction } from "./actions";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "Fulfillment 3PL Rates" };
+export const metadata = { title: "Delivery Charges & Fulfillment Fees" };
 const roles = ["super_admin", "operations_admin", "finance_staff"] as const;
 type RateCard = {
   id: string;
@@ -40,12 +40,12 @@ export default async function FulfillmentRatesPage() {
   const groupCharges = (groups ?? []) as GroupCharge[];
   return <div className="bp-page mx-auto max-w-6xl space-y-6">
     <header>
-      <p className="bp-section-label">Fulfillment · 3PL costs</p>
-      <h1 className="bp-heading mt-1 text-3xl font-black">Fulfillment Rates</h1>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#74827b]">Maintain what each delivery company charges by destination, service, weight and zone. Keep separate cards for each carrier, country and currency. These are internal carrier costs, separate from customer charges.</p>
+      <p className="bp-section-label">Delivery charges · BloomPath fulfillment fee</p>
+      <h1 className="bp-heading mt-1 text-3xl font-black">Delivery Charges & Fulfillment Fees</h1>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#74827b]">Manage each 3PL’s delivery charges by destination, service, weight and zone. BloomPath’s own fulfillment fee is configured separately below by product group and is charged once per order.</p>
     </header>
     <section className="bp-panel space-y-4 p-5">
-      <div><p className="bp-section-label">Fulfillment handling charges</p><h2 className="mt-1 text-lg font-black text-[#26372f]">Product group fees · charged once per order</h2><p className="mt-1 text-xs leading-5 text-[#87938d]">The selected product group sets one charge for the complete order. If an order contains products from different groups, the highest configured group charge is used once. Currency: AED.</p></div>
+      <div><p className="bp-section-label">BloomPath service charge</p><h2 className="mt-1 text-lg font-black text-[#26372f]">Fulfillment fee by product group · once per order</h2><p className="mt-1 text-xs leading-5 text-[#87938d]">This is BloomPath’s own fulfillment fee, separate from 3PL delivery charges. The selected product group sets one fee for the complete order. If products from different groups are combined, the highest configured group fee applies once. Currency: AED.</p></div>
       <div className="grid gap-3 md:grid-cols-2">
         {groupCharges.map(group=><form key={group.group_code} action={saveFulfillmentGroupChargeAction} className="grid items-end gap-3 rounded-xl border border-[#e7edf3] p-4 sm:grid-cols-[1fr_150px_auto]">
           <input type="hidden" name="group_code" value={group.group_code}/>
@@ -63,8 +63,8 @@ export default async function FulfillmentRatesPage() {
     <CarrierRateUploadForm />
     <section className="bp-panel overflow-hidden">
       <div className="border-b border-[#edf1ef] px-5 py-4 sm:px-6">
-        <p className="bp-section-label">Organization-wide rates</p>
-        <h2 className="mt-1 text-lg font-black text-[#26372f]">3PL rate cards</h2>
+        <p className="bp-section-label">Carrier delivery charges</p>
+        <h2 className="mt-1 text-lg font-black text-[#26372f]">3PL Delivery Rate Cards</h2>
         <p className="mt-1 text-xs text-[#87938d]">For remote areas, add a zone such as REMOTE with its own prices. Send the remote-area list and we can add the matching area or postal-code mapping for your 3PL.</p>
       </div>
       {cards.length ? <div className="divide-y divide-[#edf1ef]">{cards.map((card) => {
@@ -85,7 +85,7 @@ export default async function FulfillmentRatesPage() {
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${active ? "bg-[#e8f7ef] text-[#13734b]" : "bg-[#f1f3f2] text-[#87938d]"}`}>{active ? "Active" : "Historical"}</span>
           </div>
         </article>;
-      })}</div> : <div className="px-6 py-12 text-center"><MapPinned className="mx-auto size-9 text-[#a5b0aa]" /><p className="mt-3 text-sm font-bold text-[#53645c]">No fulfillment rates yet</p><p className="mt-1 text-xs text-[#87938d]">Upload a carrier rate workbook above to add zone and weight prices.</p></div>}
+      })}</div> : <div className="px-6 py-12 text-center"><MapPinned className="mx-auto size-9 text-[#a5b0aa]" /><p className="mt-3 text-sm font-bold text-[#53645c]">No delivery rate cards yet</p><p className="mt-1 text-xs text-[#87938d]">Upload a carrier delivery rate workbook above to add zone and weight prices.</p></div>}
     </section>
   </div>;
 }

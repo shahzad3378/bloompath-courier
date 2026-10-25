@@ -76,7 +76,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
           { label: "Products", href: "/fulfillment/products" },
           { label: "Receive Stock", href: "/fulfillment/stock" },
           { label: "Fulfillment Orders", href: "/fulfillment/orders" },
-          { label: "3PL Fulfillment Rates", href: "/fulfillment/rates" },
+          { label: "Delivery Charges & Fees", href: "/fulfillment/rates" },
         ],
       },
     ],
