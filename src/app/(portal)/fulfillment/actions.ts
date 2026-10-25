@@ -10,9 +10,9 @@ const clean = (form: FormData, key: string, max = 200) => String(form.get(key) ?
 export async function createFulfillmentProductAction(form: FormData) {
  const profile = await requireProfile(roles); if (!profile.organization_id) return;
  const sku=clean(form,"sku",80).toUpperCase(), name=clean(form,"name",180), location=clean(form,"location",80)||"MAIN"; if(!sku||!name)return;
- const shipperId=clean(form,"shipper_id",36), unitCostText=clean(form,"unit_cost",30), unitCost=Number(unitCostText), currency=clean(form,"currency",3).toUpperCase();
- if(!/^[0-9a-f-]{36}$/i.test(shipperId)||!unitCostText||!Number.isFinite(unitCost)||unitCost<0||!/^[A-Z]{3}$/.test(currency))return;
- const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_import_products",{p_shipper_id:shipperId,p_products:[{sku,name,location,unit_cost:unitCost,currency}]}); if(error)console.error("FULFILLMENT_PRODUCT_CREATE",error.message); revalidatePath("/fulfillment"); revalidatePath("/fulfillment/products");
+ const shipperId=clean(form,"shipper_id",36), unitCostText=clean(form,"unit_cost",30), unitCost=Number(unitCostText), currency=clean(form,"currency",3).toUpperCase(), fulfillmentGroup=clean(form,"fulfillment_group",60).toUpperCase();
+ if(!/^[0-9a-f-]{36}$/i.test(shipperId)||!unitCostText||!Number.isFinite(unitCost)||unitCost<0||!/^[A-Z]{3}$/.test(currency)||!fulfillmentGroup)return;
+ const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_import_products",{p_shipper_id:shipperId,p_products:[{sku,name,location,unit_cost:unitCost,currency,fulfillment_group:fulfillmentGroup}]}); if(error)console.error("FULFILLMENT_PRODUCT_CREATE",error.message); revalidatePath("/fulfillment"); revalidatePath("/fulfillment/products");
 }
 export async function receiveFulfillmentStockAction(form: FormData) {
  await requireProfile(roles); const productId=clean(form,"product_id",36), quantity=Number(clean(form,"quantity",8)); if(!/^[0-9a-f-]{36}$/i.test(productId)||!Number.isInteger(quantity)||quantity<1||quantity>100000)return;
@@ -46,16 +46,16 @@ export async function bulkCreateFulfillmentProductsAction(_previous: BulkFulfill
   const shipperId=clean(form,"shipper_id",36), currency=clean(form,"currency",3).toUpperCase();
   if(!/^[0-9a-f-]{36}$/i.test(shipperId)||!/^[A-Z]{3}$/.test(currency))return {status:"error",message:"Select a shipper and enter a 3-letter rate currency."};
   const rows=await fulfillmentBulkRows(form);
-  const headerIndex=rows.slice(0,10).findIndex(row=>{const set=new Set(row.map(normalizeBulkHeader));return set.has("sku")&&set.has("name");});
-  if(headerIndex<0)return {status:"error",message:"Required columns: sku, name, unit_cost. Keep the template header row unchanged."};
+  const headerIndex=rows.slice(0,10).findIndex(row=>{const set=new Set(row.map(normalizeBulkHeader));return set.has("sku")&&set.has("name")&&set.has("unit_cost")&&set.has("fulfillment_group");});
+  if(headerIndex<0)return {status:"error",message:"Required columns: sku, name, unit_cost, fulfillment_group. Keep the template header row unchanged."};
   const headers=rows[headerIndex].map(normalizeBulkHeader); const index=(name:string)=>headers.indexOf(name);
   const records:Record<string,unknown>[]=[]; const seen=new Set<string>();
   for(let i=headerIndex+1;i<rows.length;i++){
    const row=rows[i]; if(!row.some(value=>bulkCellText(value)))continue;
-   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const name=bulkCellText(row[index("name")]); const location=index("location")>=0?bulkCellText(row[index("location")])||"MAIN":"MAIN"; const costText=bulkCellText(row[index("unit_cost")]); const unitCost=Number(costText);
-   if(!sku||sku.length>80||!name||name.length>180||location.length>80||!costText||!Number.isFinite(unitCost)||unitCost<0)return {status:"error",message:`Row ${i+1}: SKU, name, location, or unit cost is invalid.`};
+   const sku=bulkCellText(row[index("sku")]).toUpperCase(); const name=bulkCellText(row[index("name")]); const location=index("location")>=0?bulkCellText(row[index("location")])||"MAIN":"MAIN"; const costText=bulkCellText(row[index("unit_cost")]); const unitCost=Number(costText); const fulfillmentGroup=bulkCellText(row[index("fulfillment_group")]).toUpperCase().replace(/[^A-Z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+   if(!sku||sku.length>80||!name||name.length>180||location.length>80||!costText||!Number.isFinite(unitCost)||unitCost<0||!fulfillmentGroup)return {status:"error",message:`Row ${i+1}: SKU, name, location, unit cost, or fulfillment group is invalid.`};
    if(seen.has(sku))return {status:"error",message:`Duplicate SKU ${sku} in the upload. No products were added.`}; seen.add(sku);
-   records.push({sku,name,location,unit_cost:unitCost,currency});
+   records.push({sku,name,location,unit_cost:unitCost,currency,fulfillment_group:fulfillmentGroup});
    if(records.length>5000)return {status:"error",message:"Upload a maximum of 5,000 products at a time."};
   }
   if(!records.length)return {status:"error",message:"The spreadsheet has no product rows."};
@@ -95,13 +95,15 @@ export async function bulkReceiveFulfillmentStockAction(_previous: BulkFulfillme
 }
 
 export async function createShipperFulfillmentOrderAction(_previous: string, form: FormData): Promise<string> {
- await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);
+ const profile=await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);
  let items:{product_id:string;quantity:number}[];
  try { items=JSON.parse(clean(form,"items_json",20000)); } catch { return "Choose at least one product and quantity."; }
  if(!Array.isArray(items)||!items.length||items.length>50||items.some(item=>!item||!/^[0-9a-f-]{36}$/i.test(item.product_id)||!Number.isInteger(Number(item.quantity))||Number(item.quantity)<1||Number(item.quantity)>1000))return "Choose products and valid quantities.";
  const merged=new Map<string,number>(); for(const item of items)merged.set(item.product_id,(merged.get(item.product_id)??0)+Number(item.quantity));
  if([...merged.values()].some(quantity=>quantity>1000))return "Total quantity for a product cannot exceed 1,000 per order.";
- const payload=[{recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120),items:[...merged].map(([product_id,quantity])=>({product_id,quantity}))}];
+ const shipperId=profile.role==="shipper"?profile.id:clean(form,"shipper_id",36);
+ if(profile.role!=="shipper"&&!/^[0-9a-f-]{36}$/i.test(shipperId))return "Select a shipper for this order.";
+ const payload=[{shipper_id:shipperId,recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120),items:[...merged].map(([product_id,quantity])=>({product_id,quantity}))}];
  const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
  if(error){console.error("SHIPPER_FULFILLMENT_ORDER",error.message);return error.message.includes("stock")?"Not enough available stock for this order.":"Could not place the order. Check the recipient details and try again.";}
  revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");
@@ -110,6 +112,8 @@ export async function createShipperFulfillmentOrderAction(_previous: string, for
 
 export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string, form: FormData): Promise<string> {
  const profile=await requireProfile(["shipper","super_admin","operations_admin","warehouse_staff"]);
+ const shipperId=profile.role==="shipper"?profile.id:clean(form,"shipper_id",36);
+ if(profile.role!=="shipper"&&!/^[0-9a-f-]{36}$/i.test(shipperId))return "Select a shipper for this upload.";
  const file=form.get("file");
  if(!(file instanceof File)||file.size<1||file.size>900_000)return "Choose an .xlsx file under 900 KB.";
  const workbook=new ExcelJS.Workbook();
@@ -146,7 +150,7 @@ export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string
  if(problems.length)return `Fix Excel ${problems.slice(0,3).join("; ")}${problems.length>3?`; and ${problems.length-3} more row(s)`:""}.`;
  if(!groups.size)return "No order rows found. Fill in the template and upload it again.";
  if(groups.size>200)return "Upload up to 200 customer orders at a time.";
- const payload=[...groups.values()].map(group=>({recipient_name:group.recipient_name,recipient_phone:group.recipient_phone,delivery_address:group.delivery_address,order_reference:group.order_reference,items:[...group.items].map(([product_id,quantity])=>({product_id,quantity}))}));
+ const payload=[...groups.values()].map(group=>({shipper_id:shipperId,recipient_name:group.recipient_name,recipient_phone:group.recipient_phone,delivery_address:group.delivery_address,order_reference:group.order_reference,items:[...group.items].map(([product_id,quantity])=>({product_id,quantity}))}));
  const supabase=await createClient(); const {data,error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
  if(error){console.error("SHIPPER_FULFILLMENT_BULK",error.message);return error.message.includes("stock")?"Upload was not submitted because one or more products do not have enough available stock.":"Upload was not submitted. Check the recipient details and stock, then try again.";}
  revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");

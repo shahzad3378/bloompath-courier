@@ -6,18 +6,20 @@ import { bulkCreateFulfillmentProductsAction, bulkReceiveFulfillmentStockAction 
 
 type Kind = "products" | "stock";
 type ShipperOption = { id: string; label: string };
+type GroupOption = { group_code: string; group_name: string; order_charge: number; currency: string };
 const field = "bp-input w-full";
 const idle = { status: "idle" as const, message: "" };
 
-export function FulfillmentBulkUploadForm({ kind, shippers = [] }: { kind: Kind; shippers?: ShipperOption[] }) {
+export function FulfillmentBulkUploadForm({ kind, shippers = [], groups = [] }: { kind: Kind; shippers?: ShipperOption[]; groups?: GroupOption[] }) {
   const actionFunction = kind === "products" ? bulkCreateFulfillmentProductsAction : bulkReceiveFulfillmentStockAction;
   const [state, action, pending] = useActionState(actionFunction, idle);
   const isProducts = kind === "products";
-  const required = isProducts ? "sku, name, unit_cost" : "sku, quantity";
+  const required = isProducts ? "sku, name, unit_cost, fulfillment_group" : "sku, quantity";
   const templateHref = `/fulfillment/template?kind=${kind}`;
   return <form action={action} className="bp-panel max-w-3xl space-y-5 p-5">
-    <div className="rounded-xl bg-[#f7f9fc] p-4 text-sm leading-6 text-[#65736c]">Upload an <b>.xlsx</b> or <b>.csv</b> file with the template headers. Keep the first row unchanged. Required columns: <b>{required}</b>. Product rates are saved for the selected shipper; existing SKUs are matched to the same inventory product. Up to 5,000 rows and 5 MB per upload.</div>
+    <div className="rounded-xl bg-[#f7f9fc] p-4 text-sm leading-6 text-[#65736c]">Upload an <b>.xlsx</b> or <b>.csv</b> file with the template headers. Keep the first row unchanged. Required columns: <b>{required}</b>. Product rates and fulfillment groups are saved for the selected shipper; existing SKUs are matched to the same inventory product. Up to 5,000 rows and 5 MB per upload.</div>
     {isProducts ? <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold text-[#526159]">Shipper<select className={field + " mt-2"} name="shipper_id" required defaultValue=""><option value="" disabled>Select shipper</option>{shippers.map(shipper=><option key={shipper.id} value={shipper.id}>{shipper.label}</option>)}</select></label><label className="block text-xs font-bold text-[#526159]">Rate currency<input className={field + " mt-2"} name="currency" defaultValue="AED" required maxLength={3} pattern="[A-Za-z]{3}"/></label></div> : null}
+    {isProducts && groups.length ? <p className="text-xs text-[#78858f]">Allowed group codes: {groups.map(group=><span key={group.group_code} className="mr-2 inline-block"><b>{group.group_code}</b> ({group.group_name}: {group.currency} {Number(group.order_charge).toFixed(2)} / order)</span>)}</p> : null}
     <Link href={templateHref} className="inline-flex rounded-lg bg-[#174ea6] px-4 py-2.5 text-xs font-bold text-white">Download Excel template</Link>
     <label className="block text-xs font-bold text-[#526159]">Choose Excel or CSV<input className={`${field} mt-2`} type="file" name="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required /></label>
     {state.message ? <p role="status" className={`rounded-lg px-3 py-2 text-sm font-semibold ${state.status === "success" ? "bg-blue-50 text-blue-800" : "bg-red-50 text-red-700"}`}>{state.message}</p> : null}

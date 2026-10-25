@@ -9,10 +9,10 @@ export async function GET(request: Request) {
   workbook.creator = "BloomPath Courier";
   const sheet = workbook.addWorksheet("Bulk Upload");
   sheet.columns = kind === "products"
-    ? [{ header: "sku", key: "sku", width: 24 }, { header: "name", key: "name", width: 36 }, { header: "location", key: "location", width: 24 }, { header: "unit_cost", key: "unit_cost", width: 18 }]
+    ? [{ header: "sku", key: "sku", width: 24 }, { header: "name", key: "name", width: 36 }, { header: "location", key: "location", width: 24 }, { header: "unit_cost", key: "unit_cost", width: 18 }, { header: "fulfillment_group", key: "fulfillment_group", width: 28 }]
     : [{ header: "sku", key: "sku", width: 24 }, { header: "quantity", key: "quantity", width: 18 }, { header: "note", key: "note", width: 42 }];
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = { from: "A1", to: kind === "products" ? "D2" : "C2" };
+  sheet.autoFilter = { from: "A1", to: kind === "products" ? "E2" : "C2" };
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF174EA6" } };
   const bytes = await workbook.xlsx.writeBuffer();
