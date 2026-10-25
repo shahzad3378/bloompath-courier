@@ -36,7 +36,8 @@ export function Code39Barcode({ value, height = 58 }: { value: string; height?: 
       role="img"
       shapeRendering="crispEdges"
       viewBox={`0 0 ${x + quietZone} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
+      // Fill the label width so the narrow bars print wide enough for handheld scanners.
+      preserveAspectRatio="none"
     >
       <rect width={x + quietZone} height={height} fill="white" />
       {bars.map((bar, index) => (
