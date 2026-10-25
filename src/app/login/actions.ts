@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { hasSupabaseEnv } from "@/lib/env";
 import { homeForRole, type Profile } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -44,10 +45,25 @@ export async function loginAction(
     };
   }
 
+  const cookieStore = await cookies();
+  if (profile.role === "shipper" && formData.get("portal_brand") === "fastdrop") {
+    cookieStore.set("bp_portal_brand", "fastdrop", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  } else {
+    cookieStore.delete("bp_portal_brand");
+  }
+
   redirect(homeForRole(profile.role));
 }
 
 export async function logoutAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete("bp_portal_brand");
   try {
     if (hasSupabaseEnv()) {
       const supabase = await createClient();
