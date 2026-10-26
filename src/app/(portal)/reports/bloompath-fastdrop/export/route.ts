@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 import { createClient } from "@/lib/supabase/server";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
@@ -16,7 +17,7 @@ function csvCell(value: unknown) {
 
 export async function GET(request: Request) {
   const profile = await requireProfile(internalRoles);
-  if (!profile.organization_id) return new Response("Organization is not configured.", { status: 403 });
+  if (!profile.organization_id || !(await hasCanadaPrimaryMarket(profile.organization_id))) return new Response("This report is only available in the Canada portal.", { status: 403 });
   const url = new URL(request.url);
   const { start, endExclusive, error: rangeError } = resolveReportDateRange({
     range: url.searchParams.get("range"),
