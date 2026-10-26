@@ -10,7 +10,7 @@ export default async function FulfillmentOrdersPage() {
   const profile = await requireProfile(["super_admin","operations_admin","warehouse_staff"]);
   const db = await createClient();
   const [{data},{data:products},{data:shippers},{data:marketRows}] = await Promise.all([
-    db.from("fulfillment_orders").select("id,order_number,shipper_reference,shipper_id,recipient_name,recipient_phone,delivery_address,product_name,sku,quantity,status,created_at,shipper:profiles!fulfillment_orders_shipper_id_fkey(full_name,email)").eq("organization_id",profile.organization_id!).order("created_at",{ascending:true}).order("id",{ascending:true}).limit(1000),
+    db.from("fulfillment_orders").select("id,order_number,shipper_reference,shipper_id,recipient_name,recipient_phone,delivery_address,product_name,sku,quantity,status,payment_type,cod_amount,created_at,shipper:profiles!fulfillment_orders_shipper_id_fkey(full_name,email)").eq("organization_id",profile.organization_id!).order("created_at",{ascending:true}).order("id",{ascending:true}).limit(1000),
     db.from("fulfillment_products").select("id,name,sku,quantity_on_hand,quantity_reserved").eq("organization_id",profile.organization_id!).eq("active",true).order("name").limit(1000),
     db.from("profiles").select("id,full_name,email").eq("organization_id",profile.organization_id!).eq("role","shipper").eq("status","active").order("full_name").limit(500),
     db.from("organization_countries").select("country_code,is_primary").eq("organization_id",profile.organization_id!).eq("is_active",true)
@@ -47,6 +47,7 @@ export default async function FulfillmentOrdersPage() {
       shipper:order.shipper_id?(relatedShipper?.full_name||relatedShipper?.email||"Shipper"):"Internal",
       recipient:order.recipient_name,phone:order.recipient_phone,address:order.delivery_address,items,
       fee:charge?charge.currency+" "+Number(charge.amount).toFixed(2):null,feeGroup:charge?.group_name??null,
+      paymentType:order.payment_type as "cod"|"prepaid",codAmount:Number(order.cod_amount??0),
       status:order.status,createdAt:order.created_at,
       awb:shipment?{id:shipment.id,trackingNumber:shipment.tracking_number,status:shipment.status,customerStatus:shipment.customer_tracking_status,createdAt:shipment.created_at}:null
     };
