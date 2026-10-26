@@ -26,6 +26,7 @@ export async function GET() {
           cod_amount,
           delivery_charge,
           return_charge,
+          fulfillment_charge,
           total_charges,
           net_payable,
           transaction_at
@@ -116,9 +117,10 @@ export async function GET() {
     ["AWB", 40],
     ["COD", 170],
     ["Delivery", 250],
-    ["Return", 330],
-    ["Charges", 405],
-    ["Net", 490],
+    ["Return", 305],
+    ["Fulfill", 370],
+    ["Charges", 430],
+    ["Net", 510],
   ] as const;
 
   function tableHeader() {
@@ -154,9 +156,10 @@ export async function GET() {
     drawText(row.tracking_number, 40, y, 7, true);
     drawText(Number(row.cod_amount || 0).toFixed(2), 170, y, 7);
     drawText(Number(row.delivery_charge || 0).toFixed(2), 250, y, 7);
-    drawText(Number(row.return_charge || 0).toFixed(2), 330, y, 7);
-    drawText(Number(row.total_charges || 0).toFixed(2), 405, y, 7);
-    drawText(Number(row.net_payable || 0).toFixed(2), 490, y, 7, true);
+    drawText(Number(row.return_charge || 0).toFixed(2), 305, y, 7);
+    drawText(Number(row.fulfillment_charge || 0).toFixed(2), 370, y, 7);
+    drawText(Number(row.total_charges || 0).toFixed(2), 430, y, 7);
+    drawText(Number(row.net_payable || 0).toFixed(2), 510, y, 7, true);
 
     y -= 18;
   }
@@ -170,6 +173,8 @@ export async function GET() {
     0,
   );
 
+  const fulfillmentCharges = rows.reduce((sum,row)=>sum+Number(row.fulfillment_charge||0),0);
+
   const totalCharges = rows.reduce(
     (sum, row) => sum + Number(row.total_charges || 0),
     0,
@@ -182,6 +187,10 @@ export async function GET() {
 
   drawText("Total COD", 350, y, 9, true);
   drawText(money(totalCod, currency), 455, y, 9, true);
+  y -= 18;
+
+  drawText("Fulfillment Charges", 350, y, 9, true);
+  drawText(money(fulfillmentCharges, currency), 455, y, 9, true);
   y -= 18;
 
   drawText("Courier Charges", 350, y, 9, true);
