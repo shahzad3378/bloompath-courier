@@ -17,6 +17,7 @@ import { requireProfile } from "@/lib/auth";
 import { canDeleteShipments, internalRoles } from "@/lib/roles";
 import { shipmentStatuses, statusLabels, type Shipment, type ShipmentStatus } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 
 export const metadata = { title: "Shipments" };
 
@@ -52,6 +53,7 @@ export default async function ShipmentsPage({ searchParams }: {
   const queryText = String(params.q ?? "").trim().toLowerCase().slice(0, 80);
   const requestedStatus = shipmentStatuses.includes(params.status as ShipmentStatus) ? params.status as ShipmentStatus : params.status === "in_transit" && profile.role === "shipper" ? "in_transit" : "";
   const supabase = await createClient();
+  const isCanadaPortal = await hasCanadaPrimaryMarket(profile.organization_id);
   const isShipper = profile.role === "shipper";
   const destinationCountryCodeCandidate = String(params.destination ?? "").trim().toUpperCase();
   const destinationCountryCode = /^[A-Z]{2}$/.test(destinationCountryCodeCandidate) ? destinationCountryCodeCandidate : "";
@@ -231,7 +233,7 @@ export default async function ShipmentsPage({ searchParams }: {
         </div>
       </div>
 
-      {!showArchived ? <nav aria-label="Shipment views" className="mt-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-[#e0e8e4] bg-white p-1"><Link href="/shipments" aria-current="page" className="whitespace-nowrap rounded-lg bg-[#e7f4ed] px-4 py-2.5 text-sm font-bold text-[#13734b]">All Shipments</Link><Link href="/shipments/customs-clearance" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold text-[#617068] hover:bg-[#f4f8f6]">Canada Customs</Link></nav> : null}
+      {!showArchived ? <nav aria-label="Shipment views" className="mt-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-[#e0e8e4] bg-white p-1"><Link href="/shipments" aria-current="page" className="whitespace-nowrap rounded-lg bg-[#e7f4ed] px-4 py-2.5 text-sm font-bold text-[#13734b]">All Shipments</Link>{isCanadaPortal ? <Link href="/shipments/customs-clearance" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold text-[#617068] hover:bg-[#f4f8f6]">Canada Customs</Link> : null}</nav> : null}
 
       {params.archived === "1" ? <div className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">AWB archived successfully. Its audit record is available under Archived AWBs.</div> : null}
       {generatedShipments.length ? <section className="mt-6 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] p-4 text-[#176a47]"><p className="font-bold">{generatedShipments.length} separate international AWB{generatedShipments.length === 1 ? "" : "s"} created</p><div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-auto">{generatedShipments.map((shipment) => <Link key={shipment.id} href={`/shipments/${shipment.id}`} className="rounded-lg border border-[#bfe3cf] bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#13734b]">{shipment.tracking_number}</Link>)}</div></section> : null}

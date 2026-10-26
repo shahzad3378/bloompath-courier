@@ -145,6 +145,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         children: [
           { label: "Delivery Reports", href: "/reports" },
           { label: "BloomPath FastDrop", href: "/reports/bloompath-fastdrop" },
+          { label: "Canada Customs", href: "/shipments/customs-clearance" },
           { label: "Revenue Reports", href: "/reports/revenue" },
           { label: "Rider Reports", href: "/reports/riders" },
           { label: "Custom Reports", href: "/reports/custom" },
@@ -225,7 +226,7 @@ function ExpandableNavigationGroup({ group, pathname, expanded, onToggle, closeN
   </div>;
 }
 
-export function PortalShell({ profile, branding, isPlatformAdmin = false, children }: { profile: Profile; branding: { displayName: string; logoUrl: string | null }; isPlatformAdmin?: boolean; children: ReactNode }) {
+export function PortalShell({ profile, branding, isPlatformAdmin = false, isCanadaPortal = false, children }: { profile: Profile; branding: { displayName: string; logoUrl: string | null }; isPlatformAdmin?: boolean; isCanadaPortal?: boolean; children: ReactNode }) {
   const pathname = usePathname(); const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false); const [searchText, setSearchText] = useState(""); const [notificationsOpen, setNotificationsOpen] = useState(false); const [profileOpen, setProfileOpen] = useState(false); const menuAreaRef = useRef<HTMLDivElement>(null);
   const tenantInitials = useMemo(() => branding.displayName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "CO", [branding.displayName]);
@@ -239,14 +240,16 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, childr
         children: group.children.filter((child) =>
           (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
           && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
-          && (child.href !== "/fulfillment/rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role)),
+          && (child.href !== "/fulfillment/rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
+          && (child.href !== "/reports/bloompath-fastdrop" || isCanadaPortal)
+          && (child.href !== "/shipments/customs-clearance" || isCanadaPortal),
         ),
       })),
   }));
   const visibleInternalSections: typeof internalSections = isPlatformAdmin ? [...allowedInternalSections, { label: "Platform", direct: [{ label: "SaaS Management", href: "/saas", icon: Building2 }] }] : allowedInternalSections;
   const initialInternalGroup = profile.role !== "shipper" && profile.role !== "driver" ? activeInternalGroup(pathname) : null;
   const [expandedGroup, setExpandedGroup] = useState<string | null>(initialInternalGroup);
-  const simpleNav = profile.role === "shipper" ? shipperNav : profile.role === "driver" ? driverNav : null;
+  const simpleNav = profile.role === "shipper" ? (isCanadaPortal ? [...shipperNav, { label: "Canada Customs", href: "/shipments/customs-clearance", icon: FileText }] : shipperNav) : profile.role === "driver" ? driverNav : null;
   const activeLabel = simpleNav ? simpleNav.find((item) => pathIsActive(pathname, item.href))?.label ?? "Operations" : activeInternalLabel(pathname);
   useEffect(() => { setProfileOpen(false); setNotificationsOpen(false); }, [pathname]);
   useEffect(() => {

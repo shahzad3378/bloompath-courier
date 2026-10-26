@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { requireProfile } from "@/lib/auth";
 import { internalRoles } from "@/lib/roles";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 import { createClient } from "@/lib/supabase/server";
 
 const headers = [
@@ -35,7 +36,8 @@ function validDate(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const profile = await requireProfile(internalRoles);
+  const profile = await requireProfile([...internalRoles, "shipper"]);
+  if (!(await hasCanadaPrimaryMarket(profile.organization_id))) return new Response("Canada Customs is only available in the Canada portal.", { status: 403 });
   const url = new URL(request.url);
   const from = validDate(url.searchParams.get("from"));
   const to = validDate(url.searchParams.get("to"));
