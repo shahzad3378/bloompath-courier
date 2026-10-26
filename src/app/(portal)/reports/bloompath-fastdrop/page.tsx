@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Download, FileSpreadsheet, PackageCheck } from "lucide-react";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { ReportDateFields } from "@/components/report-date-fields";
@@ -21,7 +22,7 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
   searchParams: Promise<TableSearchParams>;
 }) {
   const profile = await requireProfile(internalRoles);
-  if (!profile.organization_id || !(await hasCanadaPrimaryMarket(profile.organization_id))) throw new Error("This report is only available in the Canada portal.");
+  if (!profile.organization_id || !(await hasCanadaPrimaryMarket(profile.organization_id))) redirect("/dashboard");
   const params = await searchParams;
   const pagination = parseTablePagination(params);
   const { range, start, endExclusive, error: rangeError } = resolveReportDateRange(params);
