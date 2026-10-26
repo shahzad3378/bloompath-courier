@@ -28,7 +28,7 @@ export const manualTrackingStatuses = [
   "returned_to_shipper",
   "cancelled",
 ] as const satisfies readonly CustomerTrackingStatus[];
-export type CustomerTrackingEvent = { id: number; status: ShipmentStatus | CustomerTrackingStatus; created_at: string };
+export type CustomerTrackingEvent = { id: number; status: ShipmentStatus | CustomerTrackingStatus; created_at: string; proof_path?: string | null };
 
 // Only canonical status labels enter customer output. Never display partner payloads or notes.
 export function customerStatusLabel(shipment: Pick<Shipment, "status" | "customer_tracking_status">) {
