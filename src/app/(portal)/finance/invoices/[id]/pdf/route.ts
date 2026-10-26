@@ -73,6 +73,7 @@ export async function GET(
       cod_collected,
       total_delivery_charges,
       total_return_charges,
+      total_fulfillment_charges,
       net_settlement_payable,
       invoice_date,
       due_date,
@@ -128,6 +129,7 @@ export async function GET(
         cod_amount,
         delivery_charge,
         return_charge,
+        fulfillment_charge,
         total_charges,
         net_payable
       `)
@@ -415,9 +417,10 @@ export async function GET(
     { label: "Delivered", x: 130 },
     { label: "COD", x: 215 },
     { label: "Delivery", x: 290 },
-    { label: "Return", x: 365 },
-    { label: "Charges", x: 430 },
-    { label: "Net", x: 500 },
+    { label: "Return", x: 340 },
+    { label: "Fulfill", x: 395 },
+    { label: "Charges", x: 445 },
+    { label: "Net", x: 510 },
   ];
 
   function drawTableHeader() {
@@ -498,7 +501,7 @@ export async function GET(
       Number(
         item.return_charge || 0,
       ).toFixed(2),
-      369,
+      344,
       y,
       {
         size: 7,
@@ -506,10 +509,17 @@ export async function GET(
     );
 
     text(
+      Number(item.fulfillment_charge || 0).toFixed(2),
+      399,
+      y,
+      { size: 7 },
+    );
+
+    text(
       Number(
         item.total_charges || 0,
       ).toFixed(2),
-      434,
+      449,
       y,
       {
         size: 7,
@@ -602,6 +612,15 @@ export async function GET(
     },
   );
 
+  y -= 18;
+
+  text(
+    "Fulfillment Charges",
+    totalsX,
+    y,
+    { size: 8, color: grey },
+  );
+  text(money(invoice.total_fulfillment_charges, currency), 475, y, { size: 8 });
   y -= 18;
 
   text(
