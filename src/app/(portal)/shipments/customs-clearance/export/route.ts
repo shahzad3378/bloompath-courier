@@ -35,7 +35,7 @@ function validDate(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const profile = await requireProfile([...internalRoles, "shipper"]);
+  const profile = await requireProfile(internalRoles);
   const url = new URL(request.url);
   const from = validDate(url.searchParams.get("from"));
   const to = validDate(url.searchParams.get("to"));
