@@ -55,6 +55,7 @@ type FinanceLedgerRow = {
   cod_amount: number;
   delivery_charge: number;
   return_charge: number;
+  fulfillment_charge: number;
   total_charges: number;
   net_payable: number;
   transaction_type: string;
@@ -74,6 +75,7 @@ type SettlementRow = {
   total_cod: number;
   total_delivery_charges: number;
   total_return_charges: number;
+  total_fulfillment_charges: number;
   total_charges: number;
   net_payable: number;
   period_from: string | null;
@@ -95,6 +97,7 @@ type SettlementItemRow = {
   cod_amount: number;
   delivery_charge: number;
   return_charge: number;
+  fulfillment_charge: number;
   total_charges: number;
   net_payable: number;
 };
@@ -122,7 +125,7 @@ export default async function FinancePage({
   let ledgerQuery = supabase
     .from("finance_ledger")
     .select(
-      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency, transaction_type, transaction_at, profiles!finance_ledger_shipper_id_fkey(full_name, email)",
+      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, fulfillment_charge, total_charges, net_payable, currency, transaction_type, transaction_at, profiles!finance_ledger_shipper_id_fkey(full_name, email)",
       { count: "exact" },
     )
     .eq("organization_id", profile.organization_id!)
@@ -131,7 +134,7 @@ export default async function FinancePage({
   let settlementQuery = supabase
     .from("settlements")
     .select(
-      "id, settlement_number, shipper_id, status, total_cod, total_delivery_charges, total_return_charges, total_charges, net_payable, currency, period_from, period_to, created_at, profiles!settlements_shipper_id_fkey(full_name, email)",
+      "id, settlement_number, shipper_id, status, total_cod, total_delivery_charges, total_return_charges, total_fulfillment_charges, total_charges, net_payable, currency, period_from, period_to, created_at, profiles!settlements_shipper_id_fkey(full_name, email)",
       { count: "exact" },
     )
     .eq("organization_id", profile.organization_id!)
@@ -152,9 +155,14 @@ export default async function FinancePage({
     settlementQuery = settlementQuery.lte("created_at", to);
   }
 
+  let codLedgerQuery = supabase.from("finance_ledger").select("cod_amount").eq("organization_id", profile.organization_id!);
+  if (from) codLedgerQuery = codLedgerQuery.gte("transaction_at", from);
+  if (to) codLedgerQuery = codLedgerQuery.lte("transaction_at", to);
+
   const [
     { data: codData, error: codError },
     { data: ledgerData, count: ledgerCount },
+    { data: codLedgerData },
     { data: settlementData },
     { data: settlementItemData },
     currency,
@@ -163,13 +171,14 @@ export default async function FinancePage({
     codQuery.limit(5000),
 
     ledgerQuery.range(pagination.from, pagination.to),
+    codLedgerQuery.limit(5000),
 
     settlementQuery.limit(5000),
 
     supabase
       .from("settlement_items")
       .select(
-        "id, settlement_id, ledger_id, shipment_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable",
+        "id, settlement_id, ledger_id, shipment_id, tracking_number, cod_amount, delivery_charge, return_charge, fulfillment_charge, total_charges, net_payable",
       ),
     resolveOrganizationCurrency(
       supabase,
@@ -199,7 +208,7 @@ export default async function FinancePage({
     (row) => !settledLedgerIds.has(row.id),
   );
 
-  const totalCodDelivered = codRows.reduce(
+  const totalCodDelivered = (codLedgerData ?? []).reduce(
     (sum, row) => sum + Number(row.cod_amount),
     0,
   );
@@ -238,6 +247,7 @@ export default async function FinancePage({
       totalCod: number;
       deliveryCharges: number;
       returnCharges: number;
+      fulfillmentCharges: number;
       totalCharges: number;
       netPayable: number;
     }
@@ -260,6 +270,7 @@ export default async function FinancePage({
       totalCod: 0,
       deliveryCharges: 0,
       returnCharges: 0,
+      fulfillmentCharges: 0,
       totalCharges: 0,
       netPayable: 0,
     };
@@ -268,6 +279,7 @@ export default async function FinancePage({
     current.totalCod += Number(row.cod_amount);
     current.deliveryCharges += Number(row.delivery_charge);
     current.returnCharges += Number(row.return_charge);
+    current.fulfillmentCharges += Number(row.fulfillment_charge);
     current.totalCharges += Number(row.total_charges);
     current.netPayable += Number(row.net_payable);
 
@@ -387,6 +399,7 @@ export default async function FinancePage({
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">COD</th>
+                  <th className="px-4 py-3">Fulfillment</th>
                   <th className="px-4 py-3">Charges</th>
                   <th className="px-4 py-3">Net payable</th>
                 </tr>
@@ -422,6 +435,9 @@ export default async function FinancePage({
                       </td>
                       <td className="px-4 py-3 font-bold">
                         {money(row.cod_amount, row.currency)}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-[#13734b]">
+                        {money(row.fulfillment_charge, row.currency)}
                       </td>
                       <td className="px-4 py-3 font-bold text-[#b76223]">
                         {money(row.total_charges, row.currency)}
@@ -651,6 +667,15 @@ export default async function FinancePage({
 
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                        Fulfillment
+                      </p>
+                      <p className="mt-1 font-black text-[#26372f]">
+                        {money(shipper.fulfillmentCharges)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
                         Net payable
                       </p>
                       <p className="mt-1 font-black text-[#13734b]">
@@ -681,6 +706,9 @@ export default async function FinancePage({
                         </th>
                         <th className="px-4 py-3">
                           Return
+                        </th>
+                        <th className="px-4 py-3">
+                          Fulfillment
                         </th>
                         <th className="px-4 py-3">
                           Charges
@@ -727,6 +755,10 @@ export default async function FinancePage({
 
                           <td className="px-4 py-3 font-bold">
                             {money(row.return_charge, row.currency)}
+                          </td>
+
+                          <td className="px-4 py-3 font-bold text-[#13734b]">
+                            {money(row.fulfillment_charge, row.currency)}
                           </td>
 
                           <td className="px-4 py-3 font-bold text-[#b76223]">
@@ -815,6 +847,15 @@ export default async function FinancePage({
 
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
+                          Fulfillment
+                        </p>
+                        <p className="mt-1 font-black text-[#526159]">
+                          {money(settlement.total_fulfillment_charges, settlement.currency)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
                           Charges
                         </p>
                         <p className="mt-1 font-black text-[#b76223]">
@@ -875,6 +916,9 @@ export default async function FinancePage({
                                 Return
                               </th>
                               <th className="px-4 py-3">
+                                Fulfillment
+                              </th>
+                              <th className="px-4 py-3">
                                 Charges
                               </th>
                               <th className="px-4 py-3">
@@ -897,6 +941,9 @@ export default async function FinancePage({
                                 </td>
                                 <td className="px-4 py-3">
                                   {money(item.return_charge, settlement.currency)}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {money(item.fulfillment_charge, settlement.currency)}
                                 </td>
                                 <td className="px-4 py-3">
                                   {money(item.total_charges, settlement.currency)}
