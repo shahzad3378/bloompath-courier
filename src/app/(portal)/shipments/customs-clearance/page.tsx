@@ -10,7 +10,7 @@ export const metadata = { title: "Canada Customs Report" };
 export default async function CanadaCustomsClearancePage({ searchParams }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  const profile = await requireProfile([...internalRoles, "shipper"]);
+  const profile = await requireProfile(internalRoles);
   const params = await searchParams;
   const valid = (value?: string) => {
     if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
