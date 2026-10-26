@@ -16,6 +16,7 @@ export async function GET() {
       cod_amount,
       delivery_charge,
       return_charge,
+      fulfillment_charge,
       total_charges,
       net_payable,
       transaction_type,
@@ -46,6 +47,7 @@ export async function GET() {
     "COD",
     "Delivery Charge",
     "Return Charge",
+    "Fulfillment Fee",
     "Total Charges",
     "Net Payable",
   ]);
@@ -58,6 +60,7 @@ export async function GET() {
       Number(row.cod_amount || 0),
       Number(row.delivery_charge || 0),
       Number(row.return_charge || 0),
+      Number(row.fulfillment_charge || 0),
       Number(row.total_charges || 0),
       Number(row.net_payable || 0),
     ]);
@@ -80,6 +83,8 @@ export async function GET() {
     0,
   );
 
+  const fulfillment = rows.reduce((sum,row)=>sum+Number(row.fulfillment_charge||0),0);
+
   const charges = rows.reduce(
     (sum, row) => sum + Number(row.total_charges || 0),
     0,
@@ -93,6 +98,7 @@ export async function GET() {
   sheet.addRow(["", "", "Total COD", totalCod]);
   sheet.addRow(["", "", "Delivery Charges", delivery]);
   sheet.addRow(["", "", "Return Charges", returns]);
+  sheet.addRow(["", "", "Fulfillment Fees", fulfillment]);
   sheet.addRow(["", "", "Total Charges", charges]);
   sheet.addRow(["", "", "Net Payable", net]);
 
