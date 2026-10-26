@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { customerTrackingLabels, manualTrackingStatuses, type CustomerTrackingStatus } from "@/lib/customer-tracking";
@@ -7,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTimeLocal, inferTrackingTimeZone, isTrackingTimeZone, parseDateTimeLocal, trackingTimeZones, type TrackingTimeZone } from "@/lib/tracking-timezones";
 
 const warehouseRoles = ["super_admin", "operations_admin", "warehouse_staff"] as const;
+const podMimeTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"]]);
 
 export type ManualTrackingState = {
   status: "idle" | "success" | "error";
@@ -57,12 +60,16 @@ export async function recordManualTrackingAction(
   const status = String(formData.get("status") ?? "") as CustomerTrackingStatus;
   const timeZone = String(formData.get("time_zone") ?? "");
   const occurredAtInput = String(formData.get("occurred_at") ?? "");
+  const pod = formData.get("pod");
+  const hasPod = pod instanceof File && pod.size > 0;
   if (tracking.length < 3 || tracking.length > 40) return { status: "error", message: "Scan or enter a valid AWB number." };
   if (!manualTrackingStatuses.includes(status)) return { status: "error", message: "Select a valid customer tracking status." };
   if (!isTrackingTimeZone(timeZone)) return { status: "error", message: "Select the time zone where the scan happened." };
   const occurredAt = parseDateTimeLocal(occurredAtInput, timeZone);
   if (!occurredAt) return { status: "error", message: "Select a valid local date and time. The selected time zone may not have that time." };
   if (new Date(occurredAt).getTime() > Date.now() + 10 * 60 * 1000) return { status: "error", message: "Tracking date and time cannot be in the future." };
+  if (status === "delivered" && (!hasPod || !(pod instanceof File) || pod.size > 5 * 1024 * 1024 || !podMimeTypes.has(pod.type))) return { status: "error", message: "Upload a JPG, PNG or WebP POD photo up to 5 MB to mark this AWB delivered." };
+  if (status !== "delivered" && hasPod) return { status: "error", message: "POD photos can only be attached to a Delivered update." };
 
   const supabase = await createClient();
   const { data: shipment, error: shipmentError } = await supabase
@@ -137,6 +144,14 @@ export async function recordManualTrackingAction(
     }
   }
 
+  let proofPath: string | null = null;
+  if (status === "delivered" && pod instanceof File) {
+    const extension = podMimeTypes.get(pod.type)!;
+    proofPath = `${profile.organization_id}/${profile.id}/${randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("delivery-proofs").upload(proofPath, pod, { contentType: pod.type, upsert: false });
+    if (uploadError) return { status: "error", message: "POD could not be uploaded. Check the photo and connection, then try again." };
+  }
+
   const { error } = await supabase.from("customer_tracking_events").insert({
     shipment_id: shipment.id,
     organization_id: profile.organization_id,
@@ -144,9 +159,11 @@ export async function recordManualTrackingAction(
     source: "manual",
     recorded_by: profile.id,
     created_at: occurredAt,
+    proof_path: proofPath,
   });
 
   if (error) {
+    if (proofPath) await supabase.storage.from("delivery-proofs").remove([proofPath]);
     if (movedIntoWarehouse) {
       await supabase.from("shipments")
         .update({ status: shipment.status, warehouse_received_at: null, warehouse_location: null })
@@ -166,8 +183,11 @@ export async function recordManualTrackingAction(
   // shipment lists, dashboards, warehouse, and dispatch. Invalidate the app
   // layout so every module refreshes from the same saved shipment state.
   revalidatePath("/", "layout");
+  revalidatePath(`/shipments/${shipment.id}`);
+  revalidatePath("/shipments");
   const warehouseMessage = movedIntoWarehouse || shipment.status === "at_warehouse"
     ? " The shipment is now in warehouse and ready for dispatch."
     : "";
-  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}. Customer tracking has been refreshed.${warehouseMessage}` };
+  const podMessage = proofPath ? " POD uploaded and linked to this shipment." : "";
+  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}.${podMessage} Customer tracking has been refreshed.${warehouseMessage}` };
 }
