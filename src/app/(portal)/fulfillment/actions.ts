@@ -27,6 +27,113 @@ export async function updateFulfillmentOrderAction(form: FormData) {
  const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_advance_order",{p_order_id:orderId,p_next_status:nextStatus}); if(error)console.error("FULFILLMENT_ORDER_ADVANCE",error.message); revalidatePath("/fulfillment"); revalidatePath("/fulfillment/orders"); revalidatePath("/shipper/fulfillment/orders");
 }
 
+
+export type FulfillmentAwbState = {
+ status: "idle" | "success" | "error";
+ message: string;
+ shipmentId?: number;
+ trackingNumber?: string;
+};
+
+export async function createFulfillmentAwbAction(_previous: FulfillmentAwbState, form: FormData): Promise<FulfillmentAwbState> {
+ try {
+  const profile = await requireProfile(roles);
+  if (!profile.organization_id) return {status:"error",message:"This account is not linked to a courier organization."};
+  const orderNumber = clean(form,"order_number",40);
+  const consigneeCity = clean(form,"consignee_city",80);
+  const consigneeCountryCode = clean(form,"consignee_country_code",2).toUpperCase();
+  const postalCode = clean(form,"consignee_postal_code",30);
+  const weight = Number(clean(form,"weight_kg",20));
+  const pieces = Number(clean(form,"pieces",8));
+  const paymentTypeValue = clean(form,"payment_type",12);
+  const codAmount = Number(clean(form,"cod_amount",20));
+  if (!orderNumber || !consigneeCity || !/^[A-Z]{2}$/.test(consigneeCountryCode) ||
+    !Number.isFinite(weight) || weight <= 0 || weight > 1000 ||
+    !Number.isInteger(pieces) || pieces < 1 || pieces > 999 ||
+    !["cod","prepaid"].includes(paymentTypeValue) || !Number.isFinite(codAmount) || codAmount < 0 ||
+    (paymentTypeValue === "prepaid" && codAmount !== 0)) {
+   return {status:"error",message:"Check destination city, weight, pieces and COD amount, then try again."};
+  }
+  const paymentType = paymentTypeValue as "cod" | "prepaid";
+  const supabase = await createClient();
+  const {data: lines, error: orderError} = await supabase.from("fulfillment_orders")
+   .select("id,organization_id,order_number,shipper_reference,shipper_id,recipient_name,recipient_phone,delivery_address,product_name,quantity,status")
+   .eq("organization_id",profile.organization_id).eq("order_number",orderNumber).order("id",{ascending:true});
+  if (orderError || !lines?.length) return {status:"error",message:"Fulfillment order could not be found in this courier account."};
+  const order = lines[0];
+  if (lines.some(line=>line.status!=="dispatched")) return {status:"error",message:"Mark this fulfillment order Dispatched before creating its AWB."};
+  if (!order.shipper_id || lines.some(line=>line.shipper_id!==order.shipper_id)) return {status:"error",message:"This order has no single shipper account. Assign a shipper before creating its AWB."};
+  const {data: existing, error: existingError} = await supabase.from("shipments")
+   .select("id,tracking_number").eq("organization_id",profile.organization_id).eq("fulfillment_order_id",order.id).maybeSingle();
+  if (existingError) return {status:"error",message:"Could not check whether this order already has an AWB."};
+  if (existing) return {status:"success",shipmentId:existing.id,trackingNumber:existing.tracking_number,message:"AWB already exists for this fulfillment order."};
+
+  const [{data: settings},{data: marketRows},{data: shipper},{data: business}] = await Promise.all([
+   supabase.from("organization_settings").select("awb_brand_name,display_name,legal_name,contact_phone,address,city,default_service_type,currency").eq("organization_id",profile.organization_id).maybeSingle(),
+   supabase.from("organization_countries").select("country_code,is_primary").eq("organization_id",profile.organization_id).eq("is_active",true),
+   supabase.from("profiles").select("id,full_name,phone").eq("id",order.shipper_id).eq("organization_id",profile.organization_id).eq("role","shipper").eq("status","active").maybeSingle(),
+   supabase.from("shipper_business_profiles").select("company_name,address,city").eq("shipper_id",order.shipper_id).eq("organization_id",profile.organization_id).maybeSingle()
+  ]);
+  if (!shipper) return {status:"error",message:"The shipper account is inactive or unavailable."};
+  const senderCountryCode = marketRows?.find(row=>row.is_primary)?.country_code || marketRows?.[0]?.country_code || "AE";
+  if (senderCountryCode !== consigneeCountryCode) return {status:"error",message:"International fulfillment AWBs need transport mode and parcel dimensions. This one-click action currently supports deliveries within the shipper's origin country."};
+  const countryCodes = [...new Set([senderCountryCode,consigneeCountryCode])];
+  const [{data: countries},{data: zones}] = await Promise.all([
+   supabase.from("countries").select("code,name,default_currency_code,location_strategy,postal_code_label").in("code",countryCodes).eq("is_active",true),
+   supabase.from("service_zones").select("id,name,zone_type,postal_prefix,postal_from,postal_to,city,district,area").eq("organization_id",profile.organization_id).eq("country_code",consigneeCountryCode).eq("is_active",true)
+  ]);
+  const country = countries?.find(row=>row.code===consigneeCountryCode);
+  if (!country) return {status:"error",message:"The destination country is not enabled for this courier."};
+  if (["postal_code","zip_code","postcode"].includes(country.location_strategy) && !postalCode) {
+   return {status:"error",message:(country.postal_code_label||"Postal code")+" is required for "+country.name+"."};
+  }
+  let city = consigneeCity;
+  if (city.toLowerCase().replaceAll(" ","")==="rasalkhaima" || city.toLowerCase().replaceAll(" ","")==="rasalkhaimah") city="Ras Al Khaimah";
+  const serviceZones = (zones??[]) as ServiceZone[];
+  const matchedZone = resolveServiceZone(serviceZones,postalCode,city,null);
+  if (serviceZones.length && !matchedZone) return {status:"error",message:"This delivery city does not match an active Service Zone. Check the address/city or configure its zone first."};
+  const senderName = String(settings?.awb_brand_name||settings?.display_name||settings?.legal_name||business?.company_name||shipper.full_name||"").trim();
+  const senderPhone = String(settings?.contact_phone||shipper.phone||"").trim();
+  const senderAddress = String(settings?.address||business?.address||"").trim();
+  const senderCity = String(settings?.city||business?.city||"").trim();
+  if (senderName.length<2 || senderPhone.length<7 || senderPhone.length>20 || senderAddress.length<5 || senderAddress.length>500 || senderCity.length<2) {
+   return {status:"error",message:"Add the warehouse sender name, phone, address and city in Organization Settings (or the shipper business profile) before creating an AWB."};
+  }
+  const parcelDescription = lines.map(line=>line.product_name+" × "+line.quantity).join(", ").slice(0,500);
+  if (parcelDescription.length<2) return {status:"error",message:"This order has no product description for the AWB."};
+  const reference = order.shipper_reference && order.shipper_reference.length<=80 ? order.shipper_reference : order.order_number;
+  const {data: referenceUse} = await supabase.from("shipments").select("id").eq("organization_id",profile.organization_id).eq("reference_number",reference).maybeSingle();
+  const referenceNumber = referenceUse ? order.order_number : reference;
+  const defaultService = (["same_day","next_day","standard"].includes(settings?.default_service_type??"") ? settings!.default_service_type! : "next_day") as "same_day" | "next_day" | "standard";
+  const insert = {
+   organization_id:profile.organization_id, fulfillment_order_id:order.id,
+   reference_number:referenceNumber, shipper_id:order.shipper_id, created_by:profile.id,
+   status:"booked" as const, service_type:defaultService, payment_type:paymentType,
+   sender_name:senderName,sender_phone:senderPhone,sender_address:senderAddress,sender_city:senderCity,sender_country_code:senderCountryCode,
+   consignee_name:order.recipient_name,consignee_phone:order.recipient_phone,consignee_address:order.delivery_address,
+   consignee_city:city,consignee_country_code:consigneeCountryCode,consignee_postal_code:postalCode||null,
+   service_zone_id:matchedZone?.id??null,service_zone_name:matchedZone?.name??null,
+   pieces,weight_kg:weight,item_quantity:lines.reduce((total,line)=>total+line.quantity,0),parcel_description:parcelDescription,cod_amount:paymentType==="cod"?codAmount:0,
+   declared_value:0,currency:country.default_currency_code||settings?.currency||"AED",
+   delivery_instructions:("Fulfillment order "+order.order_number+(order.shipper_reference?"; customer reference "+order.shipper_reference:"")).slice(0,500)
+  };
+  const {data: shipment,error: insertError} = await supabase.from("shipments").insert(insert).select("id,tracking_number").maybeSingle();
+  if (insertError || !shipment) {
+   if (insertError?.code==="23505") {
+    const {data: duplicate} = await supabase.from("shipments").select("id,tracking_number").eq("organization_id",profile.organization_id).eq("fulfillment_order_id",order.id).maybeSingle();
+    if (duplicate) return {status:"success",shipmentId:duplicate.id,trackingNumber:duplicate.tracking_number,message:"AWB already exists for this fulfillment order."};
+   }
+   console.error("FULFILLMENT_AWB_CREATE",insertError);
+   return {status:"error",message:insertError?.code==="23505"?"This customer reference is already used by another shipment.":"AWB could not be created. Check the shipment details and organization sender settings."};
+  }
+  revalidatePath("/fulfillment/orders"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/shipments"); revalidatePath("/dashboard");
+  return {status:"success",shipmentId:shipment.id,trackingNumber:shipment.tracking_number,message:"AWB created and added to All Shipments."};
+ } catch (error) {
+  console.error("FULFILLMENT_AWB_ACTION",error);
+  return {status:"error",message:"AWB could not be created. Check the order and shipment details, then try again."};
+ }
+}
+
 type BulkFulfillmentState = { message: string; status: "idle" | "error" | "success" };
 const bulkCellText = (value: CellValue | null | undefined) => value instanceof Date ? value.toISOString() : String(value ?? "").trim();
 const normalizeBulkHeader = (value: CellValue | null | undefined) => bulkCellText(value).replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s-]+/g, "_");

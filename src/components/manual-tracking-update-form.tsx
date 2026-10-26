@@ -8,7 +8,7 @@ import { isTrackingTimeZone, trackingTimeZones, type TrackingTimeZone } from "@/
 
 const initialState: ManualTrackingState = { status: "idle", message: "" };
 
-export function ManualTrackingUpdateForm({ defaultDateTime }: { defaultDateTime: string }) {
+export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumber = "" }: { defaultDateTime: string; defaultTrackingNumber?: string }) {
   const [state, action, pending] = useActionState(recordManualTrackingAction, initialState);
   const [selectedStatus, setSelectedStatus] = useState<(typeof manualTrackingStatuses)[number]>(manualTrackingStatuses[0]);
   const [occurredAt, setOccurredAt] = useState(defaultDateTime);
@@ -60,7 +60,7 @@ export function ManualTrackingUpdateForm({ defaultDateTime }: { defaultDateTime:
       <div><h2 className="font-bold text-[#26372f]">Scan or enter an AWB</h2><p className="mt-1 text-xs leading-5 text-[#74827b]">Choose the customer-visible milestone and when it happened. The scan time zone is detected from the shipment’s Canadian city when available.</p></div>
     </div>
     <fieldset disabled={pending} className="mt-5 grid gap-4 sm:grid-cols-2 disabled:opacity-60">
-      <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Tracking / AWB number</span><input ref={awbRef} autoFocus autoComplete="off" name="tracking_number" maxLength={40} required placeholder="Scan barcode or enter AWB" className="bp-input h-12 w-full font-mono uppercase" onChange={() => {
+      <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Tracking / AWB number</span><input ref={awbRef} autoFocus autoComplete="off" name="tracking_number" defaultValue={defaultTrackingNumber} maxLength={40} required placeholder="Scan barcode or enter AWB" className="bp-input h-12 w-full font-mono uppercase" onChange={() => {
         lookupSequence.current += 1;
         manuallySelectedTimeZone.current = false;
         dateTimeEdited.current = false;
