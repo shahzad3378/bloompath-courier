@@ -9,6 +9,7 @@ import { internalRoles } from "@/lib/roles";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 import { parseTablePagination, type TableSearchParams } from "@/lib/table-pagination";
 import { createClient } from "@/lib/supabase/server";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 
 export const metadata = { title: "BloomPath FastDrop Report" };
 
@@ -20,7 +21,7 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
   searchParams: Promise<TableSearchParams>;
 }) {
   const profile = await requireProfile(internalRoles);
-  if (!profile.organization_id) throw new Error("Organization is not configured.");
+  if (!profile.organization_id || !(await hasCanadaPrimaryMarket(profile.organization_id))) throw new Error("This report is only available in the Canada portal.");
   const params = await searchParams;
   const pagination = parseTablePagination(params);
   const { range, start, endExclusive, error: rangeError } = resolveReportDateRange(params);
