@@ -38,16 +38,19 @@ export function FulfillmentAwbForm({
   orderNumber,
   address,
   countries,
+  paymentType,
+  codAmount,
 }: {
   orderNumber: string;
   address: string;
   countries: FulfillmentAwbCountry[];
+  paymentType: "cod" | "prepaid";
+  codAmount: number;
 }) {
   const [state, action, pending] = useActionState(createFulfillmentAwbAction, initialState);
   const initialCountry = inferCountry(address, countries);
   const [countryCode, setCountryCode] = useState(initialCountry);
   const [city, setCity] = useState(() => inferCity(address, countries.find(country => country.code === initialCountry)));
-  const [paymentType, setPaymentType] = useState<"cod" | "prepaid">("cod");
   const country = useMemo(() => countries.find(item => item.code === countryCode), [countries, countryCode]);
   const postalRequired = ["postal_code", "zip_code", "postcode"].includes(country?.location_strategy ?? "");
   const resultClass = state.status === "error" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-800";
@@ -75,15 +78,8 @@ export function FulfillmentAwbForm({
           <input name="pieces" type="number" min="1" max="999" step="1" defaultValue="1" className={fieldClass} required/>
         </label>
       </div>
-      <label className="block text-[11px] font-semibold text-[#526159]">Payment
-        <select name="payment_type" value={paymentType} onChange={event => setPaymentType(event.target.value as "cod" | "prepaid")} className={fieldClass} required>
-          <option value="cod">Cash on delivery</option><option value="prepaid">Prepaid</option>
-        </select>
-      </label>
-      <label className="block text-[11px] font-semibold text-[#526159]">COD amount
-        <input name="cod_amount" type="number" min="0" max="9999999999" step="0.01" defaultValue="0" disabled={paymentType === "prepaid"} className={fieldClass} required={paymentType === "cod"}/>
-      </label>
-      <p className="text-[10px] leading-4 text-[#78858f]">Confirm actual parcel weight and COD amount. Defaults are 1 kg, 1 piece and COD 0. Sender details come from Organization Settings.</p>
+      <div className="rounded-lg bg-[#f4f7fa] px-3 py-2 text-xs font-semibold text-[#526159]">Payment: <span className="uppercase">{paymentType}</span>{paymentType === "cod" ? <span> · COD {codAmount.toFixed(2)}</span> : null}</div>
+      <p className="text-[10px] leading-4 text-[#78858f]">Confirm actual parcel weight and pieces. COD is saved on the fulfillment order and will be carried to the AWB. Sender details come from Organization Settings.</p>
       {state.message ? <div aria-live="polite" role={state.status === "error" ? "alert" : "status"} className={"rounded-lg px-3 py-2 text-[11px] font-semibold " + resultClass}>
         {state.message}{state.status === "success" && state.shipmentId && state.trackingNumber ? <Link className="ml-1 underline" href={"/shipments/" + state.shipmentId}>{state.trackingNumber}</Link> : null}
       </div> : null}
