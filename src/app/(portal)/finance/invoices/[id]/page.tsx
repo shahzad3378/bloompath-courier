@@ -51,6 +51,7 @@ type InvoiceRow = {
   cod_collected: number;
   total_delivery_charges: number;
   total_return_charges: number;
+  total_fulfillment_charges: number;
   net_settlement_payable: number;
   invoice_date: string;
   due_date: string | null;
@@ -105,6 +106,7 @@ export default async function InvoiceDetailPage({
       cod_collected,
       total_delivery_charges,
       total_return_charges,
+      total_fulfillment_charges,
       net_settlement_payable,
       invoice_date,
       due_date,
@@ -159,6 +161,7 @@ export default async function InvoiceDetailPage({
       cod_amount,
       delivery_charge,
       return_charge,
+      fulfillment_charge,
       total_charges,
       net_payable
       `)
@@ -421,6 +424,7 @@ export default async function InvoiceDetailPage({
                   <th className="px-4 py-3">COD</th>
                   <th className="px-4 py-3">Delivery Charge</th>
                   <th className="px-4 py-3">Return Charge</th>
+                  <th className="px-4 py-3">Fulfillment Fee</th>
                   <th className="px-4 py-3">Total Charges</th>
                   <th className="px-4 py-3">Net Payable</th>
                 </tr>
@@ -464,6 +468,10 @@ export default async function InvoiceDetailPage({
                       {money(item.return_charge, currency)}
                     </td>
 
+                    <td className="px-4 py-4">
+                      {money(item.fulfillment_charge, currency)}
+                    </td>
+
                     <td className="px-4 py-4 font-bold">
                       {money(item.total_charges, currency)}
                     </td>
@@ -489,6 +497,11 @@ export default async function InvoiceDetailPage({
                 currency,
               )}
             </strong>
+          </div>
+
+          <div className="flex justify-between text-sm">
+            <span>Fulfillment charges</span>
+            <strong>{money(invoice.total_fulfillment_charges, currency)}</strong>
           </div>
 
           <div className="flex justify-between text-sm">
