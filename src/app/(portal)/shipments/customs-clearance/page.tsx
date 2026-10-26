@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Download, FileSpreadsheet, Globe2 } from "lucide-react";
 import { ShipmentDateFields } from "@/components/shipment-date-fields";
 import { requireProfile } from "@/lib/auth";
-import { internalRoles } from "@/lib/roles";
+import { homeForRole, internalRoles } from "@/lib/roles";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Canada Customs Report" };
@@ -10,7 +12,8 @@ export const metadata = { title: "Canada Customs Report" };
 export default async function CanadaCustomsClearancePage({ searchParams }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  const profile = await requireProfile(internalRoles);
+  const profile = await requireProfile([...internalRoles, "shipper"]);
+  if (!(await hasCanadaPrimaryMarket(profile.organization_id))) redirect(homeForRole(profile.role));
   const params = await searchParams;
   const valid = (value?: string) => {
     if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
