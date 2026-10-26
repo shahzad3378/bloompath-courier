@@ -120,6 +120,7 @@ async function loadExportData(
         cod_amount,
         delivery_charge,
         return_charge,
+        fulfillment_charge,
         total_charges,
         net_payable
       `)
@@ -142,6 +143,7 @@ async function loadExportData(
           { key: "cod", header: "COD", width: 14, numeric: true },
           { key: "delivery", header: "Delivery", width: 14, numeric: true },
           { key: "return", header: "Return", width: 14, numeric: true },
+          { key: "fulfillment", header: "Fulfillment", width: 16, numeric: true },
           { key: "charges", header: "Charges", width: 14, numeric: true },
           { key: "net", header: "Net Payable", width: 16, numeric: true },
         ],
@@ -158,6 +160,7 @@ async function loadExportData(
             cod: Number(row.cod_amount || 0),
             delivery: Number(row.delivery_charge || 0),
             return: Number(row.return_charge || 0),
+            fulfillment: Number(row.fulfillment_charge || 0),
             charges: Number(row.total_charges || 0),
             net: Number(row.net_payable || 0),
           };
@@ -246,6 +249,7 @@ async function loadExportData(
         total_cod,
         total_delivery_charges,
         total_return_charges,
+        total_fulfillment_charges,
         total_charges,
         net_payable,
         period_from,
@@ -272,6 +276,7 @@ async function loadExportData(
           { key: "cod", header: "COD", width: 14, numeric: true },
           { key: "delivery", header: "Delivery", width: 14, numeric: true },
           { key: "return", header: "Return", width: 14, numeric: true },
+          { key: "fulfillment", header: "Fulfillment", width: 16, numeric: true },
           { key: "charges", header: "Charges", width: 14, numeric: true },
           { key: "net", header: "Net Payable", width: 16, numeric: true },
         ],
@@ -289,6 +294,7 @@ async function loadExportData(
             cod: Number(row.total_cod || 0),
             delivery: Number(row.total_delivery_charges || 0),
             return: Number(row.total_return_charges || 0),
+            fulfillment: Number(row.total_fulfillment_charges || 0),
             charges: Number(row.total_charges || 0),
             net: Number(row.net_payable || 0),
           };
