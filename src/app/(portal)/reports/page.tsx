@@ -20,6 +20,7 @@ import { formatMoney } from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { formatDubaiDate } from "@/lib/shipments";
 import { createClient } from "@/lib/supabase/server";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 import {
   parseTablePagination,
   type TableSearchParams,
@@ -91,6 +92,7 @@ export default async function DeliveryReportsPage({
     endExclusive.toISOString();
 
   const supabase = await createClient();
+  const showCanadaReports = await hasCanadaPrimaryMarket(profile.organization_id);
 
   let shipmentQuery = supabase
     .from("shipments")
@@ -403,9 +405,9 @@ export default async function DeliveryReportsPage({
 
         <div className="flex flex-wrap gap-2">
           <RefreshStatusButton range={range} from={params.from ?? ""} to={params.to ?? ""} page={pagination.page} pageSize={pagination.pageSize} />
-          <Link href="/reports/bloompath-fastdrop" className="bp-button-secondary">
+          {showCanadaReports ? <Link href="/reports/bloompath-fastdrop" className="bp-button-secondary">
             BloomPath FastDrop
-          </Link>
+          </Link> : null}
 
           <Link
             href={exportHref}
