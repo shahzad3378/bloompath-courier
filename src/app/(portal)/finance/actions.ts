@@ -125,7 +125,7 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
   const { data: ledgers, error: ledgerError } = await supabase
     .from("finance_ledger")
     .select(
-      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency",
+      "id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, fulfillment_charge, total_charges, net_payable, currency",
     )
     .in("id", ledgerIds)
     .eq("shipper_id", shipperId);
@@ -185,6 +185,7 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
     cod_amount: ledger.cod_amount,
     delivery_charge: ledger.delivery_charge,
     return_charge: ledger.return_charge,
+    fulfillment_charge: ledger.fulfillment_charge,
     total_charges: ledger.total_charges,
     net_payable: ledger.net_payable,
   }));
@@ -257,6 +258,7 @@ export async function createInvoiceFromAwbsAction(formData: FormData): Promise<v
     cod_amount: row.cod_amount,
     delivery_charge: row.delivery_charge,
     return_charge: row.return_charge,
+    fulfillment_charge: row.fulfillment_charge,
     total_charges: row.total_charges,
     net_payable: row.net_payable,
   })));
