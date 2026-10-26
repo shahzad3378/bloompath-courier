@@ -46,22 +46,25 @@ export async function createFulfillmentAwbAction(_previous: FulfillmentAwbState,
   const postalCode = clean(form,"consignee_postal_code",30);
   const weight = Number(clean(form,"weight_kg",20));
   const pieces = Number(clean(form,"pieces",8));
-  const paymentTypeValue = clean(form,"payment_type",12);
-  const codAmount = Number(clean(form,"cod_amount",20));
   if (!orderNumber || !consigneeCity || !/^[A-Z]{2}$/.test(consigneeCountryCode) ||
     !Number.isFinite(weight) || weight <= 0 || weight > 1000 ||
-    !Number.isInteger(pieces) || pieces < 1 || pieces > 999 ||
-    !["cod","prepaid"].includes(paymentTypeValue) || !Number.isFinite(codAmount) || codAmount < 0 ||
-    (paymentTypeValue === "prepaid" && codAmount !== 0)) {
-   return {status:"error",message:"Check destination city, weight, pieces and COD amount, then try again."};
+    !Number.isInteger(pieces) || pieces < 1 || pieces > 999) {
+   return {status:"error",message:"Check destination city, weight and pieces, then try again."};
   }
-  const paymentType = paymentTypeValue as "cod" | "prepaid";
   const supabase = await createClient();
   const {data: lines, error: orderError} = await supabase.from("fulfillment_orders")
-   .select("id,organization_id,order_number,shipper_reference,shipper_id,recipient_name,recipient_phone,delivery_address,product_name,quantity,status")
+   .select("id,organization_id,order_number,shipper_reference,shipper_id,recipient_name,recipient_phone,delivery_address,product_name,quantity,status,payment_type,cod_amount")
    .eq("organization_id",profile.organization_id).eq("order_number",orderNumber).order("id",{ascending:true});
   if (orderError || !lines?.length) return {status:"error",message:"Fulfillment order could not be found in this courier account."};
   const order = lines[0];
+  const paymentTypeValue = String(order.payment_type ?? "cod");
+  const codAmount = Number(order.cod_amount ?? 0);
+  if (!["cod","prepaid"].includes(paymentTypeValue) || !Number.isFinite(codAmount) || codAmount < 0 ||
+    (paymentTypeValue === "prepaid" && codAmount !== 0) ||
+    lines.some(line => line.payment_type !== order.payment_type || Number(line.cod_amount ?? 0) !== codAmount)) {
+   return {status:"error",message:"Payment type or COD amount differs between the product rows in this order. Fix the fulfillment order before creating its AWB."};
+  }
+  const paymentType = paymentTypeValue as "cod" | "prepaid";
   if (lines.some(line=>line.status!=="dispatched")) return {status:"error",message:"Mark this fulfillment order Dispatched before creating its AWB."};
   if (!order.shipper_id || lines.some(line=>line.shipper_id!==order.shipper_id)) return {status:"error",message:"This order has no single shipper account. Assign a shipper before creating its AWB."};
   const {data: existing, error: existingError} = await supabase.from("shipments")
@@ -211,11 +214,15 @@ export async function createShipperFulfillmentOrderAction(_previous: string, for
  if([...merged.values()].some(quantity=>quantity>1000))return "Total quantity for a product cannot exceed 1,000 per order.";
  const shipperId=profile.role==="shipper"?profile.id:clean(form,"shipper_id",36);
  if(profile.role!=="shipper"&&!/^[0-9a-f-]{36}$/i.test(shipperId))return "Select a shipper for this order.";
- const payload=[{shipper_id:shipperId,recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120),items:[...merged].map(([product_id,quantity])=>({product_id,quantity}))}];
+ const paymentType=clean(form,"payment_type",12).toLowerCase();
+ const codText=clean(form,"cod_amount",24);
+ const codAmount=Number(codText);
+ if(!["cod","prepaid"].includes(paymentType)||!codText||!Number.isFinite(codAmount)||codAmount<0||(paymentType==="prepaid"&&codAmount!==0))return "Select COD or prepaid and enter a valid order amount. Enter 0 for prepaid.";
+ const payload=[{shipper_id:shipperId,recipient_name:clean(form,"recipient_name",160),recipient_phone:clean(form,"recipient_phone",50),delivery_address:clean(form,"delivery_address",500),order_reference:clean(form,"order_reference",120),payment_type:paymentType,cod_amount:paymentType==="cod"?codAmount:0,items:[...merged].map(([product_id,quantity])=>({product_id,quantity}))}];
  const supabase=await createClient(); const {error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
  if(error){console.error("SHIPPER_FULFILLMENT_ORDER",error.message);return error.message.includes("stock")?"Not enough available stock for this order.":"Could not place the order. Check the recipient details and try again.";}
- revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");
- return "Order submitted. It is now in the fulfillment queue.";
+ revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders"); revalidatePath("/finance");
+ return "Order submitted. COD/payment details are saved with the order.";
 }
 
 export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string, form: FormData): Promise<string> {
@@ -233,34 +240,50 @@ export async function bulkCreateShipperFulfillmentOrdersAction(_previous: string
  const headers=new Map<string,number>();
  headerRow.eachCell((cell,col)=>headers.set(String(cell.text??"").trim().toLowerCase().replaceAll(" ","_"),col));
  const col=(name:string)=>headers.get(name)??0;
- if(!["recipient_name","recipient_phone","delivery_address","product_name","quantity"].every(name=>col(name)>0))return "Use the template columns: recipient_name, recipient_phone, delivery_address, product_name and quantity.";
+ const required=["order_reference","payment_type","cod_amount","recipient_name","recipient_phone","delivery_address","product_name","quantity"];
+ if(!required.every(name=>col(name)>0))return "Use the updated template columns, including payment_type and cod_amount. The COD amount is per order, never per product.";
  const {data:products,error:productError}=await (await createClient()).from("fulfillment_products").select("id,name,quantity_on_hand,quantity_reserved").eq("organization_id",profile.organization_id!).eq("active",true).order("name").limit(1000);
  if(productError)return "Could not load the available product list.";
  const productIndex=new Map<string,Array<{id:string;name:string;quantity_on_hand:number;quantity_reserved:number}>>();
  for(const product of products??[]){const key=product.name.trim().toLocaleLowerCase();productIndex.set(key,[...(productIndex.get(key)??[]),product]);}
- const groups=new Map<string,{recipient_name:string;recipient_phone:string;delivery_address:string;order_reference:string;items:Map<string,number>}>(); const problems:string[]=[];
+ type OrderGroup={recipient_name:string;recipient_phone:string;delivery_address:string;order_reference:string;payment_type:"cod"|"prepaid"|null;cod_amount:number|null;items:Map<string,number>};
+ const groups=new Map<string,OrderGroup>(); const problems:string[]=[];
  sheet.eachRow((row,rowNumber)=>{
   if(rowNumber===1)return;
   const value=(name:string)=>{const column=col(name);return column?String(row.getCell(column).text??"").trim():"";};
-  if(!["recipient_name","recipient_phone","delivery_address","product_name","quantity"].some(name=>value(name)))return;
+  if(!required.some(name=>value(name)))return;
   const productMatches=productIndex.get(value("product_name").toLocaleLowerCase())??[];
   const quantity=Number(value("quantity"));
   if(productMatches.length!==1){problems.push(`row ${rowNumber}: product name must match one available product`);return;}
   if(!Number.isInteger(quantity)||quantity<1||quantity>1000){problems.push(`row ${rowNumber}: quantity must be 1–1000`);return;}
   const recipient_name=value("recipient_name"),recipient_phone=value("recipient_phone"),delivery_address=value("delivery_address"),order_reference=value("order_reference");
   if(recipient_name.length<2||recipient_name.length>160||recipient_phone.length<3||recipient_phone.length>50||delivery_address.length<5||delivery_address.length>500){problems.push(`row ${rowNumber}: recipient name, phone, or address is missing or too long`);return;}
+  const paymentText=value("payment_type").toLowerCase();
+  if(paymentText && !["cod","prepaid"].includes(paymentText)){problems.push(`row ${rowNumber}: payment_type must be cod or prepaid`);return;}
+  const amountText=value("cod_amount");
+  const rowAmount=amountText===""?null:Number(amountText);
+  if(amountText!==""&&(!Number.isFinite(rowAmount)||Number(rowAmount)<0)){problems.push(`row ${rowNumber}: cod_amount must be a number of 0 or more`);return;}
   const key=order_reference?`ref:${order_reference}`:`row:${rowNumber}`; let group=groups.get(key);
-  if(!group){group={recipient_name,recipient_phone,delivery_address,order_reference,items:new Map()};groups.set(key,group);}
+  if(!group){group={recipient_name,recipient_phone,delivery_address,order_reference,payment_type:null,cod_amount:null,items:new Map()};groups.set(key,group);}
   else if(group.recipient_name!==recipient_name||group.recipient_phone!==recipient_phone||group.delivery_address!==delivery_address){problems.push(`row ${rowNumber}: recipient details must match other rows with order reference ${order_reference}`);return;}
+  if(paymentText){if(group.payment_type&&group.payment_type!==paymentText){problems.push(`row ${rowNumber}: payment_type must match the other rows for order ${order_reference}`);return;}group.payment_type=paymentText as "cod"|"prepaid";}
+  if(rowAmount!==null){if(group.cod_amount!==null&&group.cod_amount!==rowAmount){problems.push(`row ${rowNumber}: enter one matching COD amount for order ${order_reference}`);return;}group.cod_amount=rowAmount;}
   group.items.set(productMatches[0].id,(group.items.get(productMatches[0].id)??0)+quantity);
   if((group.items.get(productMatches[0].id)??0)>1000)problems.push(`row ${rowNumber}: combined quantity for a product in one order exceeds 1,000`);
  });
+ for(const [key,group] of groups){
+  if(!group.payment_type)problems.push(`${key}: enter payment_type on one row`);
+  if(group.payment_type==="cod"&&group.cod_amount===null)problems.push(`${key}: enter cod_amount on one row for this COD order`);
+  if(group.payment_type==="prepaid"&&group.cod_amount!==null&&group.cod_amount!==0)problems.push(`${key}: prepaid orders must have cod_amount 0`);
+ }
  if(problems.length)return `Fix Excel ${problems.slice(0,3).join("; ")}${problems.length>3?`; and ${problems.length-3} more row(s)`:""}.`;
  if(!groups.size)return "No order rows found. Fill in the template and upload it again.";
+ const incomplete=[...groups.values()].some(group=>!group.payment_type||(group.payment_type==="cod"&&group.cod_amount===null)||(group.payment_type==="prepaid"&&group.cod_amount!==null&&group.cod_amount!==0));
+ if(incomplete)return "Every order needs payment_type. COD orders need one cod_amount; prepaid orders must use 0.";
  if(groups.size>200)return "Upload up to 200 customer orders at a time.";
- const payload=[...groups.values()].map(group=>({shipper_id:shipperId,recipient_name:group.recipient_name,recipient_phone:group.recipient_phone,delivery_address:group.delivery_address,order_reference:group.order_reference,items:[...group.items].map(([product_id,quantity])=>({product_id,quantity}))}));
+ const payload=[...groups.values()].map(group=>({shipper_id:shipperId,recipient_name:group.recipient_name,recipient_phone:group.recipient_phone,delivery_address:group.delivery_address,order_reference:group.order_reference,payment_type:group.payment_type,cod_amount:group.payment_type==="cod"?group.cod_amount:0,items:[...group.items].map(([product_id,quantity])=>({product_id,quantity}))}));
  const supabase=await createClient(); const {data,error}=await supabase.rpc("fulfillment_create_shipper_orders",{p_orders:payload});
- if(error){console.error("SHIPPER_FULFILLMENT_BULK",error.message);return error.message.includes("stock")?"Upload was not submitted because one or more products do not have enough available stock.":"Upload was not submitted. Check the recipient details and stock, then try again.";}
- revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders");
- return `${Number(data)} customer order(s) submitted successfully.`;
+ if(error){console.error("SHIPPER_FULFILLMENT_BULK",error.message);return error.message.includes("stock")?"Upload was not submitted because one or more products do not have enough available stock.":"Upload was not submitted. Check the recipient details, COD amount and stock, then try again.";}
+ revalidatePath("/shipper/fulfillment"); revalidatePath("/shipper/fulfillment/orders"); revalidatePath("/fulfillment/orders"); revalidatePath("/finance");
+ return `${Number(data)} customer order(s) submitted successfully with COD/payment details.`;
 }
