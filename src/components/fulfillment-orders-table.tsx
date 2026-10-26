@@ -18,6 +18,8 @@ export type FulfillmentOrderRow = {
   items: { name: string; sku: string; quantity: number }[];
   fee: string | null;
   feeGroup: string | null;
+  paymentType: "cod" | "prepaid";
+  codAmount: number;
   status: string;
   createdAt: string;
   awb: { id: number; trackingNumber: string; status: string; customerStatus: string | null; createdAt: string } | null;
@@ -106,7 +108,7 @@ export function FulfillmentOrdersTable({ orders, countries }: { orders: Fulfillm
         <p className="mt-2 text-[11px] text-[#78858f]">Filter by creation date, select the AWBs and print them together. Tracking updates are available from Operations after the AWB is created.</p>
       </div>
       <div className="overflow-x-auto"><table className="w-full min-w-[1500px] text-left text-sm">
-        <thead className="bg-[#f8fafc] text-[10px] uppercase tracking-wide text-[#78858f]"><tr><th className="w-10 px-3 py-3"><input aria-label="Select all visible AWBs" type="checkbox" checked={allVisibleSelected} disabled={!visibleAwbs.length} onChange={toggleVisible} className="size-4 accent-[#174ea6]"/></th>{["Order / Reference","Shipper","Recipient","Delivery","Products","Fulfillment fee","Fulfillment status","AWB / Tracking","Next step"].map(label=><th key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
+        <thead className="bg-[#f8fafc] text-[10px] uppercase tracking-wide text-[#78858f]"><tr><th className="w-10 px-3 py-3"><input aria-label="Select all visible AWBs" type="checkbox" checked={allVisibleSelected} disabled={!visibleAwbs.length} onChange={toggleVisible} className="size-4 accent-[#174ea6]"/></th>{["Order / Reference","Shipper","Recipient","Delivery","Products","Payment / COD","Fulfillment fee","Fulfillment status","AWB / Tracking","Next step"].map(label=><th key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-[#edf1ef]">
           {visible.map(order => {
             const awb = order.awb;
@@ -121,13 +123,14 @@ export function FulfillmentOrdersTable({ orders, countries }: { orders: Fulfillm
               <td className="px-4 py-4 font-semibold">{order.recipient}<div className="text-xs text-[#78858f]">{order.phone}</div></td>
               <td className="max-w-64 px-4 py-4 text-xs">{order.address}</td>
               <td className="px-4 py-4 text-xs">{order.items.map((item,index)=><div key={item.sku + "-" + index}>{item.name} · {item.quantity}</div>)}</td>
+              <td className="px-4 py-4 text-xs font-bold"><span className="uppercase">{order.paymentType}</span>{order.paymentType === "cod" ? <div>{order.codAmount.toFixed(2)}</div> : null}</td>
               <td className="px-4 py-4 text-xs font-bold">{order.fee || "—"}{order.feeGroup ? <div className="font-normal text-[#78858f]">{order.feeGroup}</div> : null}</td>
               <td className="px-4 py-4"><span className="rounded-full bg-[#edf4ff] px-2.5 py-1 text-xs font-bold capitalize text-[#174ea6]">{order.status}</span></td>
               <td className="px-4 py-4">{awb ? <div><Link className="font-mono text-xs font-bold text-[#174ea6] underline" href={"/shipments/" + awb.id}>{awb.trackingNumber}</Link><div className={"mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-bold capitalize " + badgeClass}>{trackingLabel.replaceAll("_"," ")}</div><Link className="mt-2 block text-[11px] font-bold text-[#174ea6] underline" href={"/warehouse/manual-tracking?awb=" + encodeURIComponent(awb.trackingNumber)}>Update tracking</Link></div> : <span className="text-xs text-[#78858f]">AWB not created</span>}</td>
-              <td className="px-4 py-4">{next ? <form action={updateFulfillmentOrderAction}><input type="hidden" name="order_id" value={order.orderId}/><input type="hidden" name="next_status" value={next}/><button className="rounded-lg bg-[#174ea6] px-3 py-2 text-xs font-bold capitalize text-white">Mark {next}</button></form> : order.status === "dispatched" && !awb ? <FulfillmentAwbForm orderNumber={order.orderNumber} address={order.address} countries={countries}/> : <span className="text-xs text-[#78858f]">Complete</span>}</td>
+              <td className="px-4 py-4">{next ? <form action={updateFulfillmentOrderAction}><input type="hidden" name="order_id" value={order.orderId}/><input type="hidden" name="next_status" value={next}/><button className="rounded-lg bg-[#174ea6] px-3 py-2 text-xs font-bold capitalize text-white">Mark {next}</button></form> : order.status === "dispatched" && !awb ? <FulfillmentAwbForm orderNumber={order.orderNumber} address={order.address} countries={countries} paymentType={order.paymentType} codAmount={order.codAmount}/> : <span className="text-xs text-[#78858f]">Complete</span>}</td>
             </tr>;
           })}
-          {!visible.length ? <tr><td colSpan={10} className="px-5 py-12 text-center text-sm text-[#78858f]">No fulfillment orders match these filters.</td></tr> : null}
+          {!visible.length ? <tr><td colSpan={11} className="px-5 py-12 text-center text-sm text-[#78858f]">No fulfillment orders match these filters.</td></tr> : null}
         </tbody>
       </table></div>
     </section>
