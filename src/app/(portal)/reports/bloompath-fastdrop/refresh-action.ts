@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { getGtaBookingConfig, requestGtaTracking } from "@/lib/gta-airskip-server";
 import { syncGtaPartnerStatus } from "@/lib/gta-airskip-status-sync";
 import { internalRoles } from "@/lib/roles";
+import { hasCanadaPrimaryMarket } from "@/lib/market-access";
 import { resolveReportDateRange } from "@/lib/report-date-range";
 import { parseTablePagination } from "@/lib/table-pagination";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +15,7 @@ const field = (form: FormData, key: string) => String(form.get(key) ?? "").trim(
 
 export async function refreshGtaReportStatuses(_state: RefreshStatusState, form: FormData): Promise<RefreshStatusState> {
   const profile = await requireProfile(internalRoles);
-  if (!profile.organization_id) return { status: "error", message: "Organization is not configured." };
+  if (!profile.organization_id || !(await hasCanadaPrimaryMarket(profile.organization_id))) return { status: "error", message: "This report is only available in the Canada portal." };
 
   const params = { range: field(form, "range"), from: field(form, "from"), to: field(form, "to"), page: field(form, "page"), page_size: field(form, "page_size") };
   const { start, endExclusive, error: rangeError } = resolveReportDateRange(params);
