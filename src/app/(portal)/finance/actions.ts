@@ -227,7 +227,7 @@ export async function createInvoiceFromAwbsAction(formData: FormData): Promise<v
   if (!shipper) redirect("/finance/invoices/new?error=invalid");
 
   const { data: ledgers, error: ledgerError } = await supabase.from("finance_ledger")
-    .select("id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, total_charges, net_payable, currency, transaction_at")
+    .select("id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, fulfillment_charge, total_charges, net_payable, currency, transaction_at")
     .eq("organization_id", profile.organization_id).eq("shipper_id", shipperId).in("id", ids);
   if (ledgerError || !ledgers || ledgers.length !== ids.length ||
     ledgers.some((row) => row.currency !== ledgers[0].currency)) {
