@@ -47,6 +47,8 @@ export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumbe
   useEffect(() => {
     if (state.status === "success") {
       if (awbRef.current) awbRef.current.value = "";
+      const podInput = formRef.current?.querySelector<HTMLInputElement>('input[name="pod"]');
+      if (podInput) podInput.value = "";
       manuallySelectedTimeZone.current = false;
       dateTimeEdited.current = false;
       lookupSequence.current += 1;
@@ -57,7 +59,7 @@ export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumbe
   return <form ref={formRef} action={action} noValidate aria-busy={pending || lookingUp} className="bp-panel p-5 sm:p-6">
     <div className="flex items-start gap-3">
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#e7f4ed] text-[#13734b]"><ScanLine className="size-5" aria-hidden="true" /></span>
-      <div><h2 className="font-bold text-[#26372f]">Scan or enter an AWB</h2><p className="mt-1 text-xs leading-5 text-[#74827b]">Choose the customer-visible milestone and when it happened. The scan time zone is detected from the shipment’s Canadian city when available.</p></div>
+      <div><h2 className="font-bold text-[#26372f]">Scan or enter an AWB</h2><p className="mt-1 text-xs leading-5 text-[#74827b]">Choose the customer-visible milestone and when it happened. A POD photo is required when you select Delivered.</p></div>
     </div>
     <fieldset disabled={pending} className="mt-5 grid gap-4 sm:grid-cols-2 disabled:opacity-60">
       <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Tracking / AWB number</span><input ref={awbRef} autoFocus autoComplete="off" name="tracking_number" defaultValue={defaultTrackingNumber} maxLength={40} required placeholder="Scan barcode or enter AWB" className="bp-input h-12 w-full font-mono uppercase" onChange={() => {
@@ -78,6 +80,7 @@ export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumbe
         setSelectedStatus(status);
         if (awbRef.current?.value && !manuallySelectedTimeZone.current) void detectTimeZone(awbRef.current.value, status);
       }} required className="bp-input h-12 w-full"><option value="" disabled>Select status</option>{manualTrackingStatuses.map((status) => <option key={status} value={status}>{customerTrackingLabels[status]}</option>)}</select></label>
+      {selectedStatus === "delivered" ? <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Proof of delivery photo · required</span><input name="pod" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required className="bp-input w-full py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[#13734b] file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><span className="mt-1 block text-[11px] font-normal text-[#74827b]">Upload a JPG, PNG or WebP photo up to 5 MB.</span></label> : null}
       <label><span className="mb-2 block text-xs font-semibold text-[#526159]">Scan time zone</span><select name="time_zone" value={timeZone} onChange={(event) => {
         const nextTimeZone = event.target.value;
         if (isTrackingTimeZone(nextTimeZone)) {
