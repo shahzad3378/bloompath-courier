@@ -46,6 +46,9 @@ export async function GET(
       tax_amount,
       total_amount,
       cod_collected,
+      total_delivery_charges,
+      total_return_charges,
+      total_fulfillment_charges,
       net_settlement_payable,
       invoice_date,
       due_date,
@@ -81,6 +84,7 @@ export async function GET(
         cod_amount,
         delivery_charge,
         return_charge,
+        fulfillment_charge,
         total_charges,
         net_payable
       `)
@@ -120,6 +124,7 @@ export async function GET(
     "COD",
     "Delivery Charge",
     "Return Charge",
+    "Fulfillment Fee",
     "Total Charges",
     "Net Payable",
   ]);
@@ -133,6 +138,7 @@ export async function GET(
       Number(item.cod_amount || 0),
       Number(item.delivery_charge || 0),
       Number(item.return_charge || 0),
+      Number(item.fulfillment_charge || 0),
       Number(item.total_charges || 0),
       Number(item.net_payable || 0),
     ]);
@@ -140,6 +146,7 @@ export async function GET(
 
   sheet.addRow([]);
   sheet.addRow(["COD Collected", Number(invoice.cod_collected || 0)]);
+  sheet.addRow(["Fulfillment Charges", Number(invoice.total_fulfillment_charges || 0)]);
   sheet.addRow(["Subtotal", Number(invoice.subtotal || 0)]);
   sheet.addRow(["Tax Rate", `${Number(invoice.tax_rate || 0).toFixed(3)}%`]);
   sheet.addRow(["Tax", Number(invoice.tax_amount || 0)]);
@@ -154,7 +161,7 @@ export async function GET(
   });
   sheet.getColumn(1).width = 24;
   sheet.getColumn(3).width = 24;
-  for (let column = 5; column <= 9; column += 1) {
+  for (let column = 5; column <= 10; column += 1) {
     sheet.getColumn(column).numFmt = "#,##0.00";
   }
   sheet.getRow(11).font = {
