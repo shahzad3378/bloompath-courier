@@ -49,6 +49,7 @@ export default async function RevenueReportsPage({
       cod_amount,
       delivery_charge,
       return_charge,
+      fulfillment_charge,
       total_charges,
       net_payable,
       transaction_at
@@ -109,6 +110,8 @@ export default async function RevenueReportsPage({
       sum + Number(row.return_charge || 0),
     0,
   );
+
+  const fulfillmentCharges = rows.reduce((sum,row)=>sum+Number(row.fulfillment_charge||0),0);
 
   const totalCharges = rows.reduce(
     (sum, row) =>
@@ -191,6 +194,12 @@ export default async function RevenueReportsPage({
         </div>
 
         <div className="bp-card p-5">
+          <BadgeDollarSign className="size-5 text-[#15905c]" />
+          <p className="mt-4 text-2xl font-black">{money(fulfillmentCharges,currency)}</p>
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">Fulfillment Fees</p>
+        </div>
+
+        <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
           <p className="mt-4 text-2xl font-black">
             {money(netPayable, currency)}
@@ -254,6 +263,7 @@ export default async function RevenueReportsPage({
                   <th className="px-4 py-3">
                     Return
                   </th>
+                  <th className="px-4 py-3">Fulfillment</th>
                   <th className="px-4 py-3">
                     Charges
                   </th>
@@ -302,6 +312,7 @@ export default async function RevenueReportsPage({
                       )}
                     </td>
 
+                    <td className="px-4 py-4">{money(row.fulfillment_charge,row.currency)}</td>
                     <td className="px-4 py-4 font-bold">
                       {money(
                         row.total_charges,
