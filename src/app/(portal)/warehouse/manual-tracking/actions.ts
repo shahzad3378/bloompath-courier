@@ -68,7 +68,7 @@ export async function recordManualTrackingAction(
   const occurredAt = parseDateTimeLocal(occurredAtInput, timeZone);
   if (!occurredAt) return { status: "error", message: "Select a valid local date and time. The selected time zone may not have that time." };
   if (new Date(occurredAt).getTime() > Date.now() + 10 * 60 * 1000) return { status: "error", message: "Tracking date and time cannot be in the future." };
-  if (status === "delivered" && (!hasPod || !(pod instanceof File) || pod.size > 5 * 1024 * 1024 || !podMimeTypes.has(pod.type))) return { status: "error", message: "Upload a JPG, PNG or WebP POD photo up to 5 MB to mark this AWB delivered." };
+  if (hasPod && (!(pod instanceof File) || pod.size > 5 * 1024 * 1024 || !podMimeTypes.has(pod.type))) return { status: "error", message: "Upload a JPG, PNG or WebP POD photo up to 5 MB, or leave it blank." };
   if (status !== "delivered" && hasPod) return { status: "error", message: "POD photos can only be attached to a Delivered update." };
 
   const supabase = await createClient();
