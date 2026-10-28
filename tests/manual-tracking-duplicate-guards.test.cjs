@@ -69,3 +69,13 @@ test('already received warehouse parcel rejects duplicate warehouse receipt', as
   assert.match(result.message, /already received in the warehouse/i);
   assert.equal(calls.filter((call) => call.inserted).length, 0);
 });
+
+
+test('delivered update from warehouse does not claim shipment is ready for dispatch', async () => {
+  const { action } = loadAction({ shipment: { id: 's1', status: 'at_warehouse', sender_country_code: 'CA', consignee_country_code: 'CA' }, latestEvent: { status: 'in_transit' } });
+  const result = await action({ status: 'idle', message: '' }, form('delivered'));
+  assert.equal(result.status, 'success');
+  assert.match(result.message, /updated to Delivered/i);
+  assert.match(result.message, /shipment is complete/i);
+  assert.doesNotMatch(result.message, /warehouse|ready for dispatch/i);
+});

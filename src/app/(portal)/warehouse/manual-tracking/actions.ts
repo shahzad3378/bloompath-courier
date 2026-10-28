@@ -185,9 +185,11 @@ export async function recordManualTrackingAction(
   revalidatePath("/", "layout");
   revalidatePath(`/shipments/${shipment.id}`);
   revalidatePath("/shipments");
-  const warehouseMessage = movedIntoWarehouse || shipment.status === "at_warehouse"
-    ? " The shipment is now in warehouse and ready for dispatch."
+  const isWarehouseMilestone = status === "at_warehouse" || status === "customs_clearance_completed_warehouse_scanned";
+  const warehouseMessage = isWarehouseMilestone && (movedIntoWarehouse || shipment.status === "at_warehouse")
+    ? " The shipment is in warehouse and ready for dispatch."
     : "";
   const podMessage = proofPath ? " POD uploaded and linked to this shipment." : "";
-  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}.${podMessage} Customer tracking has been refreshed.${warehouseMessage}` };
+  const terminalMessage = status === "delivered" ? " This shipment is complete; no further tracking updates can be added." : "";
+  return { status: "success", message: `${tracking} updated to ${customerTrackingLabels[status]}.${podMessage} Customer tracking has been refreshed.${warehouseMessage}${terminalMessage}` };
 }
