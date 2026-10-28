@@ -25,6 +25,7 @@ const shipment = {
   consignee_name: 'Receiver', consignee_address: '2 Street', consignee_city: 'Toronto', consignee_state_province: 'ON', consignee_postal_code: 'M5V 1A1', consignee_country_code: 'CA',
 };
 const options = { test: true, currency: 'CAD', items: [{ description: 'Shirt', qty: 2, unit: 'pc', value: 12.5, sku: 'SHIRT', origin: 'CN', hscode: '6109100012' }] };
+const fastDropSender = { name: 'Fast Drop Worldwide Logistics Inc.', phone: '+14383081520', address: '5004 Timberlea Rd', address2: 'Unit 45', city: 'Mississauga', state: 'ON', postalCode: 'L4W5C5', country: 'CA' };
 const response = { shipmentresponse: { tracknbr: 'PARTNER1001', label: Buffer.from('%PDF-1.4\nexample').toString('base64'), labelformat: 'pdf', service: 'ca_rateshop', carrier: 'Example' } };
 
 test('destination selects the exact rate-shop code, keeps tenant AWB reference and uses kg/cm', () => {
@@ -33,6 +34,11 @@ test('destination selects the exact rate-shop code, keeps tenant AWB reference a
   assert.equal(ca.weightUnit, 'kg'); assert.equal(ca.dimUnit, 'cm'); assert.equal(ca.weight, 2); assert.equal(ca.value, 25); assert.equal(ca.test, 1);
   assert.equal(ca.pieces, 1); assert.equal(ca.shipper.address1, '1 Street'); assert.equal(ca.consignee.province, 'ON'); assert.equal(ca.consignee.postalCode, 'M5V 1A1');
   assert.equal(ca.uom, undefined); assert.equal(ca.shipper.addr1, undefined);
+  const fastDrop = core.buildBroadReachShipment(shipment, '1384', { ...options, sender: fastDropSender }).shipment;
+  assert.equal(fastDrop.shipper.name, 'Fast Drop Worldwide Logistics Inc.');
+  assert.equal(fastDrop.shipper.address1, '5004 Timberlea Rd');
+  assert.equal(fastDrop.shipper.province, 'ON');
+  assert.equal(fastDrop.consignee.address1, '2 Street');
   const us = core.buildBroadReachShipment({ ...shipment, consignee_country_code: 'US', consignee_state_province: 'WA', consignee_postal_code: '98230' }, 'account', { ...options, test: false }).shipment;
   assert.equal(us.service, 'us_rateshop'); assert.equal(us.test, 0);
 });
@@ -40,8 +46,8 @@ test('destination selects the exact rate-shop code, keeps tenant AWB reference a
 test('A2 rates contract uses nested consignee and parses services/total with empty errors', async () => {
   const saved = global.fetch;
   try {
-    const payload = core.buildBroadReachRates(shipment, '1384');
-    assert.deepEqual(payload, { rateshipment: { account: '1384', weight: 2, weightUnit: 'kg', pieces: 1, dimUnit: 'cm', consignee: { country: 'CA', postalCode: 'M5V1A1' } } });
+    const payload = core.buildBroadReachRates(shipment, '1384', fastDropSender);
+    assert.deepEqual(payload, { rateshipment: { account: '1384', weight: 2, weightUnit: 'kg', pieces: 1, dimUnit: 'cm', shipper: { name: 'Fast Drop Worldwide Logistics Inc.', company: 'Fast Drop Worldwide Logistics Inc.', address1: '5004 Timberlea Rd', address2: 'Unit 45', city: 'Mississauga', province: 'ON', postalCode: 'L4W5C5', country: 'CA', phone: '+14383081520' }, consignee: { country: 'CA', postalCode: 'M5V1A1' } } });
     global.fetch = async (_url, init) => { assert.deepEqual(JSON.parse(init.body), payload); return Response.json({ rateshipmentresponse: { services: [{ service: 'USPS_GROUND_ADVANTAGE', total: 12.5 }], errors: [] }, errors: [] }); };
     assert.equal(await server.requestBroadReachRates(payload, { username: 'user', password: 'pass', account: '1384' }), 1);
     global.fetch = async () => Response.json({ rateshipmentresponse: { services: [], errors: ['Account is unavailable'] } });
