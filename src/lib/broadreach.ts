@@ -17,7 +17,10 @@ export type BroadReachOptions = {
   currency: string;
   items: BroadReachItem[];
   dimensions?: { length: number; width: number; height: number };
+  sender?: BroadReachSender;
 };
+
+export type BroadReachSender = { name: string; phone: string; address: string; address2: string; city: string; state: string; postalCode: string; country: string };
 
 function required(value: unknown, name: string) {
   if (typeof value !== "string" || !value.trim()) throw new Error(`Add ${name} to the shipment before generating a label.`);
@@ -50,7 +53,17 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
     country: required(shipment[`${side}_country_code`], `${side} country`).toUpperCase(),
     phone: shipment[`${side}_phone`]?.trim() || "",
   });
-  const shipper = address("sender");
+  const shipper = options.sender ? {
+    name: required(options.sender.name, "FastDrop sender name"),
+    company: required(options.sender.name, "FastDrop sender name"),
+    address1: required(options.sender.address, "FastDrop sender address"),
+    address2: options.sender.address2.trim(),
+    city: required(options.sender.city, "FastDrop sender city"),
+    province: required(options.sender.state, "FastDrop sender province/state"),
+    postalCode: required(options.sender.postalCode, "FastDrop sender postal code"),
+    country: required(options.sender.country, "FastDrop sender country").toUpperCase(),
+    phone: options.sender.phone.trim(),
+  } : address("sender");
   const consignee = address("consignee");
   if (!/^[A-Z]{2}$/.test(shipper.country)) throw new Error("Sender country must be a two-letter country code.");
   if (!Array.isArray(options.items) || options.items.length < 1 || options.items.length > 100) throw new Error("Add between 1 and 100 content items.");
@@ -81,11 +94,30 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
   } };
 }
 
-export function buildBroadReachRates(shipment: Pick<Shipment, "weight_kg" | "consignee_country_code" | "consignee_postal_code">, account: string) {
+export function buildBroadReachRates(
+  shipment: Pick<Shipment, "weight_kg" | "consignee_country_code" | "consignee_postal_code">,
+  account: string,
+  sender: BroadReachSender,
+) {
   const country = required(shipment.consignee_country_code, "destination country").toUpperCase();
   const weight = Number(shipment.weight_kg);
   if (!["CA", "US"].includes(country) || !Number.isFinite(weight) || weight <= 0) throw new Error("Rates require a Canada/USA destination and positive shipment weight.");
-  return { rateshipment: { account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm", consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code").replace(/\s+/g, ""), country } } };
+  const shipper = {
+    name: required(sender.name, "FastDrop sender name"),
+    company: required(sender.name, "FastDrop sender name"),
+    address1: required(sender.address, "FastDrop sender address"),
+    address2: sender.address2.trim(),
+    city: required(sender.city, "FastDrop sender city"),
+    province: required(sender.state, "FastDrop sender province/state"),
+    postalCode: required(sender.postalCode, "FastDrop sender postal code").replace(/\s+/g, ""),
+    country: required(sender.country, "FastDrop sender country").toUpperCase(),
+    phone: sender.phone.trim(),
+  };
+  if (!/^[A-Z]{2}$/.test(shipper.country)) throw new Error("FastDrop sender country must be a two-letter country code.");
+  return { rateshipment: {
+    account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm",
+    shipper, consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code").replace(/\s+/g, ""), country },
+  } };
 }
 
 export function parseBroadReachResponse(body: unknown) {
