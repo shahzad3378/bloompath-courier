@@ -41,7 +41,7 @@ test('A2 rates contract uses nested consignee and parses services/total with emp
   const saved = global.fetch;
   try {
     const payload = core.buildBroadReachRates(shipment, '1384');
-    assert.deepEqual(payload, { rateshipment: { account: '1384', weight: 2, weightUnit: 'kg', pieces: 1, dimUnit: 'cm', consignee: { country: 'CA', postalCode: 'M5V 1A1' } } });
+    assert.deepEqual(payload, { rateshipment: { account: '1384', weight: 2, weightUnit: 'kg', pieces: 1, dimUnit: 'cm', consignee: { country: 'CA', postalCode: 'M5V1A1' } } });
     global.fetch = async (_url, init) => { assert.deepEqual(JSON.parse(init.body), payload); return Response.json({ rateshipmentresponse: { services: [{ service: 'USPS_GROUND_ADVANTAGE', total: 12.5 }], errors: [] }, errors: [] }); };
     assert.equal(await server.requestBroadReachRates(payload, { username: 'user', password: 'pass', account: '1384' }), 1);
     global.fetch = async () => Response.json({ rateshipmentresponse: { services: [], errors: ['Account is unavailable'] } });
