@@ -79,12 +79,12 @@ export async function checkBroadReachConnection(_state: BroadReachState, form: F
   if (!config || !profile.organization_id) return fail("BroadReach credentials are not configured for this courier company.");
   const supabase = await createClient();
   const { data, error } = await supabase.from("shipments")
-    .select("weight_kg, sender_postal_code, sender_country_code, sender_state_province, consignee_postal_code, consignee_country_code, consignee_state_province")
+    .select("weight_kg, consignee_postal_code, consignee_country_code")
     .eq("organization_id", profile.organization_id).eq("tracking_number", field(form, "awb").toUpperCase()).is("deleted_at", null).maybeSingle();
   if (error || !data) return fail("Enter an existing FastDrop AWB to check API connection and service rates.");
   const country = String(data.consignee_country_code ?? "").toUpperCase();
   if (country !== "CA" && country !== "US") return fail("Choose a Canada or USA shipment for this connection check.");
-  if (!data.sender_postal_code || !data.sender_country_code || !data.sender_state_province || !data.consignee_postal_code || !data.consignee_state_province || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete sender/recipient country, postal code, province/state and positive weight before checking rates.");
+  if (!data.consignee_postal_code?.trim() || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete the recipient postal code and positive shipment weight before checking rates.");
   try {
     const count = await requestBroadReachRates(buildBroadReachRates(data, config.account), config);
     return { status: "success", message: `API connection verified: ${count} service rate${count === 1 ? "" : "s"} available for ${country}. Booking uses ${broadReachServices[country]}. No AWB was created. This does not release an earlier unconfirmed booking.` };
