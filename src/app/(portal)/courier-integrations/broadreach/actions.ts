@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { broadReachServices, buildBroadReachRates, buildBroadReachShipment, type BroadReachItem } from "@/lib/broadreach";
-import { getBroadReachConfig, requestBroadReachLabel, requestBroadReachRates, safeBroadReachError } from "@/lib/broadreach-server";
+import { getBroadReachConfig, getBroadReachSender, requestBroadReachLabel, requestBroadReachRates, safeBroadReachError } from "@/lib/broadreach-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Shipment } from "@/lib/shipments";
@@ -50,7 +50,9 @@ export async function generateBroadReachAwb(_state: BroadReachState, form: FormD
       sku: field(form, `sku_${index}`), origin: field(form, `origin_${index}`), hscode: field(form, `hscode_${index}`),
     }));
     const dims = ["length", "width", "height"].map((key) => field(form, key));
-    payload = buildBroadReachShipment(shipment, config.account, { test, currency: field(form, "currency"), items,
+    const sender = getBroadReachSender(profile.organization_id);
+    if (!sender) throw new Error("FastDrop sender address is not configured. Check GTA_AIRSKIP_PICKUP_ADDRESS in Vercel Production.");
+    payload = buildBroadReachShipment(shipment, config.account, { test, sender, currency: field(form, "currency"), items,
       ...(dims.some(Boolean) ? { dimensions: { length: Number(dims[0]), width: Number(dims[1]), height: Number(dims[2]) } } : {}),
     });
   } catch (issue) { return fail(issue instanceof Error ? issue.message : "Review the shipment details."); }
@@ -86,7 +88,9 @@ export async function checkBroadReachConnection(_state: BroadReachState, form: F
   if (country !== "CA" && country !== "US") return fail("Choose a Canada or USA shipment for this connection check.");
   if (!data.consignee_postal_code?.trim() || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete the recipient postal code and positive shipment weight before checking rates.");
   try {
-    const count = await requestBroadReachRates(buildBroadReachRates(data, config.account), config);
+    const sender = getBroadReachSender(profile.organization_id);
+    if (!sender) return fail("FastDrop sender address is not configured. Check GTA_AIRSKIP_PICKUP_ADDRESS in Vercel Production.");
+    const count = await requestBroadReachRates(buildBroadReachRates(data, config.account, sender), config);
     return { status: "success", message: `API connection verified: ${count} service rate${count === 1 ? "" : "s"} available for ${country}. Booking uses ${broadReachServices[country]}. No AWB was created. This does not release an earlier unconfirmed booking.` };
   } catch (issue) {
     const failure = safeBroadReachError(issue);
