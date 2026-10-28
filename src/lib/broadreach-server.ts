@@ -1,5 +1,5 @@
 import "server-only";
-import { parseBroadReachResponse, type buildBroadReachShipment, type buildBroadReachRates } from "@/lib/broadreach";
+import { parseBroadReachResponse, type BroadReachSender, type buildBroadReachShipment, type buildBroadReachRates } from "@/lib/broadreach";
 
 export function getBroadReachConfig(organizationId: string | null) {
   if (!organizationId || organizationId !== process.env.BROADREACH_ORGANIZATION_ID) return null;
@@ -8,6 +8,17 @@ export function getBroadReachConfig(organizationId: string | null) {
   const account = process.env.BROADREACH_ACCOUNT;
   if (!username || !password || !account || username.includes(":")) return null;
   return { username, password, account, liveEnabled: process.env.BROADREACH_LIVE_ENABLED === "true" };
+}
+
+export function getBroadReachSender(organizationId: string | null): BroadReachSender | null {
+  if (!organizationId || organizationId !== process.env.BROADREACH_ORGANIZATION_ID) return null;
+  try {
+    const pickup = JSON.parse(process.env.GTA_AIRSKIP_PICKUP_ADDRESS || "null");
+    const fields = ["name", "phone", "address", "address2", "city", "state", "postalCode", "country"] as const;
+    if (!pickup || fields.some(key => typeof pickup[key] !== "string" || pickup[key].length > 300)) return null;
+    if (["name", "address", "city", "state", "postalCode"].some(key => !pickup[key].trim()) || !["CA", "US"].includes(pickup.country)) return null;
+    return Object.fromEntries(fields.map(key => [key, pickup[key].trim()])) as BroadReachSender;
+  } catch { return null; }
 }
 
 export type BroadReachDiagnostic = {
