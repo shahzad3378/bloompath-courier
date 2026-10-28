@@ -145,7 +145,7 @@ export async function recordManualTrackingAction(
   }
 
   let proofPath: string | null = null;
-  if (status === "delivered" && pod instanceof File) {
+  if (status === "delivered" && hasPod && pod instanceof File) {
     const extension = podMimeTypes.get(pod.type)!;
     proofPath = `${profile.organization_id}/${profile.id}/${randomUUID()}.${extension}`;
     const { error: uploadError } = await supabase.storage.from("delivery-proofs").upload(proofPath, pod, { contentType: pod.type, upsert: false });
