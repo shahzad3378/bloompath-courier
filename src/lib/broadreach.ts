@@ -85,7 +85,7 @@ export function buildBroadReachRates(shipment: Pick<Shipment, "weight_kg" | "con
   const country = required(shipment.consignee_country_code, "destination country").toUpperCase();
   const weight = Number(shipment.weight_kg);
   if (!["CA", "US"].includes(country) || !Number.isFinite(weight) || weight <= 0) throw new Error("Rates require a Canada/USA destination and positive shipment weight.");
-  return { rateshipment: { account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm", consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code"), country } } };
+  return { rateshipment: { account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm", consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code").replace(/\s+/g, ""), country } } };
 }
 
 export function parseBroadReachResponse(body: unknown) {
