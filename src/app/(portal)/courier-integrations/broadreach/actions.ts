@@ -81,12 +81,12 @@ export async function checkBroadReachConnection(_state: BroadReachState, form: F
   if (!config || !profile.organization_id) return fail("BroadReach credentials are not configured for this courier company.");
   const supabase = await createClient();
   const { data, error } = await supabase.from("shipments")
-    .select("weight_kg, consignee_postal_code, consignee_country_code")
+    .select("weight_kg, consignee_postal_code, consignee_country_code, consignee_state_province")
     .eq("organization_id", profile.organization_id).eq("tracking_number", field(form, "awb").toUpperCase()).is("deleted_at", null).maybeSingle();
   if (error || !data) return fail("Enter an existing FastDrop AWB to check API connection and service rates.");
   const country = String(data.consignee_country_code ?? "").toUpperCase();
   if (country !== "CA" && country !== "US") return fail("Choose a Canada or USA shipment for this connection check.");
-  if (!data.consignee_postal_code?.trim() || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete the recipient postal code and positive shipment weight before checking rates.");
+  if (!data.consignee_postal_code?.trim() || !data.consignee_state_province?.trim() || !Number.isFinite(Number(data.weight_kg)) || Number(data.weight_kg) <= 0) return fail("Complete the recipient province/state, postal code and positive shipment weight before checking rates.");
   try {
     const sender = getBroadReachSender(profile.organization_id);
     if (!sender) return fail("FastDrop sender address is not configured. Check GTA_AIRSKIP_PICKUP_ADDRESS in Vercel Production.");
