@@ -95,7 +95,7 @@ export function buildBroadReachShipment(shipment: Shipment, account: string, opt
 }
 
 export function buildBroadReachRates(
-  shipment: Pick<Shipment, "weight_kg" | "consignee_country_code" | "consignee_postal_code">,
+  shipment: Pick<Shipment, "weight_kg" | "consignee_country_code" | "consignee_postal_code" | "consignee_state_province">,
   account: string,
   sender: BroadReachSender,
 ) {
@@ -116,7 +116,7 @@ export function buildBroadReachRates(
   if (!/^[A-Z]{2}$/.test(shipper.country)) throw new Error("FastDrop sender country must be a two-letter country code.");
   return { rateshipment: {
     account: required(account, "BroadReach account"), weight, weightUnit: "kg", pieces: 1, dimUnit: "cm",
-    shipper, consignee: { postalCode: required(shipment.consignee_postal_code, "destination postal code").replace(/\s+/g, ""), country },
+    shipper, consignee: { province: required(shipment.consignee_state_province, "destination province/state"), postalCode: required(shipment.consignee_postal_code, "destination postal code").replace(/\s+/g, ""), country },
   } };
 }
 
