@@ -246,3 +246,22 @@ test('server booking enforces live activation and explicit charge confirmation b
   const result = await action.generateBroadReachAwb({}, form);
   assert.equal(result.status, 'error'); assert.match(result.message, /Live booking must be enabled/);
 });
+
+
+test('test-only carrier service rejection retains catalogue code and request ID without echoed data', async () => {
+  const saved = global.fetch;
+  try {
+    global.fetch = async () => Response.json({ error: { code: '127', description: 'private address SECRET', context: 'PRIVATE' }, requestId: '16777' }, { status: 422 });
+    await assert.rejects(server.requestBroadReachLabel(core.buildBroadReachShipment(shipment, '1384', options), { username: 'user', password: 'pass', account: '1384' }), issue => {
+      const safe = server.safeBroadReachError(issue);
+      assert.equal(safe.diagnostic.reason, 'test_rate_unavailable');
+      assert.equal(safe.diagnostic.providerCode, '127');
+      assert.equal(safe.diagnostic.requestId, '16777');
+      assert.match(safe.message, /internal test rate/);
+      assert.doesNotMatch(JSON.stringify(safe), /SECRET|PRIVATE|private address/);
+      return true;
+    });
+    global.fetch = async () => Response.json({ errors: [{ error_code: '108', message: 'private' }], request_id: 'abc-123' }, { status: 422 });
+    await assert.rejects(server.requestBroadReachRates(core.buildBroadReachRates(shipment, '1384', fastDropSender), { username: 'user', password: 'pass', account: '1384' }), issue => issue.diagnostic.providerCode === '108' && issue.diagnostic.requestId === 'abc-123');
+  } finally { global.fetch = saved; }
+});

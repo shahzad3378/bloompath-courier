@@ -23,11 +23,14 @@ export function getBroadReachSender(organizationId: string | null): BroadReachSe
 
 export type BroadReachDiagnostic = {
   stage: "transport" | "http" | "response" | "label" | "rates";
-  reason: "network_error" | "credentials_rejected" | "access_rejected" | "bad_request" | "upstream_error" | "empty_response" | "response_too_large" | "invalid_json" | "invalid_label" | "account_rejected" | "service_rejected" | "address_rejected" | "weight_rejected" | "no_rates" | "label_host_rejected" | "label_download_failed";
+  reason: "test_rate_unavailable" | "network_error" | "credentials_rejected" | "access_rejected" | "bad_request" | "upstream_error" | "empty_response" | "response_too_large" | "invalid_json" | "invalid_label" | "account_rejected" | "service_rejected" | "address_rejected" | "weight_rejected" | "no_rates" | "label_host_rejected" | "label_download_failed";
   httpStatus?: number;
+  providerCode?: string;
+  requestId?: string;
 };
 
 const explanations: Record<BroadReachDiagnostic["reason"], string> = {
+  test_rate_unavailable: "BroadReach cannot generate a local test label for this service without a configured internal test rate. Ask BroadReach to configure a test rate. Live carrier rates do not enable test labels.",
   network_error: "BroadReach could not be reached or timed out.",
   credentials_rejected: "BroadReach rejected the API credentials. Verify the Shipping API username/password; portal login details may be different.",
   access_rejected: "BroadReach rejected API access. The required request header is included; ask BroadReach to verify account/API access.",
@@ -48,7 +51,7 @@ const explanations: Record<BroadReachDiagnostic["reason"], string> = {
 
 export class BroadReachApiError extends Error {
   constructor(public diagnostic: BroadReachDiagnostic, public tracking?: string) {
-    super(explanations[diagnostic.reason] + (diagnostic.httpStatus ? ` HTTP ${diagnostic.httpStatus}.` : ""));
+    super(explanations[diagnostic.reason] + (diagnostic.httpStatus ? ` HTTP ${diagnostic.httpStatus}.` : "") + (diagnostic.providerCode ? ` Provider code ${diagnostic.providerCode}.` : "") + (diagnostic.requestId ? ` BroadReach request ID ${diagnostic.requestId}.` : ""));
     this.name = "BroadReachApiError";
   }
 }
@@ -61,6 +64,8 @@ function providerReason(body: unknown): BroadReachDiagnostic["reason"] | null {
     .find(value => Array.isArray(value) ? value.length > 0 : value && (typeof value !== "object" || Object.keys(value).length > 0));
   if (!error) return null;
   // Match known error categories only. Never return/log arbitrary provider text or PII.
+  const code = providerDetails(body).providerCode;
+  if (code === "127") return "test_rate_unavailable";
   const text = JSON.stringify(error).toLowerCase();
   if (/credential|unauthori|authentication|invalid.*password/.test(text)) return "credentials_rejected";
   if (/account/.test(text)) return "account_rejected";
@@ -68,6 +73,22 @@ function providerReason(body: unknown): BroadReachDiagnostic["reason"] | null {
   if (/postal|zip|address|province/.test(text)) return "address_rejected";
   if (/weight|dimension|length|width|height/.test(text)) return "weight_rejected";
   return "upstream_error";
+}
+
+// Only catalogue codes and opaque request IDs are retained; never provider context,
+// arbitrary messages, credentials, addresses, or echoed request payloads.
+function providerDetails(body: unknown): Pick<BroadReachDiagnostic, "providerCode" | "requestId"> {
+  if (!body || typeof body !== "object") return {};
+  const root = body as Record<string, unknown>;
+  const error = root.error && typeof root.error === "object" ? root.error as Record<string, unknown> : null;
+  const errors = Array.isArray(root.errors) ? root.errors : [];
+  const first = errors.find(value => value && typeof value === "object") as Record<string, unknown> | undefined;
+  const code = String(error?.code ?? first?.error_code ?? "");
+  const request = String(root.requestId ?? root.request_id ?? "");
+  return {
+    ...(/^\d{1,4}$/.test(code) ? { providerCode: code } : {}),
+    ...(/^[A-Za-z0-9_-]{1,80}$/.test(request) ? { requestId: request } : {}),
+  };
 }
 
 async function requestBroadReach(payload: unknown, config: NonNullable<ReturnType<typeof getBroadReachConfig>>) {
@@ -89,7 +110,7 @@ async function requestBroadReach(payload: unknown, config: NonNullable<ReturnTyp
   try { body = JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/, "")); }
   catch { throw new BroadReachApiError({ stage: "response", reason: response.ok ? "invalid_json" : httpStatus === 400 ? "bad_request" : "upstream_error", httpStatus }); }
   const reason = providerReason(body);
-  if (!response.ok || reason) throw new BroadReachApiError({ stage: response.ok ? "response" : "http", reason: reason ?? (httpStatus === 400 ? "bad_request" : "upstream_error"), httpStatus });
+  if (!response.ok || reason) throw new BroadReachApiError({ stage: response.ok ? "response" : "http", reason: reason ?? (httpStatus === 400 ? "bad_request" : "upstream_error"), httpStatus, ...providerDetails(body) });
   return { body, httpStatus };
 }
 
