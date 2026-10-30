@@ -211,3 +211,9 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 
 - `/reports/bloompath-fastdrop` displays customer reference, FastDrop AWB, consignee name, each consignee address component, weight in kg, linked 3PL AWB, and the 3PL partner status.
 - The report provides visible-row selection and select-all controls, retains the Dubai date filter, and exports all matching rows to CSV or Excel.
+
+### Shipment corrections after label creation
+
+- Authorized internal staff can expand Edit shipment on an active shipment and save address/contact/reference corrections after label creation (user request, 30 October 2026). Save does not cancel, rebook, release reservations, or change driver, carrier or status. Carrier labels retain their original details.
+- State / Province uses the single existing `consignee_state_province` column; BroadReach maps this to `consignee.province` for rates and booking. Canada/USA require it. New booking and correction forms share `ShipmentStateField`.
+- Corrections preserve tenant authorization, validate service-zone mapping and reject stale saves.

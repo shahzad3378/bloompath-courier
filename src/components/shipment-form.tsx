@@ -17,6 +17,7 @@ import {
   createShipmentAction,
   type CreateShipmentState,
 } from "@/app/(portal)/shipments/actions";
+import { ShipmentStateField } from "@/components/shipment-state-field";
 import { uaeCities } from "@/lib/shipments";
 import { calculateInternationalWeights, type InternationalMode } from "@/lib/international-bulk";
 
@@ -556,6 +557,8 @@ export function ShipmentForm({
               />
             </label>
 
+            <ShipmentStateField side="sender" countryCode={senderCountry} />
+
             <PostalField
               name="sender_postal_code"
               market={senderMarket}
@@ -677,6 +680,8 @@ export function ShipmentForm({
                 onChange={setConsigneeCity}
               />
             </label>
+
+            <ShipmentStateField side="consignee" countryCode={consigneeCountry} />
 
             <PostalField
               name="consignee_postal_code"

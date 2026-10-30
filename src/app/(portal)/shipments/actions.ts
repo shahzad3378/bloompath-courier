@@ -160,6 +160,13 @@ export async function createShipmentAction(
     30,
   );
 
+  const senderState = optionalText(formData, "sender_state_province", 120);
+  const consigneeState = optionalText(formData, "consignee_state_province", 120);
+  if ((["CA", "US"].includes(senderCountryCode) && !senderState) ||
+      (["CA", "US"].includes(consigneeCountryCode) && !consigneeState)) {
+    return { message: "State / Province is required for Canada and USA addresses." };
+  }
+
   const consigneeArea = optionalText(
     formData,
     "consignee_area",
@@ -497,6 +504,7 @@ export async function createShipmentAction(
     sender_city: senderCity,
     sender_country_code: senderCountryCode,
     sender_postal_code: senderPostalCode,
+    sender_state_province: senderState,
     consignee_name: consigneeName,
     consignee_phone: consigneePhone,
     consignee_alt_phone: optionalText(formData, "consignee_alt_phone", 20),
@@ -506,6 +514,7 @@ export async function createShipmentAction(
     consignee_landmark: optionalText(formData, "consignee_landmark", 200),
     consignee_country_code: consigneeCountryCode,
     consignee_postal_code: consigneePostalCode,
+    consignee_state_province: consigneeState,
     service_zone_id: matchedZone?.id ?? null,
     service_zone_name: matchedZone?.name ?? null,
     parcel_description: parcelDescription,
