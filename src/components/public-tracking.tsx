@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { createElement, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowRight, Ban, ChevronDown, CircleAlert, CircleCheck, ClipboardList, Clock3, LoaderCircle, PackageCheck, PackageOpen, Plane, PlaneLanding, RotateCcw, Search, Truck, Warehouse, type LucideIcon } from "lucide-react";
 
@@ -43,7 +43,7 @@ function formatDate(value: string | null, timeZone: string) {
   if (!value) return "Date unavailable";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Date unavailable";
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-CA", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone,
@@ -71,7 +71,7 @@ export function PublicTracking() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
-  const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Dubai");
+  const [timeZone, setTimeZone] = useState("America/Toronto");
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -209,7 +209,7 @@ export function PublicTracking() {
                 <p className="mt-2 break-all text-xs font-semibold text-[#53645b]">Tracking number: <span className="font-mono text-[#24372f]">{result.trackingNumber}</span></p>
                 {result.podUrl ? <a href={result.podUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-10 items-center rounded-lg bg-[#13734b] px-4 text-sm font-bold text-white transition hover:bg-[#0c5b3b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13734b] focus-visible:ring-offset-2">View proof of delivery</a> : null}
               </div>
-              <span className="grid size-12 shrink-0 place-items-center self-start rounded-full border border-[#d9e7df] bg-[#e8f6ee] text-[#13734b] sm:self-center"><Truck className="size-6" aria-hidden="true" /></span>
+              <span className="grid size-12 shrink-0 place-items-center self-start rounded-full border border-[#d9e7df] bg-[#e8f6ee] text-[#13734b] sm:self-center">{createElement(iconForStatus(result.currentStatus), { className: "size-6", "aria-hidden": true })}</span>
             </div>
 
             <div aria-label="Shipment progress" className="overflow-x-auto py-6">

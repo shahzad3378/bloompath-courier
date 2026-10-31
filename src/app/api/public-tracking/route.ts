@@ -83,12 +83,14 @@ export async function POST(request: Request) {
     const events = rawEvents.filter((event, index) =>
       !/^(shipment\s+)?booked$/i.test(event.status.trim()) || index === originalBooking,
     );
-    const currentStatus = events[0]?.status ?? payload.currentStatus;
+    // Delivery is terminal even when an older carrier scan arrives late.
+    const delivered = events.find((event) => /^delivered$/i.test(event.status.trim()));
+    const currentStatus = delivered?.status ?? events[0]?.status ?? payload.currentStatus;
 
     return json({
       trackingNumber: typeof payload.trackingNumber === "string" ? payload.trackingNumber : trackingNumber,
       currentStatus,
-      updatedAt: typeof payload.updatedAt === "string" ? payload.updatedAt : null,
+      updatedAt: delivered?.timestamp ?? events[0]?.timestamp ?? (typeof payload.updatedAt === "string" ? payload.updatedAt : null),
       events,
       podUrl: typeof payload.podUrl === "string" && payload.podUrl.startsWith("https://") ? payload.podUrl : null,
     });

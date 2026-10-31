@@ -74,7 +74,7 @@ export async function recordManualTrackingAction(
   const supabase = await createClient();
   const { data: shipment, error: shipmentError } = await supabase
     .from("shipments")
-    .select("id, status, sender_country_code, consignee_country_code")
+    .select("id, status, customer_tracking_status, sender_country_code, consignee_country_code")
     .eq("tracking_number", tracking)
     .eq("organization_id", profile.organization_id)
     .is("deleted_at", null)
@@ -94,7 +94,16 @@ export async function recordManualTrackingAction(
     .limit(1)
     .maybeSingle();
   if (latestEventError) return { status: "error", message: "Shipment tracking history could not be checked. Refresh and try again." };
-  if (shipment.status === "delivered" || latestEvent?.status === "delivered") {
+  const { data: deliveredEvent, error: deliveredCheckError } = await supabase
+    .from("customer_tracking_events")
+    .select("status")
+    .eq("shipment_id", shipment.id)
+    .eq("organization_id", profile.organization_id)
+    .eq("status", "delivered")
+    .limit(1)
+    .maybeSingle();
+  if (deliveredCheckError) return { status: "error", message: "Delivery history could not be checked. Refresh and try again." };
+  if (shipment.status === "delivered" || shipment.customer_tracking_status === "delivered" || latestEvent?.status === "delivered" || deliveredEvent?.status === "delivered") {
     return { status: "error", message: `AWB ${tracking} is already delivered. No further tracking operation is allowed.` };
   }
   if (status === "booked") {
