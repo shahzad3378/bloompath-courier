@@ -6,7 +6,7 @@ import { readBulkFileRows } from "@/lib/bulk-shipments";
 import { customerTrackingLabels, manualTrackingStatuses, type CustomerTrackingStatus } from "@/lib/customer-tracking";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { inferTrackingTimeZone, isTrackingTimeZone, type TrackingTimeZone } from "@/lib/tracking-timezones";
+import { inferTrackingTimeZone, isTrackingTimeZone, trackingDateCellToLocal, type TrackingTimeZone } from "@/lib/tracking-timezones";
 
 const roles = ["super_admin", "operations_admin", "warehouse_staff"] as const;
 const maxBytes = 5 * 1024 * 1024;
@@ -63,7 +63,7 @@ export async function bulkRecordManualTrackingAction(
     row,
     trackingNumber: cell(values[columns.get("tracking_number") ?? -1]).toUpperCase(),
     status: cell(values[columns.get("status") ?? -1]).toLowerCase(),
-    occurredAt: cell(values[columns.get("occurred_at") ?? -1]),
+    occurredAt: values[columns.get("occurred_at") ?? -1],
     timeZone: cell(values[columns.get("time_zone") ?? -1]),
   }));
   const counts = new Map<string, number>();
@@ -99,18 +99,8 @@ export async function bulkRecordManualTrackingAction(
         ? null
         : inferTrackingTimeZone(shipment, status);
     if (!zone) { result(false, "Use a supported time_zone value from the template instructions."); continue; }
-    let localDateTime = occurredAt;
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(occurredAt)) {
-      const date = new Date(occurredAt);
-      if (!Number.isNaN(date.getTime())) {
-        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
-        const v = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-        localDateTime = `${v.year}-${v.month}-${v.day}T${v.hour}:${v.minute}`;
-      }
-    } else {
-      localDateTime = occurredAt.replace(" ", "T").slice(0, 16);
-    }
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(localDateTime)) { result(false, "Use YYYY-MM-DDTHH:mm for occurred_at."); continue; }
+    const localDateTime = trackingDateCellToLocal(occurredAt, zone);
+    if (!localDateTime) { result(false, "Use a valid YYYY-MM-DDTHH:mm for occurred_at."); continue; }
 
     const rowForm = new FormData();
     rowForm.set("tracking_number", trackingNumber);

@@ -120,3 +120,21 @@ export function inferTrackingTimeZone(shipment: ShipmentTimeZoneInput, status: s
   const canadianEndpoint = endpoints.find((endpoint) => endpoint.country?.toUpperCase() === "CA");
   return canadianEndpoint ? canadaZone(canadianEndpoint.city, canadianEndpoint.postal ?? "") : "Asia/Dubai";
 }
+
+// Excel dates are timezone-free wall times. The XLSX reader uses a Date as
+// a container for those digits; it does not turn them into UTC instants.
+export function trackingDateCellToLocal(value: unknown, timeZone: TrackingTimeZone): string | null {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    // Excel serial fractions can decode a minute boundary as xx:09:59.999.
+    return new Date(Math.round(value.getTime() / 60_000) * 60_000).toISOString().slice(0, 16);
+  }
+  const text = String(value ?? "").trim().replace(" ", "T");
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(text)) {
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : formatDateTimeLocal(date, timeZone);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:00)?$/.test(text)) return null;
+  const local = text.slice(0, 16);
+  return parseDateTimeLocal(local, timeZone) ? local : null;
+}

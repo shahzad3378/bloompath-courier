@@ -12,9 +12,10 @@ function loadAction({ shipment, latestEvent = null, booking = null } = {}) {
   m.filename = path.resolve(file);
   m.paths = Module._nodeModulePaths(path.dirname(m.filename));
   m.require = (name) => {
+    if (name === 'node:crypto') return require(name);
     if (name === 'next/cache') return { revalidatePath() {} };
     if (name === '@/lib/auth') return { async requireProfile() { return { id: 'staff-1', organization_id: 'org-1' }; } };
-    if (name === '@/lib/customer-tracking') return { customerTrackingLabels: {}, manualTrackingStatuses: ['booked','at_warehouse','delivered'] };
+    if (name === '@/lib/customer-tracking') return { customerTrackingLabels: {delivered: "Delivered"}, manualTrackingStatuses: ['booked','at_warehouse','delivered'] };
     if (name === '@/lib/tracking-timezones') return {
       isTrackingTimeZone: (v) => v === 'Asia/Dubai',
       parseDateTimeLocal: () => '2026-10-24T10:00:00.000Z',
@@ -29,7 +30,7 @@ function loadAction({ shipment, latestEvent = null, booking = null } = {}) {
         async maybeSingle() {
           calls.push({ table, ...this.filters, selected: this.selected });
           if (table === 'shipments') return { data: shipment, error: null };
-          return { data: this.selected === 'id' ? booking : latestEvent, error: null };
+          return { data: this.filters.status === 'delivered' ? (latestEvent?.status === 'delivered' ? latestEvent : null) : this.selected === 'id' ? booking : latestEvent, error: null };
         },
         async insert() { calls.push({ table, inserted: true }); return { error: null }; },
       }; return query;
