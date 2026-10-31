@@ -55,8 +55,8 @@ function getMilestoneIndex(events: TrackingEvent[], currentStatus: string) {
     const value = status.toLowerCase();
     if (["out for delivery", "undelivered", "delivery attempt"].some((term) => value.includes(term))) return 3;
     if (value.includes("delivered") && !value.includes("undelivered")) return 4;
-    if (["transit", "airport", "customs", "clearance", "departed", "arrived"].some((term) => value.includes(term))) return 2;
     if (["warehouse", "received", "picked up", "collected"].some((term) => value.includes(term))) return 1;
+    if (["transit", "airport", "customs", "clearance", "departed", "arrived"].some((term) => value.includes(term))) return 2;
     if (["book", "label created"].some((term) => value.includes(term))) return 0;
     return -1;
   }
