@@ -39,3 +39,24 @@ test('late OFD cannot replace delivered or create post-delivery movement',async(
  assert.equal(r.events.at(-1).timestamp,'2026-10-11T12:00:00Z');
  assert.match(r.podUrl,/^https:\/\//);
 });
+test('customs warehouse scan suppresses generic receipt for same stay',async()=>{
+ const r=await track([
+  {status:'at_warehouse',created_at:'2026-10-20T18:44:00Z'},
+  {status:'customs_clearance_completed_warehouse_scanned',created_at:'2026-10-15T20:38:00Z'},
+  {status:'arrived_at_destination_airport_customs_started',created_at:'2026-10-15T19:25:00Z'},
+  {status:'booked',created_at:'2026-10-11T20:37:00Z'},
+ ]);
+ assert.equal(r.currentStatus,'Customs clearance completed — shipment scanned in warehouse');
+ assert.equal(r.updatedAt,'2026-10-15T20:38:00Z');
+ assert.equal(r.events.some(e=>e.status==='Arrived at warehouse'),false);
+});
+test('warehouse receipt after delivery attempt remains visible',async()=>{
+ const r=await track([
+  {status:'at_warehouse',created_at:'2026-10-21T18:00:00Z'},
+  {status:'undelivered',created_at:'2026-10-21T17:00:00Z'},
+  {status:'out_for_delivery',created_at:'2026-10-21T12:00:00Z'},
+  {status:'customs_clearance_completed_warehouse_scanned',created_at:'2026-10-15T20:38:00Z'},
+ ]);
+ assert.equal(r.currentStatus,'Arrived at warehouse');
+ assert.equal(r.events.length,4);
+});

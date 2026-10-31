@@ -117,7 +117,24 @@ Deno.serve(async (request: Request) => {
     const eventResponse = await fetch(`${PROJECT_URL}/rest/v1/customer_tracking_events?${eventParams}`, { headers });
     if (!eventResponse.ok) return response({ error: "Tracking is temporarily unavailable." }, 503, origin);
     const rawEvents = await eventResponse.json();
-    const events = (Array.isArray(rawEvents) ? rawEvents : [])
+    // A customs-cleared warehouse scan already records receipt into this
+    // warehouse. Hide subsequent generic receipt scans for that same stay.
+    // Dispatch/transit/return movement starts a new stay so reattempt receipts
+    // remain visible. Keep all original audit rows and scan timestamps.
+    let warehouseAlreadyScanned = false;
+    const warehouseEvents = (Array.isArray(rawEvents) ? rawEvents : [])
+      .slice().reverse().filter((event) => {
+        if (event.status === "customs_clearance_completed_warehouse_scanned") {
+          warehouseAlreadyScanned = true;
+        } else if (["in_transit", "out_for_delivery", "undelivered",
+          "return_initiated", "returned_to_shipper"].includes(event.status)) {
+          warehouseAlreadyScanned = false;
+        } else if (event.status === "at_warehouse" && warehouseAlreadyScanned) {
+          return false;
+        }
+        return true;
+      }).reverse();
+    const events = warehouseEvents
       .filter((event) => typeof event.status === "string")
       .map((event) => ({ status: labelFor(event.status), timestamp: event.created_at }))
       .filter((event, index, list) => event.status === "Shipment booked" || index === 0 || event.status !== list[index - 1].status);
