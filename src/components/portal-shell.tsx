@@ -144,6 +144,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: FileText,
         children: [
           { label: "Delivery Reports", href: "/reports" },
+          { label: "Activity Log", href: "/activity-log" },
           { label: "BloomPath FastDrop", href: "/reports/bloompath-fastdrop" },
           { label: "Canada Customs", href: "/shipments/customs-clearance" },
           { label: "Revenue Reports", href: "/reports/revenue" },
@@ -238,7 +239,8 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, isCana
       .map((group) => ({
         ...group,
         children: group.children.filter((child) =>
-          (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
+          (child.href !== "/activity-log" || canManageUsers)
+          && (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
           && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
           && (child.href !== "/fulfillment/rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
           && (child.href !== "/reports/bloompath-fastdrop" || isCanadaPortal)

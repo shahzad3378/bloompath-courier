@@ -217,3 +217,11 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - Authorized internal staff can expand Edit shipment on an active shipment and save address/contact/reference corrections after label creation (user request, 30 October 2026). Save does not cancel, rebook, release reservations, or change driver, carrier or status. Carrier labels retain their original details.
 - State / Province uses the single existing `consignee_state_province` column; BroadReach maps this to `consignee.province` for rates and booking. Canada/USA require it. New booking and correction forms share `ShipmentStateField`.
 - Corrections preserve tenant authorization, validate service-zone mapping and reject stale saves.
+
+
+## Activity log
+
+- `/activity-log` is read-only for active tenant Super Admins and Operations Admins, enforced by both the server route and database RLS. Source: current task authorization and existing tenant administrator model in `src/lib/auth.ts`.
+- Allowlisted operational field changes are captured in database triggers. No portal role receives write/delete permission on audit rows. Passwords, API keys, booking payloads and bank credentials are excluded. Source: `backend_activity_log` migration.
+- The 50-row list preserves filters and pagination in the URL. It provides AWB/reference search, user/module filters and explicit display timezone; date boundaries are labeled UTC. Existing shared panel/input/button styles and native selects/date controls are retained.
+- New entries separate actual database save time from backdated event time. Historical shipment events/manual tracking are labeled with unknown save time; historical actor names reflect the current retained profile. Logs establish the recorded system action, not independent proof of physical custody.
