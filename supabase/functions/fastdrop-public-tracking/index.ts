@@ -119,14 +119,14 @@ Deno.serve(async (request: Request) => {
     const rawEvents = await eventResponse.json();
     // A customs-cleared warehouse scan already records receipt into this
     // warehouse. Hide subsequent generic receipt scans for that same stay.
-    // Dispatch/transit/return movement starts a new stay so reattempt receipts
+    // Delivery/return movement starts a new stay so reattempt receipts
     // remain visible. Keep all original audit rows and scan timestamps.
     let warehouseAlreadyScanned = false;
     const warehouseEvents = (Array.isArray(rawEvents) ? rawEvents : [])
       .slice().reverse().filter((event) => {
         if (event.status === "customs_clearance_completed_warehouse_scanned") {
           warehouseAlreadyScanned = true;
-        } else if (["in_transit", "out_for_delivery", "undelivered",
+        } else if (["out_for_delivery", "undelivered",
           "return_initiated", "returned_to_shipper"].includes(event.status)) {
           warehouseAlreadyScanned = false;
         } else if (event.status === "at_warehouse" && warehouseAlreadyScanned) {

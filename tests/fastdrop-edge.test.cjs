@@ -60,3 +60,25 @@ test('warehouse receipt after delivery attempt remains visible',async()=>{
  assert.equal(r.currentStatus,'Arrived at warehouse');
  assert.equal(r.events.length,4);
 });
+
+test('transit after customs receipt is not reopened by a duplicate generic warehouse scan',async()=>{
+ const r=await track([
+  {status:'at_warehouse',created_at:'2026-10-20T18:44:40.853679Z'},
+  {status:'in_transit',created_at:'2026-10-20T17:23:00Z'},
+  {status:'customs_clearance_completed_warehouse_scanned',created_at:'2026-10-15T20:32:00Z'},
+  {status:'arrived_at_destination_airport_customs_started',created_at:'2026-10-15T19:19:00Z'},
+  {status:'booked',created_at:'2026-10-11T20:37:31Z'},
+ ]);
+ assert.equal(r.currentStatus,'In transit');
+ assert.equal(r.updatedAt,'2026-10-20T17:23:00Z');
+ assert.equal(r.events.length,4);
+ assert.equal(r.events.some(e=>e.status==='Arrived at warehouse'),false);
+});
+test('ordinary transit and warehouse arrival without a customs receipt stay visible',async()=>{
+ const r=await track([
+  {status:'at_warehouse',created_at:'2026-10-20T18:44:00Z'},
+  {status:'in_transit',created_at:'2026-10-20T17:23:00Z'},
+ ]);
+ assert.equal(r.currentStatus,'Arrived at warehouse');
+ assert.equal(r.events.length,2);
+});
