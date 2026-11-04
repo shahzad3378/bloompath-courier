@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 const vm = require('node:vm');
-async function track(events, proof = null) {
+async function track(events, proof = null, attemptLookupFails = false) {
   let handler;
   const source = fs.readFileSync('supabase/functions/fastdrop-public-tracking/index.ts','utf8').replace(/^import .*;\n/, '');
   const context = {
@@ -11,7 +11,7 @@ async function track(events, proof = null) {
     Request, Response, URL, URLSearchParams, console,
     fetch: async (url) => {
       if (url.includes('/shipments?')) return Response.json([{id:'shipment',tracking_number:'FDTEST',updated_at:'2026-10-30T00:00:00Z'}]);
-      if (url.includes('/delivery_attempts?')) return Response.json([]);
+      if (url.includes('/delivery_attempts?')) return attemptLookupFails ? new Response('{}',{status:503}) : Response.json([]);
       if (url.includes('/object/sign/')) return Response.json({signedURL:'/object/sign/delivery-proofs/test?token=test'});
       if (url.includes('select=proof_path')) return Response.json(proof ? [{proof_path:proof}] : []);
       return Response.json(events);
@@ -81,4 +81,10 @@ test('ordinary transit and warehouse arrival without a customs receipt stay visi
  ]);
  assert.equal(r.currentStatus,'Arrived at warehouse');
  assert.equal(r.events.length,2);
+});
+
+test('manual POD remains available when driver-attempt lookup fails',async()=>{
+ const r=await track([{status:'delivered',created_at:'2026-10-22T12:33:00Z'}],'org/user/proof.jpg',true);
+ assert.equal(r.currentStatus,'Delivered');
+ assert.match(r.podUrl,/^https:\/\//);
 });

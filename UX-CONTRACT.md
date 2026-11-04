@@ -225,3 +225,10 @@ Ready pickup manifests can be assigned to an active rider. After custody scans b
 - Allowlisted operational field changes are captured in database triggers. No portal role receives write/delete permission on audit rows. Passwords, API keys, booking payloads and bank credentials are excluded. Source: `backend_activity_log` migration.
 - The 50-row list preserves filters and pagination in the URL. It provides AWB/reference search, user/module filters and explicit display timezone; date boundaries are labeled UTC. Existing shared panel/input/button styles and native selects/date controls are retained.
 - New entries separate actual database save time from backdated event time. Historical shipment events/manual tracking are labeled with unknown save time; historical actor names reflect the current retained profile. Logs establish the recorded system action, not independent proof of physical custody.
+
+
+## Tracking scan correction
+
+- Edit shipment includes an administrator-only correction form for existing customer tracking scans. It uses the existing native select/date controls and inline feedback; scan, timezone, local date/time, reason and explicit confirmation are required. The database enforces active tenant Super Admin/Operations Admin access, locking and optimistic versions.
+- Corrections update the selected scan; Activity Log retains old/new values and actual save time, and the shipment timeline records the reason. Tracking projection is recomputed atomically. Physical custody remains scan-driven. Completed shipment status changes require finance review; unbilled delivery date corrections also align the shipment, ledger and uncleared COD dates. Settled/invoiced/cleared deliveries are blocked. Source: `correct_shipment_tracking_event` migration.
+- Public tracking displays an inline proof photo plus a full-size link when a signed POD URL is available. Signed media bypasses image optimization caching.

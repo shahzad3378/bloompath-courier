@@ -171,8 +171,9 @@ Deno.serve(async (request: Request) => {
       });
       const proofResponse = await fetch(`${PROJECT_URL}/rest/v1/delivery_attempts?${proofParams}`, { headers });
       if (!proofResponse.ok) console.error("POD proof lookup failed", { shipmentId: shipment.id, status: proofResponse.status });
-      if (proofResponse.ok) {
-        const proofs = await proofResponse.json();
+      {
+        // A failed delivery-attempt lookup must not hide a separately uploaded manual POD.
+        const proofs = proofResponse.ok ? await proofResponse.json() : [];
         let proofPath = Array.isArray(proofs) ? proofs[0]?.proof_path : null;
         if (!proofPath) {
           const manualParams = new URLSearchParams({

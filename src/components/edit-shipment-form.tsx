@@ -1,11 +1,13 @@
 "use client";
 
+import { CorrectTrackingForm } from "@/components/correct-tracking-form";
+import type { CustomerTrackingEvent } from "@/lib/customer-tracking";
 import { useActionState } from "react";
 import { editShipmentAction } from "@/app/(portal)/shipments/edit-action";
 import { ShipmentStateField } from "@/components/shipment-state-field";
 import type { Shipment } from "@/lib/shipments";
 
-export function EditShipmentForm({ shipment }: { shipment: Shipment }) {
+export function EditShipmentForm({ shipment, trackingEvents = [], canCorrectTracking = false }: { shipment: Shipment; trackingEvents?: CustomerTrackingEvent[]; canCorrectTracking?: boolean }) {
   const [state, action, pending] = useActionState(editShipmentAction, { message: "" });
   function field(key: keyof Shipment, label: string, maxLength: number, required = false) {
     return <label key={key} className="text-xs font-bold text-[#516159]">{label}{required ? " *" : ""}
@@ -40,5 +42,6 @@ export function EditShipmentForm({ shipment }: { shipment: Shipment }) {
       {state.message ? <p role="alert" className="text-sm font-semibold text-red-700">{state.message}</p> : null}
       <button disabled={pending} className="h-11 min-w-36 rounded-xl bg-[#13734b] px-5 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">{pending ? "Saving…" : "Save changes"}</button>
     </form>
+    {canCorrectTracking ? <div className="mt-5"><CorrectTrackingForm shipment={shipment} events={trackingEvents} /></div> : null}
   </details>;
 }

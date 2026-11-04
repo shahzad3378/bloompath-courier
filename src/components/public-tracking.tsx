@@ -212,6 +212,16 @@ export function PublicTracking() {
               <span className="grid size-12 shrink-0 place-items-center self-start rounded-full border border-[#d9e7df] bg-[#e8f6ee] text-[#13734b] sm:self-center">{createElement(iconForStatus(result.currentStatus), { className: "size-6", "aria-hidden": true })}</span>
             </div>
 
+            {result.podUrl ? <section aria-label="Proof of delivery" className="mt-5 rounded-xl border border-[#d9e7df] bg-[#f7faf8] p-4">
+              <h3 className="text-sm font-bold text-[#24372f]">Proof of delivery</h3>
+              <a href={result.podUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="Open full proof of delivery photo">
+                {/* Signed proof URLs are short-lived and must bypass image optimization caching. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={result.podUrl} alt="Proof of delivery photo for this shipment" width={640} height={480} className="max-h-80 w-full rounded-lg bg-white object-contain" />
+              </a>
+              <p className="mt-2 text-xs text-[#6b7b72]">Select the photo to open the full proof of delivery.</p>
+            </section> : null}
+
             <div aria-label="Shipment progress" className="overflow-x-auto py-6">
               <ol className="mx-auto flex min-w-[620px] max-w-4xl items-start">
                 {milestones.map(({ label, icon: StepIcon }, index) => {
