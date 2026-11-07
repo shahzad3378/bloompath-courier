@@ -53,16 +53,18 @@ export function GtaBulkBooking({ configured, test, liveEnabled, pickup }: { conf
     if (busyRef.current || !successful.length) return;
     busyRef.current = true; setDownloading(true); setMessage("");
     try {
-      const { default: JSZip } = await import("jszip"); const zip = new JSZip(); let size = 0;
-      for (const [i, row] of successful.entries()) {
-        const response = await fetch(`/api/courier-integrations/gta-airskip/labels/${row.bookingId}?format=stored`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`Could not download ${row.awb}. Use its individual label link.`);
-        const blob = await response.blob(); size += blob.size;
-        if (size > 50 * 1024 * 1024) throw new Error("Labels exceed 50 MB. Download them individually or use smaller batches.");
-        const type = response.headers.get("content-type") ?? "", ext = type.includes("pdf") ? "pdf" : type.includes("png") ? "png" : "zpl";
-        zip.file(`${i + 1}-${row.awb.replace(/[^A-Za-z0-9_-]/g, "_")}.${ext}`, await blob.arrayBuffer());
+      const response = await fetch("/api/courier-integrations/gta-airskip/labels/bulk", {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ ids: successful.map(row => row.bookingId) }),
+      });
+      if (response.redirected || response.headers.get("content-type")?.includes("text/html")) {
+        throw new Error("Session expired or download was redirected. Sign in again; no new booking was created.");
       }
-      zip.file("results.csv", gtaResultsCsv(results)); download(await zip.generateAsync({ type: "blob" }), "gta-labels.zip"); setMessage(`Downloaded ${successful.length} saved labels with the result report.`);
+      if (!response.ok) throw new Error((await response.text()) || "GTA PDF labels could not be prepared.");
+      const blob = await response.blob();
+      if (blob.size > 50 * 1024 * 1024) throw new Error("PDF exceeds 50 MB. Download smaller batches.");
+      download(blob, "gta-airskip-4x6-labels.pdf");
+      setMessage(`Downloaded ${successful.length} GTA labels as a combined 4×6 PDF. Result report is available separately.`);
     } catch (issue) { setMessage(issue instanceof Error ? issue.message : "Download failed. Use individual label links."); }
     finally { busyRef.current = false; setDownloading(false); }
   }
