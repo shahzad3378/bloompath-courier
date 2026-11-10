@@ -635,6 +635,46 @@ export async function recordInternationalTrackingMilestoneAction(formData: FormD
   redirect(`/shipments/${shipmentId}?internationalTracking=updated`);
 }
 
+export async function recordPartnerSortHubAction(formData: FormData) {
+  const profile = await requireProfile(internalRoles);
+  const shipmentId = String(formData.get("shipment_id") ?? "");
+  const status = String(formData.get("partner_status") ?? "");
+  const steps = ["handed_over_to_sorting_hub", "scanned_at_sort_hub", "in_transit_to_destination_sorting_hub"] as const;
+  if (!/^\\d+$/.test(shipmentId)) redirect("/shipments");
+  if (!profile.organization_id || !steps.includes(status as typeof steps[number])) redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  const supabase = await createClient();
+  const { data: shipment } = await supabase.from("shipments")
+    .select("id,status,customer_tracking_status,deleted_at")
+    .eq("id", shipmentId).eq("organization_id", profile.organization_id).maybeSingle();
+  if (!shipment || shipment.deleted_at || ["delivered","returned_to_shipper","cancelled"].includes(shipment.status) ||
+    ["delivered","returned_to_shipper","cancelled"].includes(shipment.customer_tracking_status ?? "")) {
+    redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  }
+  const { data: links } = await supabase.from("third_party_shipment_links")
+    .select("shipment_id").eq("shipment_id", shipmentId).limit(1);
+  if (!links?.length) redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  const { data: events, error: eventsError } = await supabase.from("customer_tracking_events")
+    .select("status").eq("shipment_id", shipmentId).eq("organization_id", profile.organization_id);
+  if (eventsError) redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  const completed = new Set((events ?? []).map(e => e.status));
+  const stepIndex = steps.indexOf(status as typeof steps[number]);
+  if (completed.has(status)) redirect(`/shipments/${shipmentId}?partnerTracking=updated`);
+  if (!completed.has("customs_clearance_completed_warehouse_scanned") ||
+    (stepIndex > 0 && !completed.has(steps[stepIndex-1])) ||
+    (stepIndex < 2 && steps.slice(stepIndex+1).some(s => completed.has(s))) ||
+    ["out_for_delivery","delivered","undelivered","return_initiated","returned_to_shipper"].some(s => completed.has(s))) {
+    redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  }
+  const { error } = await supabase.from("customer_tracking_events").insert({
+    shipment_id: shipment.id, organization_id: profile.organization_id, status,
+    source: "manual", recorded_by: profile.id
+  });
+  if (error) redirect(`/shipments/${shipmentId}?partnerTracking=error`);
+  revalidatePath(`/shipments/${shipmentId}`);
+  revalidatePath("/shipments");
+  redirect(`/shipments/${shipmentId}?partnerTracking=updated`);
+}
+
 export async function archiveShipmentAction(
   _previousState: ArchiveShipmentState,
   formData: FormData,
