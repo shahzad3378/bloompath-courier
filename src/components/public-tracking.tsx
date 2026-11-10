@@ -30,6 +30,7 @@ function iconForStatus(status: string): LucideIcon {
   if (value.includes("out for delivery")) return Truck;
   if (value.includes("customs clearance completed")) return Warehouse;
   if (value.includes("customs") || value.includes("airport")) return PlaneLanding;
+  if (value.includes("sort hub") || value.includes("sorting hub")) return Warehouse;
   if (value.includes("transit")) return Plane;
   if (value.includes("warehouse") || value.includes("received")) return Warehouse;
   if (value.includes("picked up")) return PackageOpen;
@@ -55,7 +56,7 @@ function getMilestoneIndex(events: TrackingEvent[], currentStatus: string) {
     const value = status.toLowerCase();
     if (["out for delivery", "undelivered", "delivery attempt"].some((term) => value.includes(term))) return 3;
     if (value.includes("delivered") && !value.includes("undelivered")) return 4;
-    if (["warehouse", "received", "picked up", "collected"].some((term) => value.includes(term))) return 1;
+    if (["sorting hub", "sort hub", "warehouse", "received", "picked up", "collected"].some((term) => value.includes(term))) return 1;
     if (["transit", "airport", "customs", "clearance", "departed", "arrived"].some((term) => value.includes(term))) return 2;
     if (["book", "label created"].some((term) => value.includes(term))) return 0;
     return -1;
