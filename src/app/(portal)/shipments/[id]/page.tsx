@@ -80,7 +80,7 @@ export default async function ShipmentDetailsPage({
   const partnerSteps = ["handed_over_to_sorting_hub", "scanned_at_sort_hub", "in_transit_to_destination_sorting_hub"] as const;
   const partnerCompleted = new Set(trackingEvents.map(event => event.status));
   const { data: partnerLinks } = await supabase.from("third_party_shipment_links").select("shipment_id").eq("shipment_id", id).limit(1);
-  const partnerTrackingEnabled = Boolean(partnerLinks?.length) && internalRoles.includes(profile.role) && !shipment.deleted_at &&
+  const partnerTrackingEnabled = Boolean(partnerLinks?.length) && internalRoles.some(role => role === profile.role) && !shipment.deleted_at &&
     !["delivered","returned_to_shipper","cancelled"].includes(shipment.status) &&
     !["delivered","returned_to_shipper","cancelled"].includes(shipment.customer_tracking_status ?? "");
   const partnerNextStep = partnerSteps.find(step => !partnerCompleted.has(step));
