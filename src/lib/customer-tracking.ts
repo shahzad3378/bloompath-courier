@@ -9,6 +9,9 @@ export type InternationalTrackingMilestone = (typeof internationalTrackingMilest
 export const customerTrackingLabels = {
   ...statusLabels,
   in_transit: "In transit",
+  handed_over_to_sorting_hub: "Handed Over to Sorting Hub",
+  scanned_at_sort_hub: "Scanned at Sort Hub",
+  in_transit_to_destination_sorting_hub: "In Transit to Destination Sorting Hub",
   arrived_at_destination_airport_customs_started: "Arrived at destination airport — customs clearance started",
   customs_clearance_completed_warehouse_scanned: "Customs clearance completed — shipment scanned in warehouse",
 } as const;
@@ -19,6 +22,9 @@ export const manualTrackingStatuses = [
   "picked_up",
   "at_warehouse",
   "in_transit",
+  "handed_over_to_sorting_hub",
+  "scanned_at_sort_hub",
+  "in_transit_to_destination_sorting_hub",
   "arrived_at_destination_airport_customs_started",
   "customs_clearance_completed_warehouse_scanned",
   "out_for_delivery",
