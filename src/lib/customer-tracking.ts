@@ -16,7 +16,7 @@ export const customerTrackingLabels = {
   customs_clearance_completed_warehouse_scanned: "Customs clearance completed — shipment scanned in warehouse",
 } as const;
 export type CustomerTrackingStatus = keyof typeof customerTrackingLabels;
-export const manualTrackingStatuses = [
+export const manualTrackingStatuses: readonly CustomerTrackingStatus[] = [
   "booked",
   "ready_for_pickup",
   "picked_up",
