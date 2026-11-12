@@ -18,17 +18,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const portalName = isFastDrop ? "Shipper Portal" : "Operations Control System";
 
   return (
-    <main className={`grid min-h-screen lg:grid-cols-[1.08fr_0.92fr] ${isFastDrop ? "bg-white" : "bg-[#eef4f1]"}`}>
-      <section className={`relative hidden overflow-hidden p-14 lg:flex lg:flex-col lg:justify-between ${isFastDrop ? "border-r border-[#dce4ef] bg-white text-[#17231e]" : "bg-[#10291f] text-white"}`}>
+    <main className={`grid min-h-screen lg:grid-cols-[1.08fr_0.92fr] ${isFastDrop ? "bg-white" : "bg-[#f4f1ea]"}`}>
+      <section className={`relative hidden overflow-hidden p-14 lg:flex lg:flex-col lg:justify-between ${isFastDrop ? "border-r border-[#dce4ef] bg-white text-[#17231e]" : "bg-[#1b1a17] text-white"}`}>
         <div className={`absolute -right-24 -top-20 size-96 rounded-full border ${isFastDrop ? "border-[#174ea6]/10" : "border-white/10"}`} />
-        <div className={`absolute -bottom-36 -left-20 size-[32rem] rounded-full blur-3xl ${isFastDrop ? "bg-[#174ea6]/[0.06]" : "bg-[#1a6f4c]/35"}`} />
+        <div className={`absolute -bottom-36 -left-20 size-[32rem] rounded-full blur-3xl ${isFastDrop ? "bg-[#174ea6]/[0.06]" : "bg-[#ff5a1f]/20"}`} />
         <div className="relative z-10">
           <div className="flex items-center gap-3">
-            <div className={`grid size-11 place-items-center rounded-xl text-lg font-black text-white ${isFastDrop ? "bg-[#1f4e78]" : "bg-[#36b779]"}`}>{isFastDrop ? "FD" : "BP"}</div>
+            <div className={`grid size-11 place-items-center rounded-xl text-lg font-black text-white ${isFastDrop ? "bg-[#1f4e78]" : "bg-[#ff5a1f]"}`}>{isFastDrop ? "FD" : "BP"}</div>
             <div><p className="text-lg font-bold tracking-tight">{brandName}</p><p className={`text-xs ${isFastDrop ? "text-[#68778b]" : "text-white/55"}`}>{portalName}</p></div>
           </div>
           <div className="mt-24 max-w-xl">
-            <p className={`mb-4 text-sm font-bold uppercase tracking-[0.22em] ${isFastDrop ? "text-[#d62828]" : "text-[#70d4a2]"}`}>{isFastDrop ? "Fast Drop shipper access" : "One operational truth"}</p>
+            <p className={`mb-4 text-sm font-bold uppercase tracking-[0.22em] ${isFastDrop ? "text-[#d62828]" : "text-[#ffab86]"}`}>{isFastDrop ? "Fast Drop shipper access" : "One operational truth"}</p>
             <h1 className="text-5xl font-bold leading-[1.08] tracking-[-0.04em]">{isFastDrop ? "Manage your Fast Drop shipments." : "Every shipment. Every scan. Fully controlled."}</h1>
             <p className={`mt-6 max-w-lg text-lg leading-8 ${isFastDrop ? "text-[#5d6b7b]" : "text-white/65"}`}>{isFastDrop ? "Sign in to book shipments and follow delivery updates through your Fast Drop shipper account." : "Manage warehouse intake, dispatch, delivery attempts, returns, COD and invoicing from one secure platform."}</p>
           </div>
@@ -43,11 +43,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="flex items-center justify-center px-5 py-10 sm:px-10">
         <div className="fade-up w-full max-w-md">
           <div className="mb-10 flex items-center gap-3 lg:hidden">
-            <div className={`grid size-10 place-items-center rounded-xl font-black text-white ${isFastDrop ? "bg-[#1f4e78]" : "bg-[#13734b]"}`}>{isFastDrop ? "FD" : "BP"}</div>
+            <div className={`grid size-10 place-items-center rounded-xl font-black text-white ${isFastDrop ? "bg-[#1f4e78]" : "bg-[#ff5a1f]"}`}>{isFastDrop ? "FD" : "BP"}</div>
             <div><p className="font-bold">{brandName}</p><p className="text-xs text-[#718079]">{portalName}</p></div>
           </div>
-          <div className="rounded-[28px] border border-white bg-white p-7 shadow-[0_28px_70px_rgba(25,55,42,0.11)] sm:p-10">
-            <div className={`flex size-12 items-center justify-center rounded-2xl ${isFastDrop ? "bg-[#edf4ff] text-[#174ea6]" : "bg-[#e7f4ed] text-[#13734b]"}`}><ShieldCheck className="size-6" /></div>
+          <div className="rounded-[28px] border border-[#e7dfd2] bg-[#fffdf8] p-7 shadow-[0_28px_70px_rgba(40,30,15,0.11)] sm:p-10">
+            <div className={`flex size-12 items-center justify-center rounded-2xl ${isFastDrop ? "bg-[#edf4ff] text-[#174ea6]" : "bg-[#fff0e7] text-[#e65a20]"}`}><ShieldCheck className="size-6" /></div>
             <h2 className="mt-6 text-3xl font-bold tracking-[-0.035em] text-[#17231e]">Welcome back</h2>
             <p className="mt-2 text-[15px] leading-6 text-[#6a7771]">{isFastDrop ? "Sign in with the shipper account provided by Fast Drop." : "Sign in with the account provided by your administrator."}</p>
 
@@ -59,7 +59,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             ) : null}
 
             <LoginForm brand={isFastDrop ? "fastdrop" : undefined} />
-            <div className="mt-7 flex items-center gap-2 border-t border-[#e8eeeb] pt-5 text-xs text-[#718079]"><CheckCircle2 className="size-4 text-[#299865]" /> Secure, role-based access</div>
+            <div className="mt-7 flex items-center gap-2 border-t border-[#e7dfd2] pt-5 text-xs text-[#718079]"><CheckCircle2 className="size-4 text-[#e65a20]" /> Secure, role-based access</div>
           </div>
           <p className="mt-6 text-center text-xs text-[#829089]">© 2026 {brandName}{isFastDrop ? " · Secure shipper portal" : " · Version 1 foundation"}</p>
         </div>
