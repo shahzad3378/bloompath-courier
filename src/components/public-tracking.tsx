@@ -46,7 +46,7 @@ function formatDate(value: string | null, timeZone: string) {
   if (Number.isNaN(date.getTime())) return "Date unavailable";
   return new Intl.DateTimeFormat("en-CA", {
     dateStyle: "medium",
-    timeStyle: "short",
+    timeStyle: "medium",
     timeZone,
   }).format(date);
 }
