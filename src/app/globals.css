@@ -702,3 +702,18 @@ textarea:focus {
     [data-design-preview="waybill"] .bp-panel { border-radius: 12px !important; }
   }
 }
+
+/* Waybill dark appearance: scoped to the signed-in portal, never AWB print layouts. */
+@media screen {
+ [data-design-preview="waybill"][data-waybill-mode="dark"] { background:#13120f!important;color:#f5f1e9!important; }
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main { background:#211f1a!important; color:#f5f1e9!important; }
+ [data-design-preview="waybill"][data-waybill-mode="dark"] header { background:#211f1a!important;border-color:#454036!important; }
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="bg-[#fffdf8]"],
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main .bp-card,
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main .bp-panel {background:#302c25!important;border-color:#4b4439!important;color:#f5f1e9!important;}
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="text-[#1b1a17]"],
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="text-[#26372f]"],
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="text-[#17231e]"] {color:#f5f1e9!important;}
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="text-[#7a766b]"] {color:#b6ac9e!important;}
+ [data-design-preview="waybill"][data-waybill-mode="dark"] main [class*="bg-[#f4f1ea]"] {background:#403a31!important;}
+}
