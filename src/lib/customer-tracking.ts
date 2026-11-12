@@ -20,7 +20,6 @@ export const manualTrackingStatuses = [
   "booked",
   "ready_for_pickup",
   "picked_up",
-  "at_warehouse",
   "in_transit",
   "handed_over_to_sorting_hub",
   "scanned_at_sort_hub",
