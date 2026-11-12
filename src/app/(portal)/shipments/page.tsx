@@ -122,6 +122,8 @@ export default async function ShipmentsPage({ searchParams }: {
   else if (params.shipper) query = query.eq("shipper_id", params.shipper);
   if (params.driver) query = query.eq("assigned_driver_id", params.driver);
   if (destinationCountryCode) query = query.eq("consignee_country_code", destinationCountryCode);
+  if (params.view === "active") query = query.or("customer_tracking_status.in.(booked,ready_for_pickup,picked_up,at_warehouse,in_transit,arrived_at_destination_airport_customs_started,customs_clearance_completed_warehouse_scanned,out_for_delivery),and(customer_tracking_status.is.null,status.in.(booked,ready_for_pickup,picked_up,at_warehouse,out_for_delivery))");
+  if (params.view === "exceptions") query = query.or("customer_tracking_status.in.(undelivered,return_initiated,returned_to_shipper,cancelled),and(customer_tracking_status.is.null,status.in.(undelivered,return_initiated,returned_to_shipper,cancelled))");
   if (requestedStatus) {
     const currentStatuses = requestedStatus === "at_warehouse"
       ? "at_warehouse,customs_clearance_completed_warehouse_scanned"
