@@ -38,11 +38,11 @@ export function parseDateTimeLocal(value: string, timeZone: TrackingTimeZone): s
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;
 
-  const [, yearText, monthText, dayText, hourText, minuteText] = match;
-  const [year, month, day, hour, minute] = [yearText, monthText, dayText, hourText, minuteText].map(Number);
-  const localEpoch = Date.UTC(year, month - 1, day, hour, minute);
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0"] = match;
+  const [year, month, day, hour, minute, second] = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+  const localEpoch = Date.UTC(year, month - 1, day, hour, minute, second);
   const check = new Date(localEpoch);
-  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23 || minute > 59) return null;
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59) return null;
 
   const candidates = new Set<number>();
   let guess = localEpoch;
@@ -127,7 +127,7 @@ export function trackingDateCellToLocal(value: unknown, timeZone: TrackingTimeZo
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
     // Excel serial fractions can decode a minute boundary as xx:09:59.999.
-    return new Date(Math.round(value.getTime() / 60_000) * 60_000).toISOString().slice(0, 16);
+    return new Date(Math.round(value.getTime() / 1000) * 1000).toISOString().slice(0, 19);
   }
   const text = String(value ?? "").trim().replace(" ", "T");
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(text)) {
@@ -135,6 +135,6 @@ export function trackingDateCellToLocal(value: unknown, timeZone: TrackingTimeZo
     return Number.isNaN(date.getTime()) ? null : formatDateTimeLocal(date, timeZone);
   }
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:00)?$/.test(text)) return null;
-  const local = text.slice(0, 16);
+  const local = text.slice(0, 19);
   return parseDateTimeLocal(local, timeZone) ? local : null;
 }
