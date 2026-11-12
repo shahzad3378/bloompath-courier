@@ -33,7 +33,16 @@ export default async function BloomPathFastDropReportPage({ searchParams }: {
   let shipmentsQuery = supabase.from("shipments").select("id, tracking_number, reference_number, consignee_name, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code, weight_kg, booked_at")
     .eq("organization_id", profile.organization_id).is("deleted_at", null).order("booked_at", {ascending:false});
   if (!search) shipmentsQuery = shipmentsQuery.gte("booked_at",start.toISOString()).lt("booked_at",endExclusive.toISOString());
-  if (search) shipmentsQuery = shipmentsQuery.or(`tracking_number.ilike.%${search.replaceAll(",","").replaceAll("%","")}%,reference_number.ilike.%${search.replaceAll(",","").replaceAll("%","")}%,consignee_name.ilike.%${search.replaceAll(",","").replaceAll("%")}%`);
+  const partnerSearchIds:number[]=[];
+  if(search){
+    const [b,g,l]=await Promise.all([
+      supabase.from("broadreach_bookings").select("shipment_id").eq("organization_id",profile.organization_id).ilike("partner_tracking_number",`%${search}%`).limit(100),
+      supabase.from("gta_airskip_bookings").select("shipment_id").eq("organization_id",profile.organization_id).ilike("partner_tracking_number",`%${search}%`).limit(100),
+      supabase.from("third_party_shipment_links").select("shipment_id").eq("organization_id",profile.organization_id).ilike("partner_tracking_number",`%${search}%`).limit(100)
+    ]);
+    partnerSearchIds.push(...[...(b.data??[]),...(g.data??[]),...(l.data??[])].map(x=>Number(x.shipment_id)));
+  }
+  if(search){const safe=search.replaceAll(",","").replaceAll("%","");const fields=[`tracking_number.ilike.%${safe}%`,`reference_number.ilike.%${safe}%`,`consignee_name.ilike.%${safe}%`];if(partnerSearchIds.length)fields.push(`id.in.(${[...new Set(partnerSearchIds)].join(",")})`);shipmentsQuery=shipmentsQuery.or(fields.join(","));}
   const { data: shipmentData, error } = rangeError ? {data:null,error:{message:rangeError}} : await shipmentsQuery.limit(5000);
   const shipmentIds = (shipmentData ?? []).map(x=>Number(x.id));
   const [linkResult, broadreachResult, gtaResult] = await Promise.all([
