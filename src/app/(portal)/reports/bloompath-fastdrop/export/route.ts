@@ -27,47 +27,30 @@ export async function GET(request: Request) {
   if (rangeError) return new Response(rangeError, { status: 400 });
   const format = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
   const supabase = await createClient();
-  const query = supabase.from("third_party_shipment_links").select(`
-    shipment_id,
-    partner_tracking_number,
-    created_at,
-    partner_status,
-    third_party_carriers!inner(code),
-    shipments!inner(organization_id, tracking_number, reference_number, consignee_name, consignee_address, consignee_address_2, consignee_city, consignee_state_province, consignee_postal_code, consignee_country_code, weight_kg, booked_at, deleted_at)
-  `)
-    .eq("organization_id", profile.organization_id)
-    .eq("third_party_carriers.code", "GTA_AIRSKIP")
-    .eq("shipments.organization_id", profile.organization_id)
-    .is("shipments.deleted_at", null)
-    .gte("shipments.booked_at", start.toISOString())
-    .lt("shipments.booked_at", endExclusive.toISOString())
-    .order("created_at", { ascending: false });
-
-  const records: Awaited<ReturnType<typeof query.range>>["data"] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query.range(offset, offset + 999);
-    if (error) return new Response("BloomPath FastDrop report could not be generated.", { status: 500 });
-    records.push(...(data ?? []));
-    if ((data ?? []).length < 1000) break;
+  const search=(url.searchParams.get("q")??"").trim().slice(0,100);
+  let shipmentQuery=supabase.from("shipments").select("id,tracking_number,reference_number,consignee_name,consignee_address,consignee_address_2,consignee_city,consignee_state_province,consignee_postal_code,consignee_country_code,weight_kg").eq("organization_id",profile.organization_id).is("deleted_at",null);
+  if(!search)shipmentQuery=shipmentQuery.gte("booked_at",start.toISOString()).lt("booked_at",endExclusive.toISOString());
+  const shipments:NonNullable<Awaited<ReturnType<typeof shipmentQuery.range>>["data"]>=[];
+  for(let offset=0;;offset+=1000){const {data,error}=await shipmentQuery.range(offset,offset+999);if(error)return new Response("Report unavailable",{status:500});shipments.push(...(data??[]));if((data??[]).length<1000)break;}
+  const ids=shipments.map(x=>Number(x.id));
+  const partners:{shipment_id:number;carrier:string;tracking:string;status:string}[]=[];
+  for(let offset=0;offset<ids.length;offset+=500){
+    const batch=ids.slice(offset,offset+500);
+    const [b,g,l]=await Promise.all([
+      supabase.from("broadreach_bookings").select("shipment_id,partner_tracking_number,status").eq("organization_id",profile.organization_id).eq("is_test",false).in("shipment_id",batch),
+      supabase.from("gta_airskip_bookings").select("shipment_id,partner_tracking_number,status").eq("organization_id",profile.organization_id).eq("is_test",false).in("shipment_id",batch),
+      supabase.from("third_party_shipment_links").select("shipment_id,partner_tracking_number,partner_status,third_party_carriers(name,code)").eq("organization_id",profile.organization_id).in("shipment_id",batch)
+    ]);
+    partners.push(...(b.data??[]).map(x=>({shipment_id:Number(x.shipment_id),carrier:"BroadReach",tracking:x.partner_tracking_number??"",status:x.status??"pending"})));
+    partners.push(...(g.data??[]).map(x=>({shipment_id:Number(x.shipment_id),carrier:"GTA/GSM",tracking:x.partner_tracking_number??"",status:x.status??"pending"})));
+    partners.push(...(l.data??[]).map(x=>({shipment_id:Number(x.shipment_id),carrier:relation(x.third_party_carriers)?.name??"3PL",tracking:x.partner_tracking_number??"",status:x.partner_status??"pending"})));
   }
-
-  const headers = ["Customer Reference Number", "FastDrop AWB", "Consignee Name", "Address 1", "Address 2", "City", "State / Province", "Postal Code", "Country", "Weight (kg)", "3PL AWB", "3PL Status"];
-  const rows = records.flatMap((record) => {
-    const shipment = relation(record.shipments);
-    return shipment ? [[
-      shipment.reference_number ?? "",
-      shipment.tracking_number ?? "",
-      shipment.consignee_name ?? "",
-      shipment.consignee_address ?? "",
-      shipment.consignee_address_2 ?? "",
-      shipment.consignee_city ?? "",
-      shipment.consignee_state_province ?? "",
-      shipment.consignee_postal_code ?? "",
-      shipment.consignee_country_code ?? "",
-      shipment.weight_kg ?? "",
-      record.partner_tracking_number ?? "",
-      (record.partner_status ?? "pending").replaceAll("_", " "),
-    ]] : [];
+  const headers=["Customer Reference Number","FastDrop AWB","3PL Provider","Consignee Name","Address 1","Address 2","City","State / Province","Postal Code","Country","Weight (kg)","3PL AWB","3PL Status"];
+  const rows=shipments.flatMap(shipment=>{
+    const matched=partners.filter(x=>x.shipment_id===Number(shipment.id));
+    const unique=new Map<string,(typeof matched)[number]>();
+    for(const p of matched){const key=p.carrier.toLowerCase().includes("broad")?"broad":p.carrier.toLowerCase().includes("gta")?"gta":p.carrier;if(!unique.get(key)?.tracking||p.tracking)unique.set(key,p);}
+    return [...unique.values()].filter(p=>!search||[shipment.reference_number,shipment.tracking_number,shipment.consignee_name,p.tracking].some(x=>String(x??"").toLowerCase().includes(search.toLowerCase()))).map(p=>[shipment.reference_number??"",shipment.tracking_number??"",p.carrier,shipment.consignee_name??"",shipment.consignee_address??"",shipment.consignee_address_2??"",shipment.consignee_city??"",shipment.consignee_state_province??"",shipment.consignee_postal_code??"",shipment.consignee_country_code??"",shipment.weight_kg??"",p.tracking,p.status]);
   });
   const dateStamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date());
   const filename = `bloompath-fastdrop-${dateStamp}.${format === "csv" ? "csv" : "xlsx"}`;
@@ -88,7 +71,7 @@ export async function GET(request: Request) {
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF13734B" } };
   for (const row of rows) sheet.addRow(row);
-  sheet.autoFilter = { from: "A1", to: "L1" };
+  sheet.autoFilter = { from: "A1", to: "M1" };
   const bytes = await workbook.xlsx.writeBuffer();
   return new Response(bytes, { headers: {
     "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
