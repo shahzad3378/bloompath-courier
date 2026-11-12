@@ -608,3 +608,97 @@ textarea:focus {
   }
   body.warehouse-label-report-mode .warehouse-label-report > div:last-child { max-height: none !important; overflow: visible !important; }
 }
+
+
+/* BloomPath Courier SaaS design review — visual overrides only.
+   Scoped to authenticated portal. No workflow, permissions, data or print changes. */
+@media screen {
+  [data-design-preview="waybill"] {
+    --bp-preview-bg: #f4f1ea;
+    --bp-preview-panel: #fffdf8;
+    --bp-preview-ink: #1b1a17;
+    --bp-preview-muted: #7a766b;
+    --bp-preview-line: #e5dfd2;
+    --bp-preview-accent: #ff5a1f;
+    background: var(--bp-preview-bg) !important;
+    color: var(--bp-preview-ink);
+  }
+  [data-design-preview="waybill"] > aside {
+    background: #1b1a17 !important;
+    border-color: #302e29 !important;
+    color: #f3efe6 !important;
+    box-shadow: 3px 0 18px rgba(20,18,12,.1) !important;
+  }
+  [data-design-preview="waybill"] > aside nav p {
+    color: #999184 !important;
+    letter-spacing: .14em;
+  }
+  [data-design-preview="waybill"] > aside nav a,
+  [data-design-preview="waybill"] > aside nav button {
+    color: #d0c9bc !important;
+    border-radius: 9px !important;
+  }
+  [data-design-preview="waybill"] > aside nav a:hover,
+  [data-design-preview="waybill"] > aside nav button:hover {
+    background: #35322d !important;
+    color: white !important;
+  }
+  [data-design-preview="waybill"] > aside nav a[class*="bg-[#eaf8f0]"],
+  [data-design-preview="waybill"] > aside nav a[class*="bg-[#f0faf4]"] {
+    background: var(--bp-preview-accent) !important;
+    color: white !important;
+  }
+  [data-design-preview="waybill"] > aside > div:first-child span,
+  [data-design-preview="waybill"] > aside > div:first-child a {
+    color: #fffdf8 !important;
+  }
+  [data-design-preview="waybill"] > aside > div:last-child {
+    background: #1b1a17 !important;
+    border-color: #37342e !important;
+  }
+  [data-design-preview="waybill"] > aside > div:last-child a,
+  [data-design-preview="waybill"] > aside > div:last-child button {
+    color: #e5dfd2 !important;
+  }
+  [data-design-preview="waybill"] > div > header {
+    background: rgba(255,253,248,.96) !important;
+    border-color: var(--bp-preview-line) !important;
+  }
+  [data-design-preview="waybill"] > div > main {
+    background: var(--bp-preview-bg);
+    min-height: calc(100vh - 72px);
+  }
+  [data-design-preview="waybill"] .bp-card,
+  [data-design-preview="waybill"] .bp-panel {
+    background: var(--bp-preview-panel) !important;
+    border: 1px solid var(--bp-preview-line) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 8px 24px -12px rgba(40,30,10,.18) !important;
+  }
+  [data-design-preview="waybill"] .bp-panel-header {
+    border-color: var(--bp-preview-line) !important;
+  }
+  [data-design-preview="waybill"] .bp-heading {
+    color: var(--bp-preview-ink) !important;
+    letter-spacing: -.035em;
+  }
+  [data-design-preview="waybill"] .bp-page a[class*="text-[#15905c]"],
+  [data-design-preview="waybill"] .bp-page a[class*="text-[#13734b]"] {
+    color: #e6531d !important;
+  }
+  [data-design-preview="waybill"] .bp-page a[class*="bg-[#15905c]"],
+  [data-design-preview="waybill"] .bp-page button[class*="bg-[#13734b]"] {
+    background: var(--bp-preview-accent) !important;
+    color: white !important;
+  }
+  [data-design-preview="waybill"] .bp-page table thead {
+    background: #f7f3eb !important;
+  }
+  [data-design-preview="waybill"] .bp-page .bp-table-row:hover {
+    background: #f8f3e9 !important;
+  }
+  @media (max-width: 767px) {
+    [data-design-preview="waybill"] .bp-card,
+    [data-design-preview="waybill"] .bp-panel { border-radius: 12px !important; }
+  }
+}
