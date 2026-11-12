@@ -81,8 +81,9 @@ export async function POST(request: Request) {
       return currentTime < earliestTime ? current.index : earliest;
     }, null);
     const events = rawEvents.filter((event, index) =>
-      !/^(shipment\s+)?booked$/i.test(event.status.trim()) || index === originalBooking,
-    );
+      (!/^(shipment\s+)?booked$/i.test(event.status.trim()) || index === originalBooking)
+      && !/^arrived at warehouse$/i.test(event.status.trim()),
+    ).sort((a, b) => (Date.parse(b.timestamp ?? "") || 0) - (Date.parse(a.timestamp ?? "") || 0));
     // Delivery is terminal even when an older carrier scan arrives late.
     const delivered = events.find((event) => /^delivered$/i.test(event.status.trim()));
     const currentStatus = delivered?.status ?? events[0]?.status ?? payload.currentStatus;
