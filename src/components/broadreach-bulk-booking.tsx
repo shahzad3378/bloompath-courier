@@ -86,20 +86,15 @@ export function BroadReachBulkBooking({ configured, liveEnabled }: { configured:
     if (busyRef.current || !successful.length) return;
     busyRef.current = true; setDownloading(true); setMessage("");
     try {
-      const { default: JSZip } = await import("jszip");
-      const zip = new JSZip(); let size = 0;
-      for (const [index, row] of successful.entries()) {
-        const response = await fetch(`/api/courier-integrations/broadreach/labels/${row.bookingId}`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`Label for ${row.awb} could not be downloaded. Check sign-in and use its individual download link.`);
-        const blob = await response.blob(); size += blob.size;
-        if (size > 50 * 1024 * 1024) throw new Error("These labels exceed the 50 MB ZIP limit. Download labels individually or use smaller batches.");
-        const contentType = response.headers.get("content-type") ?? "";
-        const extension = contentType.includes("pdf") ? "pdf" : contentType.includes("png") ? "png" : "zpl";
-        zip.file(`${index + 1}-${row.awb.replace(/[^A-Za-z0-9_-]/g, "_")}-${row.test ? "test" : "live"}.${extension}`, await blob.arrayBuffer());
-      }
-      zip.file("results.csv", broadReachResultsCsv(results));
-      download(await zip.generateAsync({ type: "blob" }), "broadreach-labels.zip");
-      setMessage(`Downloaded ${successful.length} labels and the result report.`);
+      const response = await fetch("/api/courier-integrations/broadreach/bulk-pdfs", {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ bookingIds: successful.map(row => row.bookingId) }),
+      });
+      if (!response.ok) throw new Error(await response.text() || "Saved PDFs could not be prepared.");
+      const blob = await response.blob();
+      if (blob.size > 50 * 1024 * 1024) throw new Error("PDF archive exceeds 50 MB. Download smaller batches.");
+      download(blob, "broadreach-awb-pdfs.zip");
+      setMessage(`Downloaded ${successful.length} individual AWB PDFs and All_AWB_Labels.pdf. Download the result report separately.`);
     } catch (issue) { setMessage(issue instanceof Error ? issue.message : "Labels could not be downloaded. Use the individual label links."); }
     finally { busyRef.current = false; setDownloading(false); }
   }
