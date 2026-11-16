@@ -427,7 +427,10 @@ export async function createShipmentAction(
    * If no zones are configured yet, booking remains
    * possible for backward compatibility.
    */
+  // UAE shipments may be booked without a matching optional service zone.
+  // Preserve strict configured-zone enforcement for all other countries.
   if (
+    consigneeCountryCode !== "AE" &&
     zones.length > 0 &&
     !matchedZone
   ) {
