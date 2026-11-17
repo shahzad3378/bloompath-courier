@@ -63,7 +63,7 @@ export async function recordManualTrackingAction(
   const pod = formData.get("pod");
   const hasPod = pod instanceof File && pod.size > 0;
   if (tracking.length < 3 || tracking.length > 40) return { status: "error", message: "Scan or enter a valid AWB number." };
-  if (!manualTrackingStatuses.includes(status)) return { status: "error", message: "Select a valid customer tracking status." };
+  if (!manualTrackingStatuses.some(candidate => candidate === status)) return { status: "error", message: "Select a valid customer tracking status." };
   if (!isTrackingTimeZone(timeZone)) return { status: "error", message: "Select the time zone where the scan happened." };
   const occurredAt = parseDateTimeLocal(occurredAtInput, timeZone);
   if (!occurredAt) return { status: "error", message: "Select a valid local date and time. The selected time zone may not have that time." };

@@ -404,6 +404,7 @@ export default async function DeliveryReportsPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link href="/reports/finance" className="bp-button-primary">Billing & Statements</Link>
           {showCanadaReports ? <>
             <RefreshStatusButton range={range} from={params.from ?? ""} to={params.to ?? ""} page={pagination.page} pageSize={pagination.pageSize} />
             <Link href="/reports/bloompath-fastdrop" className="bp-button-secondary">

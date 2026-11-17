@@ -7,7 +7,7 @@ import {
 } from "@/lib/finance-exports";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: {
     params: Promise<{
       dataset: string;
@@ -33,5 +33,6 @@ export async function GET(
   return createFinanceExport(
     dataset as FinanceExportDataset,
     format as FinanceExportFormat,
+    Object.fromEntries(new URL(request.url).searchParams),
   );
 }

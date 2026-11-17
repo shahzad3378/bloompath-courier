@@ -89,7 +89,7 @@ export async function bulkRecordManualTrackingAction(
     const result = (ok: boolean, message: string) => rows.push({ row, trackingNumber, status, ok, message });
     if (!trackingNumber || trackingNumber.length < 3 || trackingNumber.length > 40) { result(false, "Enter a valid AWB."); continue; }
     if ((counts.get(trackingNumber) ?? 0) > 1) { result(false, "This AWB appears more than once in the file; keep one row per AWB."); continue; }
-    if (!manualTrackingStatuses.includes(status as CustomerTrackingStatus)) { result(false, "Use a status code from the template instructions."); continue; }
+    if (!manualTrackingStatuses.some(candidate => candidate === status)) { result(false, "Use a status code from the template instructions."); continue; }
     if (!occurredAt) { result(false, "Enter the status date/time as YYYY-MM-DDTHH:mm."); continue; }
     const shipment = shipmentByAwb.get(trackingNumber);
     if (!shipment) { result(false, "AWB was not found in this courier account."); continue; }

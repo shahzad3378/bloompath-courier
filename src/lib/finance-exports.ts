@@ -1,4 +1,6 @@
 import "server-only";
+import { allBillingRows } from "@/lib/billing-workspace";
+import { parseDateBoundary } from "@/lib/table-pagination";
 
 import ExcelJS from "exceljs";
 import {
@@ -72,6 +74,7 @@ function isoDate(value: string | null | undefined) {
 
 async function loadExportData(
   dataset: FinanceExportDataset,
+  filters: Record<string, string | undefined>,
 ): Promise<{
   data: ExportData;
   companyName: string;
@@ -109,7 +112,7 @@ async function loadExportData(
     "Courier Company";
 
   if (dataset === "transactions") {
-    const { data } = await supabase
+    let query = supabase
       .from("finance_ledger")
       .select(`
         tracking_number,
@@ -126,6 +129,13 @@ async function loadExportData(
       `)
       .eq("organization_id", organizationId)
       .order("transaction_at", { ascending: false });
+
+    if (filters.shipper) query = query.eq("shipper_id", filters.shipper);
+    if (filters.currency) query = query.eq("currency", filters.currency);
+    const fromDate = parseDateBoundary(filters.from), toDate = parseDateBoundary(filters.to, true);
+    if (fromDate) query = query.gte("transaction_at", fromDate);
+    if (toDate) query = query.lte("transaction_at", toDate);
+    const data = await allBillingRows((from, to) => query.range(from, to));
 
     return {
       companyName,
@@ -170,7 +180,7 @@ async function loadExportData(
   }
 
   if (dataset === "invoices") {
-    const { data } = await supabase
+    let query = supabase
       .from("invoices")
       .select(`
         invoice_number,
@@ -190,6 +200,12 @@ async function loadExportData(
       .eq("organization_id", organizationId)
       .order("invoice_date", { ascending: false })
       .order("id", { ascending: false });
+
+    if (filters.shipper) query = query.eq("shipper_id", filters.shipper);
+    if (filters.currency) query = query.eq("currency", filters.currency);
+    if (filters.from) query = query.gte("invoice_date", filters.from);
+    if (filters.to) query = query.lte("invoice_date", filters.to);
+    const data = await allBillingRows((from, to) => query.range(from, to));
 
     return {
       companyName,
@@ -239,7 +255,7 @@ async function loadExportData(
   }
 
   if (dataset === "settlements") {
-    const { data } = await supabase
+    let query = supabase
       .from("settlements")
       .select(`
         settlement_number,
@@ -258,6 +274,13 @@ async function loadExportData(
       `)
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
+
+    if (filters.shipper) query = query.eq("shipper_id", filters.shipper);
+    if (filters.currency) query = query.eq("currency", filters.currency);
+    const fromDate = parseDateBoundary(filters.from), toDate = parseDateBoundary(filters.to, true);
+    if (fromDate) query = query.gte("created_at", fromDate);
+    if (toDate) query = query.lte("created_at", toDate);
+    const data = await allBillingRows((from, to) => query.range(from, to));
 
     return {
       companyName,
@@ -607,8 +630,9 @@ async function pdfResponse(
 export async function createFinanceExport(
   dataset: FinanceExportDataset,
   format: FinanceExportFormat,
+  filters: Record<string, string | undefined> = {},
 ) {
-  const { data, companyName } = await loadExportData(dataset);
+  const { data, companyName } = await loadExportData(dataset, filters);
 
   return format === "xlsx"
     ? excelResponse(data, companyName)

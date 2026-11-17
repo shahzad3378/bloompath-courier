@@ -10,6 +10,9 @@ import { FinanceExportButtons } from "@/components/finance-export-buttons";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
+import { BillingFilters } from "@/components/billing-filters";
+import { CurrencyTotals } from "@/components/currency-totals";
+import { currencyTotals } from "@/lib/billing";
 import { formatMoney } from "@/lib/currency";
 import {
   getShipperDirectory,
@@ -84,6 +87,9 @@ export default async function FinanceInvoicesPage({
     .order("invoice_date", { ascending: false })
     .order("id", { ascending: false });
 
+  if (params.shipper) invoiceQuery = invoiceQuery.eq("shipper_id", params.shipper);
+  if (params.currency) invoiceQuery = invoiceQuery.eq("currency", params.currency);
+
   if (params.from) {
     invoiceQuery = invoiceQuery.gte("invoice_date", params.from);
   }
@@ -125,11 +131,7 @@ export default async function FinanceInvoicesPage({
     (row) => row.status === "paid",
   );
 
-  const openValue = openRows.reduce(
-    (sum, row) =>
-      sum + Number(row.total_amount || 0),
-    0,
-  );
+
 
   return (
     <div className="bp-page">
@@ -144,14 +146,14 @@ export default async function FinanceInvoicesPage({
           </h1>
 
           <p className="mt-2 text-sm text-[#74827b]">
-            Customer-facing invoices generated from approved
-            shipper settlements.
+            Customer invoices with AWB details, charges, COD and balances.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2"><Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create invoice</Link><FinanceExportButtons dataset="invoices" /></div>
+        <div className="flex flex-wrap gap-2"><Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create invoice</Link><FinanceExportButtons dataset="invoices" params={params} /></div>
       </div>
 
+      <BillingFilters pathname="/finance/invoices" params={params} shippers={[...shipperDirectory.values()]} currencies={[...new Set([currency, ...rows.map(row => row.currency)])]} />
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="bp-card p-5">
           <FileText className="size-5 text-[#15905c]" />
@@ -161,7 +163,7 @@ export default async function FinanceInvoicesPage({
           </p>
 
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Total Invoices
+            Invoices on this page
           </p>
         </div>
 
@@ -173,7 +175,7 @@ export default async function FinanceInvoicesPage({
           </p>
 
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Draft
+            Draft on this page
           </p>
         </div>
 
@@ -185,14 +187,11 @@ export default async function FinanceInvoicesPage({
           </p>
 
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Open
+            Open on this page
           </p>
 
           <p className="mt-2 text-xs font-bold text-[#a66516]">
-            {formatMoney(
-              openValue,
-              rows[0]?.currency || currency,
-            )}
+            <CurrencyTotals totals={currencyTotals(openRows, row => Number(row.total_amount || 0))} emptyCurrency={currency} />
           </p>
         </div>
 
@@ -204,7 +203,7 @@ export default async function FinanceInvoicesPage({
           </p>
 
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Paid
+            Paid on this page
           </p>
         </div>
       </section>

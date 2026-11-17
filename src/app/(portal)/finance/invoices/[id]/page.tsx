@@ -268,7 +268,7 @@ export default async function InvoiceDetailPage({
             </form>
           ) : null}
 
-          {["issued", "sent", "overdue"].includes(invoice.status) ? (
+          {["issued", "sent", "overdue"].includes(invoice.status) && Number(invoice.net_settlement_payable) < 0 ? (
             <form
               action={updateInvoiceStatusAction}
               className="flex items-center gap-2"
@@ -292,7 +292,7 @@ export default async function InvoiceDetailPage({
 
               <button className="bp-button-primary">
                 <CheckCircle2 className="size-4" />
-                Mark Paid
+                Record receivable received
               </button>
             </form>
           ) : null}

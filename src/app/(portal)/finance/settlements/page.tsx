@@ -10,6 +10,9 @@ import { FinanceExportButtons } from "@/components/finance-export-buttons";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
+import { BillingFilters } from "@/components/billing-filters";
+import { CurrencyTotals } from "@/components/currency-totals";
+import { currencyTotals } from "@/lib/billing";
 import { formatMoney } from "@/lib/currency";
 import {
   getShipperDirectory,
@@ -67,6 +70,9 @@ export default async function SettlementsPage({
     .eq("organization_id", profile.organization_id!)
     .order("created_at", { ascending: false });
 
+  if (params.shipper) settlementQuery = settlementQuery.eq("shipper_id", params.shipper);
+  if (params.currency) settlementQuery = settlementQuery.eq("currency", params.currency);
+
   const from = parseDateBoundary(params.from);
   const to = parseDateBoundary(params.to, true);
   if (from) settlementQuery = settlementQuery.gte("created_at", from);
@@ -94,21 +100,11 @@ export default async function SettlementsPage({
   const rows = data ?? [];
 
   const pending = rows.filter(
-    (row) => row.status !== "paid",
+    (row) => row.status !== "paid" && row.status !== "cancelled",
   );
 
   const paid = rows.filter(
     (row) => row.status === "paid",
-  );
-
-  const pendingValue = pending.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
-  );
-
-  const paidValue = paid.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
   );
 
   return (
@@ -126,10 +122,11 @@ export default async function SettlementsPage({
           </p>
         </div>
 
-        <FinanceExportButtons dataset="settlements" />
+        <FinanceExportButtons dataset="settlements" params={params} />
         <Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create customer invoice</Link>
       </div>
 
+      <BillingFilters pathname="/finance/settlements" params={params} shippers={[...shipperDirectory.values()]} currencies={[...new Set([currency, ...rows.map(row => row.currency)])]} />
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
@@ -137,24 +134,24 @@ export default async function SettlementsPage({
             {rows.length}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Total Settlements
+            Settlements on this page
           </p>
         </div>
 
         <div className="bp-card p-5">
           <Clock3 className="size-5 text-[#d58a27]" />
           <p className="mt-4 text-2xl font-black">
-            {money(pendingValue)}
+            <CurrencyTotals totals={currencyTotals(pending, row => Math.max(Number(row.net_payable || 0), 0))} emptyCurrency={currency} />
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Pending Payable
+            Pending COD payable on this page
           </p>
         </div>
 
         <div className="bp-card p-5">
           <CheckCircle2 className="size-5 text-[#15905c]" />
           <p className="mt-4 text-2xl font-black">
-            {money(paidValue)}
+            <CurrencyTotals totals={currencyTotals(paid, row => Math.max(Number(row.net_payable || 0), 0))} emptyCurrency={currency} />
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             Paid
