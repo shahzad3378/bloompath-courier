@@ -244,7 +244,7 @@ export async function createInvoiceFromAwbsAction(formData: FormData): Promise<v
 export async function updateSettlementStatusAction(
   formData: FormData,
 ): Promise<void> {
-  await requireProfile(["super_admin", "operations_admin", "finance_staff"]);
+  const profile = await requireProfile(["super_admin", "operations_admin", "finance_staff"]);
 
   const settlementId = Number(String(formData.get("settlement_id") ?? ""));
   const status = String(formData.get("status") ?? "");
@@ -263,6 +263,7 @@ export async function updateSettlementStatusAction(
     .from("settlements")
     .update({ status })
     .eq("id", settlementId)
+    .eq("organization_id", profile.organization_id!)
     .select("id")
     .maybeSingle();
 
@@ -271,6 +272,9 @@ export async function updateSettlementStatusAction(
   }
 
   revalidatePath("/finance");
+  revalidatePath("/finance/settlements");
+  revalidatePath("/reports/finance");
+  if (formData.get("return_to") === "settlements") redirect(`/finance/settlements?status_saved=1`);
   redirect(`/finance?settlement=${settlementId}&status_saved=1`);
 }
 
