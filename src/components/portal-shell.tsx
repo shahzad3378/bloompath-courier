@@ -129,6 +129,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         label: "Payments",
         icon: BadgeDollarSign,
         children: [
+          { label: "Billing & Statements", href: "/reports/finance" },
           { label: "Transactions", href: "/finance" },
           { label: "COD Management", href: "/finance/cod" },
           { label: "Settlements", href: "/finance/settlements" },
@@ -146,6 +147,7 @@ const internalSections: Array<{ label: string; direct?: SimpleNavItem[]; groups?
         icon: FileText,
         children: [
           { label: "Delivery Reports", href: "/reports" },
+          { label: "Billing & Statements", href: "/reports/finance" },
           { label: "Activity Log", href: "/activity-log" },
           { label: "BloomPath FastDrop", href: "/reports/bloompath-fastdrop" },
           { label: "Canada Customs", href: "/shipments/customs-clearance" },

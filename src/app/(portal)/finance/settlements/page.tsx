@@ -5,11 +5,14 @@ import {
   FilePlus2,
   WalletCards,
 } from "lucide-react";
-import { createInvoiceFromSettlementAction } from "@/app/(portal)/finance/actions";
+import { updateSettlementStatusAction, createInvoiceFromSettlementAction } from "@/app/(portal)/finance/actions";
 import { FinanceExportButtons } from "@/components/finance-export-buttons";
 import { DataTableToolbar } from "@/components/data-table-toolbar";
 import { SelectableTable } from "@/components/selectable-table";
 import { requireProfile } from "@/lib/auth";
+import { BillingFilters } from "@/components/billing-filters";
+import { CurrencyTotals } from "@/components/currency-totals";
+import { currencyTotals } from "@/lib/billing";
 import { formatMoney } from "@/lib/currency";
 import {
   getShipperDirectory,
@@ -61,11 +64,15 @@ export default async function SettlementsPage({
       invoice:invoices(
         id,
         invoice_number,
+        net_settlement_payable,
         status
       )
     `, { count: "exact" })
     .eq("organization_id", profile.organization_id!)
     .order("created_at", { ascending: false });
+
+  if (params.shipper) settlementQuery = settlementQuery.eq("shipper_id", params.shipper);
+  if (params.currency) settlementQuery = settlementQuery.eq("currency", params.currency);
 
   const from = parseDateBoundary(params.from);
   const to = parseDateBoundary(params.to, true);
@@ -92,23 +99,14 @@ export default async function SettlementsPage({
     formatMoney(value, rowCurrency);
 
   const rows = data ?? [];
+  const payable = (row: (typeof rows)[number]) => { const invoice = Array.isArray(row.invoice) ? row.invoice[0] : row.invoice; return Number(invoice?.net_settlement_payable ?? row.net_payable ?? 0); };
 
   const pending = rows.filter(
-    (row) => row.status !== "paid",
+    (row) => row.status !== "paid" && row.status !== "cancelled",
   );
 
   const paid = rows.filter(
     (row) => row.status === "paid",
-  );
-
-  const pendingValue = pending.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
-  );
-
-  const paidValue = paid.reduce(
-    (sum, row) => sum + Number(row.net_payable || 0),
-    0,
   );
 
   return (
@@ -126,10 +124,11 @@ export default async function SettlementsPage({
           </p>
         </div>
 
-        <FinanceExportButtons dataset="settlements" />
+        <FinanceExportButtons dataset="settlements" params={params} />
         <Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create customer invoice</Link>
       </div>
 
+      <BillingFilters pathname="/finance/settlements" params={params} shippers={[...shipperDirectory.values()]} currencies={[...new Set([currency, ...rows.map(row => row.currency)])]} />
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="bp-card p-5">
           <WalletCards className="size-5 text-[#15905c]" />
@@ -137,24 +136,24 @@ export default async function SettlementsPage({
             {rows.length}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Total Settlements
+            Settlements on this page
           </p>
         </div>
 
         <div className="bp-card p-5">
           <Clock3 className="size-5 text-[#d58a27]" />
           <p className="mt-4 text-2xl font-black">
-            {money(pendingValue)}
+            <CurrencyTotals totals={currencyTotals(pending, row => Math.max(payable(row), 0))} emptyCurrency={currency} />
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
-            Pending Payable
+            Pending COD payable on this page
           </p>
         </div>
 
         <div className="bp-card p-5">
           <CheckCircle2 className="size-5 text-[#15905c]" />
           <p className="mt-4 text-2xl font-black">
-            {money(paidValue)}
+            <CurrencyTotals totals={currencyTotals(paid, row => Math.max(payable(row), 0))} emptyCurrency={currency} />
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#87938d]">
             Paid
@@ -266,7 +265,7 @@ export default async function SettlementsPage({
                     </td>
 
                     <td className="px-5 py-4 font-black text-[#13734b]">
-                      {money(row.net_payable, row.currency)}
+                      {money(payable(row), row.currency)}
                     </td>
 
                     <td className="px-5 py-4">
@@ -284,6 +283,7 @@ export default async function SettlementsPage({
                     </td>
 
                     <td className="px-5 py-4">
+                      {row.status === "approved" && payable(row) > 0 ? <form action={updateSettlementStatusAction} className="mb-3"><input type="hidden" name="settlement_id" value={row.id} /><input type="hidden" name="status" value="paid" /><input type="hidden" name="return_to" value="settlements" /><button className="bp-button-secondary">Record COD payout</button></form> : null}
                       {invoice?.id ? (
                         <Link
                           href={`/finance/invoices/${invoice.id}`}

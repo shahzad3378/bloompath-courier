@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
+import { validInvoiceIds } from "@/lib/billing";
 import { formatMoney } from "@/lib/currency";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
@@ -206,15 +207,14 @@ export async function createSettlementAction(formData: FormData): Promise<void> 
 export async function createInvoiceFromAwbsAction(formData: FormData): Promise<void> {
   const profile = await requireProfile(financeRoles);
   const shipperId = String(formData.get("shipper_id") ?? "");
-  const ids = formData.getAll("ledger_id").map((value) => Number(value));
+  const ids = validInvoiceIds(formData.getAll("ledger_id"));
   const dueDate = String(formData.get("due_date") ?? "").trim();
   const recipientEmail = String(formData.get("recipient_email") ?? "").trim().slice(0, 160);
   const taxRate = Number(String(formData.get("tax_rate") ?? "0"));
   const todayDubai = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
   if (!profile.organization_id || !/^[0-9a-f-]{36}$/i.test(shipperId) ||
-    ids.length === 0 || ids.length > 100 || new Set(ids).size !== ids.length ||
-    ids.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
+    !ids ||
     !Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100 ||
     (dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < todayDubai)) ||
     (recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail))) {
@@ -222,76 +222,29 @@ export async function createInvoiceFromAwbsAction(formData: FormData): Promise<v
   }
 
   const supabase = await createClient();
-  const { data: shipper } = await supabase.from("profiles").select("id")
-    .eq("id", shipperId).eq("organization_id", profile.organization_id).eq("role", "shipper").maybeSingle();
-  if (!shipper) redirect("/finance/invoices/new?error=invalid");
-
-  const { data: ledgers, error: ledgerError } = await supabase.from("finance_ledger")
-    .select("id, shipment_id, shipper_id, tracking_number, cod_amount, delivery_charge, return_charge, fulfillment_charge, total_charges, net_payable, currency, transaction_at")
-    .eq("organization_id", profile.organization_id).eq("shipper_id", shipperId).in("id", ids);
-  if (ledgerError || !ledgers || ledgers.length !== ids.length ||
-    ledgers.some((row) => row.currency !== ledgers[0].currency)) {
-    redirect("/finance/invoices/new?error=invalid");
-  }
-
-  const { data: billed, error: billedError } = await supabase.from("settlement_items")
-    .select("ledger_id").in("ledger_id", ids);
-  if (billedError || (billed ?? []).length) redirect("/finance/invoices/new?error=already_settled");
-
-  const dates = ledgers.map((row) => row.transaction_at).sort();
-  const { data: settlement, error: settlementError } = await supabase.from("settlements").insert({
-    organization_id: profile.organization_id,
-    shipper_id: shipperId,
-    currency: ledgers[0].currency,
-    status: "draft",
-    period_from: dates[0],
-    period_to: dates.at(-1),
-    created_by: profile.id,
-  }).select("id").single();
-  if (settlementError || !settlement) redirect("/finance/invoices/new?error=save");
-
-  const { error: itemsError } = await supabase.from("settlement_items").insert(ledgers.map((row) => ({
-    settlement_id: settlement.id,
-    ledger_id: row.id,
-    shipment_id: row.shipment_id,
-    tracking_number: row.tracking_number,
-    cod_amount: row.cod_amount,
-    delivery_charge: row.delivery_charge,
-    return_charge: row.return_charge,
-    fulfillment_charge: row.fulfillment_charge,
-    total_charges: row.total_charges,
-    net_payable: row.net_payable,
-  })));
-  if (itemsError) {
-    await supabase.from("settlements").delete().eq("id", settlement.id).eq("organization_id", profile.organization_id);
-    redirect("/finance/invoices/new?error=already_settled");
-  }
-
-  const { data: approved, error: approvalError } = await supabase.from("settlements")
-    .update({ status: "approved", approved_by: profile.id, approved_at: new Date().toISOString() })
-    .eq("id", settlement.id).eq("organization_id", profile.organization_id).select("id").maybeSingle();
-  if (approvalError || !approved) redirect(`/finance/settlements?error=invoice&settlement=${settlement.id}`);
-
-  const { data: invoiceId, error: invoiceError } = await supabase.rpc("create_invoice_from_settlement", {
-    target_settlement_id: settlement.id,
+  const { data: invoiceId, error: invoiceError } = await supabase.rpc("create_invoice_from_awbs", {
+    target_shipper_id: shipperId,
+    target_ledger_ids: ids,
     target_due_date: dueDate || null,
     target_tax_rate: taxRate,
     target_recipient_email: recipientEmail || null,
   });
   if (invoiceError || !invoiceId) {
-    console.error("CREATE_INVOICE_FROM_AWBS_ERROR", invoiceError);
-    redirect(`/finance/settlements?error=invoice&settlement=${settlement.id}`);
+    console.error("CREATE_INVOICE_FROM_AWBS_ERROR", invoiceError?.code);
+    redirect("/finance/invoices/new?error=save");
   }
   revalidatePath("/finance");
   revalidatePath("/finance/settlements");
   revalidatePath("/finance/invoices");
+  revalidatePath("/finance/invoices/new");
+  revalidatePath("/reports/finance");
   redirect(`/finance/invoices/${invoiceId}?created=1`);
 }
 
 export async function updateSettlementStatusAction(
   formData: FormData,
 ): Promise<void> {
-  await requireProfile(["super_admin", "operations_admin", "finance_staff"]);
+  const profile = await requireProfile(["super_admin", "operations_admin", "finance_staff"]);
 
   const settlementId = Number(String(formData.get("settlement_id") ?? ""));
   const status = String(formData.get("status") ?? "");
@@ -310,6 +263,7 @@ export async function updateSettlementStatusAction(
     .from("settlements")
     .update({ status })
     .eq("id", settlementId)
+    .eq("organization_id", profile.organization_id!)
     .select("id")
     .maybeSingle();
 
@@ -318,6 +272,9 @@ export async function updateSettlementStatusAction(
   }
 
   revalidatePath("/finance");
+  revalidatePath("/finance/settlements");
+  revalidatePath("/reports/finance");
+  if (formData.get("return_to") === "settlements") redirect(`/finance/settlements?status_saved=1`);
   redirect(`/finance?settlement=${settlementId}&status_saved=1`);
 }
 
@@ -382,6 +339,8 @@ export async function createInvoiceFromSettlementAction(
   revalidatePath("/finance");
   revalidatePath("/finance/settlements");
   revalidatePath("/finance/invoices");
+  revalidatePath("/finance/invoices/new");
+  revalidatePath("/reports/finance");
 
   redirect(
     `/finance/invoices/${invoiceId}?created=1`,
@@ -424,7 +383,7 @@ export async function updateInvoiceStatusAction(
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, settlement_id, status")
+    .select("id, settlement_id, status, net_settlement_payable")
     .eq("id", invoiceId)
     .eq("organization_id", profile.organization_id)
     .maybeSingle();
@@ -452,7 +411,7 @@ export async function updateInvoiceStatusAction(
   }
 
   if (action === "mark_paid") {
-    if (!["issued", "sent", "overdue"].includes(invoice.status)) {
+    if (!["issued", "sent", "overdue"].includes(invoice.status) || Number(invoice.net_settlement_payable) >= 0) {
       redirect(`/finance/invoices/${invoiceId}?error=invalid_status`);
     }
 
@@ -472,22 +431,15 @@ export async function updateInvoiceStatusAction(
       redirect(`/finance/invoices/${invoiceId}?error=paid`);
     }
 
-    const { error: settlementError } = await supabase
-      .from("settlements")
-      .update({
-        status: "paid",
-      })
-      .eq("id", invoice.settlement_id)
-      .eq("status", "approved");
+    // Receiving an invoice balance does not confirm a COD payout to the shipper.
 
-    if (settlementError) {
-      redirect(`/finance/invoices/${invoiceId}?error=settlement_paid`);
-    }
   }
 
   revalidatePath("/finance");
   revalidatePath("/finance/settlements");
   revalidatePath("/finance/invoices");
+  revalidatePath("/finance/invoices/new");
+  revalidatePath("/reports/finance");
   revalidatePath(`/finance/invoices/${invoiceId}`);
   revalidatePath("/reports");
 
