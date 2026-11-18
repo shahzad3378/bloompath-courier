@@ -150,7 +150,7 @@ export default async function FinanceInvoicesPage({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2"><Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create invoice</Link><FinanceExportButtons dataset="invoices" params={params} /></div>
+        <div className="flex flex-wrap gap-2"><Link href="/finance/invoices/new" className="bp-button-primary"><FilePlus2 className="size-4" /> Create invoice</Link><Link href="/reports/finance" className="bp-button-secondary">Billing & Statements</Link></div>
       </div>
 
       <BillingFilters pathname="/finance/invoices" params={params} shippers={[...shipperDirectory.values()]} currencies={[...new Set([currency, ...rows.map(row => row.currency)])]} />
@@ -210,13 +210,10 @@ export default async function FinanceInvoicesPage({
 
       <section className="bp-panel mt-6 overflow-hidden">
         <div className="bp-panel-header">
-          <h2 className="font-black text-[#26372f]">
-            Invoice Register
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-black text-[#26372f]">Invoice Register</h2><FinanceExportButtons dataset="invoices" params={params} /></div>
 
           <p className="mt-1 text-xs text-[#87938d]">
-            Every invoice remains linked to its settlement and
-            AWB-level finance records.
+            Download this register as PDF or Excel using the selected shipper, currency and invoice dates. Open an invoice for its individual PDF or Excel.
           </p>
         </div>
 

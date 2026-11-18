@@ -3,26 +3,30 @@ import { ArrowLeft, BadgeDollarSign, MapPinned, Power } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
+import { ZoneRateRepriceForm } from "@/components/zone-rate-reprice-form";
+import { ZoneRateUploadForm } from "@/components/zone-rate-upload-form";
 import { disableZoneRateAction, saveZoneRateAction } from "./actions";
 export const metadata = { title: "Zone Rates" };
 const rateRoles = ["super_admin", "operations_admin", "finance_staff"] as const;
 function money(value: unknown, currency: string) { return `${currency} ${Number(value || 0).toFixed(2)}`; }
 export default async function ZoneRatesPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; disabled?: string; error?: string }> }) {
   const profile = await requireProfile(rateRoles); const { id } = await params; const notices = await searchParams; if (!/^[0-9a-f-]{36}$/i.test(id)) notFound(); const supabase = await createClient();
-  const [{ data: shipper }, { data: zones }, { data: settings }, { data: baseCurrencyRow }, { data: rates }] = await Promise.all([
+  const [{ data: shipper }, { data: zones }, baseCurrency, { data: rates }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email").eq("id", id).eq("organization_id", profile.organization_id).eq("role", "shipper").maybeSingle(),
     supabase.from("service_zones").select("id,country_code,name,zone_type,postal_prefix,postal_from,postal_to,city,district,area").eq("organization_id", profile.organization_id).eq("is_active", true).order("country_code").order("name"),
-    supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),
-    supabase.from("organization_currencies").select("currency_code").eq("organization_id", profile.organization_id).eq("is_base", true).eq("is_active", true).maybeSingle(),
+    resolveOrganizationCurrency(supabase, profile.organization_id!),
     supabase.from("shipper_zone_rates").select("id,service_zone_id,service_type,delivery_rate,return_charge_enabled,return_rate,currency,weight_from_kg,weight_to_kg,additional_kg_rate,cod_fee,is_active,effective_from,service_zones(country_code,name)").eq("organization_id", profile.organization_id).eq("shipper_id", id).order("effective_from", { ascending: false }),
   ]);
-  if (!shipper) notFound(); const zoneRows = zones ?? []; const rateRows = rates ?? []; const configuredCurrency = String(settings?.currency || baseCurrencyRow?.currency_code || "AED").trim().toUpperCase(); const baseCurrency = /^[A-Z]{3}$/.test(configuredCurrency) ? configuredCurrency : "AED";
+  if (!shipper) notFound(); const zoneRows = zones ?? []; const rateRows = rates ?? [];
   return <div className="bp-page">
     <Link href="/shippers" className="inline-flex items-center gap-2 text-xs font-bold text-[#13734b]"><ArrowLeft className="size-4" /> Back to Shippers</Link>
     <div className="mt-5"><p className="bp-section-label">Commercial Rates</p><h1 className="bp-heading mt-1 text-3xl font-black">Zone Rates</h1><p className="mt-2 text-sm text-[#74827b]">{shipper.full_name || shipper.email} · Base currency {baseCurrency}</p></div>
     {notices.saved === "1" ? <div className="mt-5 rounded-xl border border-[#bfe3cf] bg-[#ebf8f1] px-4 py-3 text-sm font-semibold text-[#176a47]">Zone rate saved successfully in {baseCurrency}.</div> : null}
     {notices.disabled === "1" ? <div className="mt-5 rounded-xl border border-[#d7e3dd] bg-white px-4 py-3 text-sm font-semibold text-[#53645c]">Zone rate disabled.</div> : null}
     {notices.error ? <div className="mt-5 rounded-xl border border-[#efc7c7] bg-[#fff1f1] px-4 py-3 text-sm font-semibold text-[#a13f3f]">Zone rate could not be saved. Check the selected zone and values.</div> : null}
+    <ZoneRateUploadForm shipperId={id} currency={baseCurrency} />
+    <ZoneRateRepriceForm shipperId={id} />
     <section className="bp-panel mt-6 p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#edf8f2] text-[#13734b]"><BadgeDollarSign className="size-5" /></span><div><h2 className="font-black text-[#26372f]">Add Zone Rate</h2><p className="mt-1 text-xs text-[#87938d]">Zone-specific pricing overrides the shipper default rate. Currency follows the SaaS tenant.</p></div></div>
       <form action={saveZoneRateAction} className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><input type="hidden" name="shipper_id" value={shipper.id} />
         <label className="text-xs font-bold text-[#53645c]">Service Zone *<select name="service_zone_id" required defaultValue="" className="bp-input mt-2"><option value="" disabled>Select zone</option>{zoneRows.map((zone) => { const mapping = zone.postal_prefix || (zone.postal_from && zone.postal_to ? `${zone.postal_from}-${zone.postal_to}` : zone.area || zone.district || zone.city || ""); return <option key={zone.id} value={zone.id}>{zone.country_code} · {zone.name}{mapping ? ` · ${mapping}` : ""}</option>; })}</select></label>

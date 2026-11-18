@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
+import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 
 const rateRoles = ["super_admin", "operations_admin", "finance_staff"] as const;
@@ -17,14 +18,13 @@ export async function saveZoneRateAction(formData: FormData): Promise<void> {
   const weightFrom = amount(formData, "weight_from_kg"); const weightToRaw = text(formData, "weight_to_kg"); const weightTo = weightToRaw ? amount(formData, "weight_to_kg") : null; const additionalKgRate = amount(formData, "additional_kg_rate"); const codFee = amount(formData, "cod_fee");
   if (!/^[0-9a-f-]{36}$/i.test(shipperId) || !Number.isInteger(serviceZoneId) || serviceZoneId <= 0 || !["same_day", "next_day", "standard"].includes(serviceType) || deliveryRate === null || returnRate === null || weightFrom === null || additionalKgRate === null || codFee === null || (weightTo !== null && weightTo <= weightFrom)) redirect(`/shippers/${shipperId}/zone-rates?error=invalid`);
   const supabase = await createClient();
-  const [{ data: shipper }, { data: zone }, { data: settings }, { data: baseCurrencyRow }] = await Promise.all([
+  const [{ data: shipper }, { data: zone }, currency] = await Promise.all([
     supabase.from("profiles").select("id").eq("id", shipperId).eq("organization_id", profile.organization_id).eq("role", "shipper").maybeSingle(),
     supabase.from("service_zones").select("id").eq("id", serviceZoneId).eq("organization_id", profile.organization_id).eq("is_active", true).maybeSingle(),
-    supabase.from("organization_settings").select("currency").eq("organization_id", profile.organization_id).maybeSingle(),
-    supabase.from("organization_currencies").select("currency_code").eq("organization_id", profile.organization_id).eq("is_base", true).eq("is_active", true).maybeSingle(),
+    resolveOrganizationCurrency(supabase, profile.organization_id),
   ]);
   if (!shipper || !zone) redirect(`/shippers/${shipperId}/zone-rates?error=reference`);
-  const configuredCurrency = String(settings?.currency || baseCurrencyRow?.currency_code || "AED").trim().toUpperCase(); const currency = /^[A-Z]{3}$/.test(configuredCurrency) ? configuredCurrency : "AED";
+
   const { error } = await supabase.from("shipper_zone_rates").insert({ organization_id: profile.organization_id, shipper_id: shipperId, service_zone_id: serviceZoneId, service_type: serviceType, delivery_rate: deliveryRate, return_charge_enabled: returnChargeEnabled, return_rate: returnChargeEnabled ? returnRate : 0, currency, weight_from_kg: weightFrom, weight_to_kg: weightTo, additional_kg_rate: additionalKgRate, cod_fee: codFee, effective_from: new Date().toISOString(), created_by: profile.id });
   if (error) { console.error("SAVE_ZONE_RATE_ERROR", error); redirect(`/shippers/${shipperId}/zone-rates?error=save`); }
   revalidatePath(`/shippers/${shipperId}/zone-rates`); revalidatePath("/shippers"); redirect(`/shippers/${shipperId}/zone-rates?saved=1`);
