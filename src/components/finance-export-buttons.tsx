@@ -15,7 +15,7 @@ export function FinanceExportButtons({
         className="bp-button-secondary"
       >
         <FileText className="size-4" />
-        PDF
+        Download PDF
       </Link>
 
       <Link
@@ -23,7 +23,7 @@ export function FinanceExportButtons({
         className="bp-button-secondary"
       >
         <Download className="size-4" />
-        Excel
+        Download Excel
       </Link>
     </div>
   );
