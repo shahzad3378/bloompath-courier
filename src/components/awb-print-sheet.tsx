@@ -82,6 +82,7 @@ export function AwbPrintSheet({
   const currency = shipment.currency || branding?.currency || "AED";
   const brandInitials = brandName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "BP";
   const localUae = isUaeDomestic(shipment.sender_country_code, shipment.consignee_country_code);
+  const showBloomPathBadge = localUae && shipment.organization_id === "d89203fd-4ae6-460b-a27a-43c703f710b1";
   const emirate = uaeEmirate(shipment.consignee_state_province) ?? uaeEmirate(shipment.consignee_city);
   const localDestination = emirate || shipment.consignee_state_province?.trim() || shipment.consignee_city || "—";
   const destination = localUae ? localDestination : shipment.consignee_postal_code || shipment.consignee_area || shipment.consignee_country_code || "DESTINATION";
@@ -93,9 +94,13 @@ export function AwbPrintSheet({
 
   return (
     <article className={`bp-awb-sheet bp-awb-${format}`}>
-      <header className="bp-awb-header">
+      <header className={`bp-awb-header${showBloomPathBadge ? " bp-awb-header-with-badge" : ""}`}>
         <div className="bp-awb-brand">
-          {branding?.logoUrl ? (
+          {showBloomPathBadge ? (
+            <span className="bp-awb-logo bp-awb-logo-badge">
+              <Image src="/bloompath-awb-badge.png" alt="BloomPath B logo" width={72} height={72} loading="eager" />
+            </span>
+          ) : branding?.logoUrl ? (
             <span className="bp-awb-logo"><Image src={branding.logoUrl} alt={`${brandName} logo`} width={140} height={140} unoptimized /></span>
           ) : (
             <span className="bp-awb-logo bp-awb-logo-initials">{brandInitials}</span>

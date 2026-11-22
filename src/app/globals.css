@@ -731,3 +731,10 @@ textarea:focus {
 .bp-awb-4x6 .bp-awb-address-grid { height: 127px; }
 .bp-awb-4x6 .bp-awb-address-note { -webkit-line-clamp: 1; }
 .bp-awb-4x6 .bp-awb-brand-location { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Give the thermal badge more room within the existing 4×6 header height. */
+.bp-awb-4x6 .bp-awb-header-with-badge { padding-block: 2px; }
+.bp-awb-4x6 .bp-awb-logo-badge { width: 52px; height: 52px; }
+@media print {
+  .bp-awb-logo-badge img { filter: none; }
+}
