@@ -223,7 +223,10 @@ test('result CSV neutralizes spreadsheet formulas and preserves tracking plus re
 });
 
 test('shared upload reader accepts quoted CSV and XLSX content without losing text HS codes', async () => {
-  const fileReader = loadTs('src/lib/bulk-shipments.ts', { '@/lib/shipments': loadTs('src/lib/shipments.ts') });
+  const fileReader = loadTs('src/lib/bulk-shipments.ts', {
+    '@/lib/shipments': loadTs('src/lib/shipments.ts'),
+    '@/lib/uae-emirates': loadTs('src/lib/uae-emirates.ts'),
+  });
   const csv = await fileReader.readBulkFileRows(new File(['awb,description\r\nFD1,"Shirt, cotton"'], 'contents.csv'));
   assert.deepEqual(csv[1], ['FD1', 'Shirt, cotton']);
   const ExcelJS = require('exceljs');

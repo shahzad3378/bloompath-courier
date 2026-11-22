@@ -3,6 +3,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Code39Barcode } from "@/components/code39-barcode";
 import { formatMoney, serviceLabels, type Shipment } from "@/lib/shipments";
 
+import { isUaeDomestic, uaeEmirate } from "@/lib/uae-emirates";
+
 type Branding = { name: string; legalName?: string | null; logoUrl: string | null; location: string; currency?: string };
 
 function addressLines(
@@ -12,8 +14,19 @@ function addressLines(
   state: string | null | undefined,
   postal: string | null | undefined,
   country: string | null | undefined,
+  localUae: boolean,
 ) {
-  return [address, address2, city, state, postal, country].filter((line): line is string => Boolean(line));
+  const emirate = localUae ? uaeEmirate(state) ?? uaeEmirate(city) ?? state : state;
+  const locality = localUae && emirate && uaeEmirate(city) === emirate ? emirate : city;
+  const lines = [address, address2, locality, emirate, postal, localUae ? null : country];
+  const unique = new Set<string>();
+  return lines.filter((line): line is string => {
+    if (!line?.trim()) return false;
+    const key = line.trim().toLowerCase();
+    if (unique.has(key)) return false;
+    unique.add(key);
+    return true;
+  });
 }
 
 function truncateLabelText(value: string | null | undefined, wordLimit: number) {
@@ -68,8 +81,11 @@ export function AwbPrintSheet({
   ].filter(Boolean).join(" · ");
   const currency = shipment.currency || branding?.currency || "AED";
   const brandInitials = brandName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "BP";
-  const destination = shipment.consignee_postal_code || shipment.consignee_area || shipment.consignee_country_code || "DESTINATION";
-  const shortDestination = shipment.service_zone_name || shipment.consignee_postal_code?.split(/[\s-]+/)[0] || shipment.consignee_area || shipment.consignee_country_code || "—";
+  const localUae = isUaeDomestic(shipment.sender_country_code, shipment.consignee_country_code);
+  const emirate = uaeEmirate(shipment.consignee_state_province) ?? uaeEmirate(shipment.consignee_city);
+  const localDestination = emirate || shipment.consignee_state_province?.trim() || shipment.consignee_city || "—";
+  const destination = localUae ? localDestination : shipment.consignee_postal_code || shipment.consignee_area || shipment.consignee_country_code || "DESTINATION";
+  const shortDestination = localUae ? localDestination : shipment.service_zone_name || shipment.consignee_postal_code?.split(/[\s-]+/)[0] || shipment.consignee_area || shipment.consignee_country_code || "—";
   const dimensions = [shipment.length_cm, shipment.width_cm, shipment.height_cm].every((value) => value != null)
     ? `${shipment.length_cm} × ${shipment.width_cm} × ${shipment.height_cm} cm`
     : null;
@@ -100,14 +116,14 @@ export function AwbPrintSheet({
           eyebrow="From / Shipper"
           name={shipment.sender_name}
           phone={shipment.sender_phone}
-          lines={addressLines(shipment.sender_address, shipment.sender_address_2, shipment.sender_city, shipment.sender_state_province, shipment.sender_postal_code, shipment.sender_country_code)}
+          lines={addressLines(shipment.sender_address, shipment.sender_address_2, shipment.sender_city, shipment.sender_state_province, shipment.sender_postal_code, shipment.sender_country_code, localUae)}
         />
         <AddressBlock
           eyebrow="To / Consignee"
           name={shipment.consignee_name}
           phone={shipment.consignee_phone}
           secondaryPhone={shipment.consignee_alt_phone}
-          lines={addressLines(shipment.consignee_address, shipment.consignee_address_2, shipment.consignee_city, shipment.consignee_state_province, shipment.consignee_postal_code, shipment.consignee_country_code)}
+          lines={addressLines(shipment.consignee_address, shipment.consignee_address_2, shipment.consignee_city, shipment.consignee_state_province, shipment.consignee_postal_code, shipment.consignee_country_code, localUae)}
           landmark={shipment.consignee_landmark}
         />
       </div>
@@ -119,7 +135,7 @@ export function AwbPrintSheet({
 
       <section className="bp-awb-service-band" aria-label="Shipment service and destination">
         <div className="bp-awb-service-name"><span>Service</span><strong>{serviceLabels[shipment.service_type]}</strong></div>
-        <div className="bp-awb-service-destination"><span>Zone / Destination</span><strong>{shortDestination}</strong></div>
+        <div className="bp-awb-service-destination"><span>{localUae ? "Emirate zone" : "Zone / Destination"}</span><strong>{shortDestination}</strong></div>
       </section>
       <section className="bp-awb-tracking">
         <p className="bp-awb-eyebrow">Tracking Number / AWB</p>
@@ -137,7 +153,7 @@ export function AwbPrintSheet({
           <p className="bp-awb-eyebrow">Contents</p>
           <p className="bp-awb-contents">{truncateLabelText(shipment.parcel_description || "Parcel", 8)}</p>
           {shipment.delivery_instructions ? <p className="bp-awb-instructions"><b>Delivery note:</b> {truncateLabelText(shipment.delivery_instructions, 10)}</p> : null}
-          {shipment.service_zone_name ? <p className="bp-awb-zone">Service zone · {truncateLabelText(shipment.service_zone_name, 5)}</p> : null}
+          {!localUae && shipment.service_zone_name ? <p className="bp-awb-zone">Service zone · {truncateLabelText(shipment.service_zone_name, 5)}</p> : null}
           <div className="bp-awb-footer-destination"><span>Destination</span><strong>{destination}</strong></div>
         </div>
         <div className="bp-awb-qr" aria-label={`QR code for AWB ${shipment.tracking_number}`}>
