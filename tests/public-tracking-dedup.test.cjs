@@ -51,6 +51,8 @@ test('public tracking looks up exact AWBs across shippers and keeps history tena
   }
 
   const createdAt = '2026-11-22T01:00:00Z';
+  const failedAt = '2026-11-22T02:00:00Z';
+  const warehouseAt = '2026-11-22T03:00:00Z';
   const queries = [];
   const shipments = new Map([
     ['BP26112210005716', { id: 1, organization_id: 'tenant-1', tracking_number: 'BP26112210005716', consignee_country_code: 'AE' }],
@@ -65,7 +67,13 @@ test('public tracking looks up exact AWBs across shippers and keeps history tena
         eq(column, value) { filters[column] = value; return query; },
         is(column, value) { filters[column] = value; return query; },
         order: () => query,
-        limit: async () => ({ data: [{ status: 'booked', created_at: createdAt }] }),
+        limit: async () => ({ data: filters.shipment_id === 1
+          ? [{ status: 'at_warehouse', created_at: warehouseAt }, { status: 'undelivered', created_at: failedAt }]
+          : [{ status: 'booked', created_at: createdAt }] }),
+        in: async (column, values) => {
+          filters[column] = values;
+          return { data: [{ created_at: failedAt, undelivered_reason: 'customer_unavailable' }] };
+        },
         maybeSingle: async () => {
           const shipment = shipments.get(filters.tracking_number);
           return { data: shipment ? { ...shipment, status: 'booked', created_at: createdAt } : null };
@@ -76,7 +84,8 @@ test('public tracking looks up exact AWBs across shippers and keeps history tena
   };
   const awb = load('src/lib/public-awb-tracking.ts', {
     '@/lib/supabase/admin': { createAdminClient: () => admin },
-    '@/lib/customer-tracking': { customerEventLabel: () => 'Booked', customerStatusLabel: () => 'Booked' },
+    '@/lib/dispatch': load('src/lib/dispatch.ts', {}),
+    '@/lib/customer-tracking': { customerEventLabel: (status) => ({ at_warehouse: 'At warehouse', undelivered: 'Undelivered' })[status], customerStatusLabel: (shipment) => shipment.id === 1 ? 'At warehouse' : 'Booked' },
   });
   const { POST } = load('src/app/api/public-tracking/route.ts', {
     '@/lib/public-awb-tracking': awb,
@@ -90,12 +99,21 @@ test('public tracking looks up exact AWBs across shippers and keeps history tena
     assert.equal(response.status, 200);
     const result = await response.json();
     assert.equal(result.trackingNumber, trackingNumber);
-    assert.equal(result.currentStatus, 'Shipment booked');
-    assert.deepEqual(result.events, [{ status: 'Shipment booked', timestamp: createdAt }]);
+    const failed = shipment.id === 1;
+    assert.equal(result.currentStatus, failed ? 'At warehouse' : 'Shipment booked');
+    assert.equal(result.currentReason, undefined);
+    assert.deepEqual(result.events, [
+      ...(failed ? [
+        { status: 'At warehouse', timestamp: warehouseAt },
+        { status: 'Undelivered', timestamp: failedAt, reason: 'Customer unavailable' },
+      ] : []),
+      { status: 'Shipment booked', timestamp: createdAt },
+    ]);
     assert.equal(result.timeZone, shipment.consignee_country_code === 'AE' ? 'Asia/Dubai' : undefined);
     assert.deepEqual(queries.splice(0), [
       { table: 'shipments', filters: { tracking_number: trackingNumber, deleted_at: null } },
       { table: 'customer_tracking_events', filters: { organization_id: shipment.organization_id, shipment_id: shipment.id } },
+      ...(failed ? [{ table: 'delivery_attempts', filters: { organization_id: shipment.organization_id, shipment_id: shipment.id, outcome: 'undelivered', created_at: [failedAt] } }] : []),
     ]);
   }
 });

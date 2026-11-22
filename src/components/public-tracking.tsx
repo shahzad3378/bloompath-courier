@@ -4,10 +4,11 @@ import { createElement, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowRight, Ban, ChevronDown, CircleAlert, CircleCheck, ClipboardList, Clock3, LoaderCircle, PackageCheck, PackageOpen, Plane, PlaneLanding, RotateCcw, Search, Truck, Warehouse, type LucideIcon } from "lucide-react";
 
-type TrackingEvent = { status: string; timestamp: string | null };
+type TrackingEvent = { status: string; timestamp: string | null; reason?: string };
 type TrackingResult = {
   trackingNumber: string;
   currentStatus: string;
+  currentReason?: string;
   updatedAt: string | null;
   events: TrackingEvent[];
   podUrl?: string | null;
@@ -209,7 +210,7 @@ export function PublicTracking() {
             <div className="flex flex-col gap-4 border-b border-[#e8eeeb] pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs text-[#6b7b72]">Last updated: {formatDate(result.updatedAt, timeZone)}</p>
-                <h2 className="mt-1 flex flex-wrap items-center gap-x-2 text-xl font-extrabold text-[#17231e] sm:text-2xl">Status: <span className="text-[#168459]">{result.currentStatus}</span></h2>
+                <h2 className="mt-1 flex flex-wrap items-center gap-x-2 text-xl font-extrabold text-[#17231e] sm:text-2xl">Status: <span className="text-[#168459]">{result.currentStatus}{result.currentReason ? ` · ${result.currentReason}` : ""}</span></h2>
                 <p className="mt-2 break-all text-xs font-semibold text-[#53645b]">Tracking number: <span className="font-mono text-[#24372f]">{result.trackingNumber}</span></p>
                 {result.podUrl ? <a href={result.podUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-10 items-center rounded-lg bg-[#13734b] px-4 text-sm font-bold text-white transition hover:bg-[#0c5b3b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13734b] focus-visible:ring-offset-2">View proof of delivery</a> : null}
               </div>
@@ -262,7 +263,7 @@ export function PublicTracking() {
                               {(() => { const StatusIcon = iconForStatus(item.status); return <StatusIcon className="size-4" aria-hidden="true" />; })()}
                             </span>
                             <div className="min-w-0 flex-1 pt-0.5">
-                              <p className={`text-sm leading-5 ${index === 0 ? "font-extrabold text-[#26372f]" : "font-semibold text-[#506159]"}`}>{item.status}</p>
+                              <p className={`text-sm leading-5 ${index === 0 ? "font-extrabold text-[#26372f]" : "font-semibold text-[#506159]"}`}>{item.status}{item.reason ? ` · ${item.reason}` : ""}</p>
                               <p className="mt-1 text-xs text-[#87938d]">{formatDate(item.timestamp, timeZone)}</p>
                             </div>
                             {index === 0 ? <span className="mt-0.5 h-fit rounded-full bg-[#e8f6ee] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#13734b]">Latest</span> : null}
@@ -272,7 +273,7 @@ export function PublicTracking() {
                     </div>
                     <aside className="h-fit rounded-xl border border-[#e0e9e4] bg-[#f7faf8] p-4 sm:p-5">
                       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#75837b]">Shipment status</p>
-                      <p className="mt-2 text-sm font-bold leading-5 text-[#26372f]">{result.currentStatus}</p>
+                      <p className="mt-2 text-sm font-bold leading-5 text-[#26372f]">{result.currentStatus}{result.currentReason ? ` · ${result.currentReason}` : ""}</p>
                       <p className="mt-3 text-xs leading-5 text-[#74827b]">Updates are displayed in the selected timezone. The newest update appears first.</p>
                     </aside>
                   </div>
