@@ -401,13 +401,19 @@ export default async function UsersPage({
                     const driver =
                       driverMap.get(profile.id);
 
+                    const canEditStaff = !isSuperAdmin && profile.role !== "shipper" && profile.id !== currentProfile.id
+                      && !(currentProfile.role === "operations_admin" && profile.role === "operations_admin");
+                    const accountHref = profile.role === "shipper" ? `/shippers/${profile.id}`
+                      : canEditStaff ? `/users/${profile.id}` : null;
+
                     return (
                       <tr key={profile.id} className="text-sm">
                         <td className="px-5 py-4">
-                          <p className="font-bold text-[#26372f]">
-                            {profile.full_name ||
-                              "Unnamed user"}
-                          </p>
+                          {accountHref ? (
+                            <Link href={accountHref} className="font-bold text-[var(--brand)] underline-offset-2 hover:underline">
+                              {profile.full_name || "Unnamed user"}
+                            </Link>
+                          ) : <p className="font-bold">{profile.full_name || "Unnamed user"}</p>}
 
                           <p className="mt-1 text-xs text-[#87938d]">
                             {profile.email}
@@ -418,9 +424,9 @@ export default async function UsersPage({
                               {profile.phone}
                             </p>
                           ) : null}
-                          {!isSuperAdmin && profile.role !== "shipper" && profile.id !== currentProfile.id && !(currentProfile.role === "operations_admin" && profile.role === "operations_admin") ? (
+                          {canEditStaff ? (
                             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                              <Link href={`/users/${profile.id}`} className="text-xs font-bold text-[#13734b] underline-offset-2 hover:underline">Edit details</Link>
+                              <Link href={`/users/${profile.id}`} className="bp-button-secondary !min-h-8 !px-3 !text-xs">Edit details</Link>
                               <form action={setUserStatusAction}>
                                 <input type="hidden" name="profile_id" value={profile.id} />
                                 <input type="hidden" name="status" value={profile.status === "active" ? "suspended" : "active"} />

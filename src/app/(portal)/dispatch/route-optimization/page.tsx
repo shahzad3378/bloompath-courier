@@ -1,3 +1,4 @@
+import { isDriverOnline } from "@/lib/driver-presence";
 import Link from "next/link";
 import { MapPinned, Route, Truck } from "lucide-react";
 import { DispatchOptimizationMapLoader } from "@/components/dispatch-optimization-map-loader";
@@ -190,7 +191,7 @@ export default async function RouteOptimizationPage() {
       assignedCount: assignedByDriver.get(driver.id) ?? 0,
       latitude: point?.latitude ?? null,
       longitude: point?.longitude ?? null,
-      isOnline: Boolean(location?.is_online),
+      isOnline: location ? isDriverOnline(Boolean(location.is_online), location.recorded_at) : false,
       recordedAt: location?.recorded_at ? String(location.recorded_at) : null,
     };
   });

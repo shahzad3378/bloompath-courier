@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { tenantCarrierOptions } from "@/lib/carrier-tenant";
 import Link from "next/link";
 import {requireProfile} from "@/lib/auth";
 import {getGtaConfig,getGtaSetupIssue,getGtaPickup} from "@/lib/gta-airskip-server";
@@ -10,6 +12,8 @@ export const metadata = {title:"GTA AirSkip booking"};
 const BOOKINGS_PER_PAGE = 50;
 export default async function GtaPage({searchParams}:{searchParams:Promise<{awb?:string;tab?:string;carrier?:string;bookingsPage?:string}>}) {
   const profile = await requireProfile(["super_admin","operations_admin","dispatcher"]);
+  const carriers = tenantCarrierOptions(profile.organization_id);
+  if (!carriers.includes("gta-airskip")) redirect("/courier-integrations");
   const config = getGtaConfig(profile.organization_id), params = await searchParams;
   let bookings: {id:string;shipment_id:number;partner_tracking_number:string|null;status:string;is_test:boolean;base_url:string;response_metadata:{tracking?:{status?:string;date?:string};trackingCheckedAt?:string}|null}[] = [], unavailable = false, totalBookings = 0, bookingsPage = Math.max(1, Number.parseInt(params.bookingsPage ?? "1", 10) || 1);
   if(config) {
@@ -41,7 +45,7 @@ export default async function GtaPage({searchParams}:{searchParams:Promise<{awb?
   };
   const firstBooking = totalBookings ? (bookingsPage - 1) * BOOKINGS_PER_PAGE + 1 : 0;
   const lastBooking = Math.min(bookingsPage * BOOKINGS_PER_PAGE, totalBookings);
-  return <CarrierWorkspace key="gta-airskip" carrier="gta-airskip" configured={configured} mode={config?.test === false ? "Production" : "QA"}
+  return <CarrierWorkspace carriers={carriers} key="gta-airskip" carrier="gta-airskip" configured={configured} mode={config?.test === false ? "Production" : "QA"}
     notice={!configured ? <p className="mb-5 rounded-xl border border-[var(--line)] p-4 text-sm" role="status">{unavailable ? "Carrier booking storage is unavailable. Contact the administrator." : getGtaSetupIssue(profile.organization_id)}</p> : null}
     single={<GtaBookingForm configured={configured} test={config?.test ?? true} liveEnabled={config?.liveEnabled ?? false} initialAwb={params.awb ?? ""} pickup={pickup} />}
     bulk={<GtaBulkBooking configured={configured} test={config?.test ?? true} liveEnabled={config?.liveEnabled ?? false} pickup={pickup} />}
