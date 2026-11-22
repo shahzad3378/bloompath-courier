@@ -8,7 +8,7 @@
         "projectId": "0c577c27-92e9-4409-8c87-d692268acca5"
       }
     },
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.bloompath.courier.driver",
       "adaptiveIcon": {
-        "backgroundColor": "#10291f",
+        "backgroundColor": "#1b1a17",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -28,7 +28,7 @@
       "permissions": [
         "CAMERA"
       ],
-      "versionCode": 3
+      "versionCode": 4
     },
     "plugins": [
       [

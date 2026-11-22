@@ -92,7 +92,7 @@ export async function loadDriverProfile(): Promise<Profile> {
   return data as Profile;
 }
 
-export async function loadAssignedStops(profile: Profile): Promise<{ routes: Route[]; stops: Stop[]; currency: string }> {
+export async function loadAssignedStops(profile: Profile): Promise<{ routes: Route[]; stops: Stop[]; completedStops: Stop[]; currency: string }> {
   if (!supabase) throw new Error('Supabase configuration is missing.');
   const { data: routes, error: routeError } = await supabase
     .from('dispatch_runs')
@@ -105,7 +105,7 @@ export async function loadAssignedStops(profile: Profile): Promise<{ routes: Rou
   const activeRoutes = (routes ?? []) as Route[];
   const { data: settings } = await supabase.from('organization_settings').select('currency').eq('organization_id', profile.organization_id).maybeSingle();
   const currency = String(settings?.currency ?? '');
-  if (!activeRoutes.length) return { routes: [], stops: [], currency };
+  if (!activeRoutes.length) return { routes: [], stops: [], completedStops: [], currency };
 
   const stops: Stop[] = [];
   for (let offset = 0; ; offset += 200) {
@@ -113,17 +113,16 @@ export async function loadAssignedStops(profile: Profile): Promise<{ routes: Rou
       .from('dispatch_run_items')
       .select('id, run_id, shipment_id, stop_sequence, completed_at, shipments(id, tracking_number, consignee_name, consignee_phone, consignee_alt_phone, consignee_address, consignee_area, consignee_city, consignee_country_code, consignee_landmark, delivery_instructions, cod_amount, currency, payment_type, delivery_attempt_count, delivery_latitude, delivery_longitude, status)')
       .in('run_id', activeRoutes.map((route) => route.id))
-      .is('completed_at', null)
       .order('run_id', { ascending: true })
       .order('stop_sequence', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
       .range(offset, offset + 199);
     if (error) throw new Error('Could not load route stops. Retry.');
     const page = (data ?? []) as unknown as Stop[];
-    stops.push(...page);
+    stops.push(...page.filter((item) => Boolean(item.shipments)));
     if (page.length < 200) break;
   }
-  return { routes: activeRoutes, stops, currency };
+  return { routes: activeRoutes, stops: stops.filter((stop) => !stop.completed_at), completedStops: stops.filter((stop) => Boolean(stop.completed_at)), currency };
 }
 
 export async function saveDeliveryResult(input: {

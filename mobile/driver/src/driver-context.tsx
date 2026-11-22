@@ -11,6 +11,9 @@ type DriverContextValue = {
   retryProfile: () => Promise<void>;
   routes: Route[];
   stops: Stop[];
+  completedStops: Stop[];
+  verifiedStopId: number | null;
+  setVerifiedStopId: (id: number | null) => void;
   currency: string;
   loading: boolean;
   routeError: string | null;
@@ -30,6 +33,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
+  const [verifiedStopId, setVerifiedStopId] = useState<number | null>(null);
+  const [completedStops, setCompletedStops] = useState<Stop[]>([]);
   const [currency, setCurrency] = useState('');
   const [loading, setLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -61,9 +66,10 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   }, [session?.user.id]);
   useEffect(() => {
     profileRequest.current++; routeRequest.current++;
-    setProfile(null); setRoutes([]); setStops([]);
+    setVerifiedStopId(null);
+    setProfile(null); setRoutes([]); setStops([]); setCompletedStops([]);
     if (!session?.user.id) {
-      setProfile(null); setAccessError(null); setRoutes([]); setStops([]); return;
+      setProfile(null); setAccessError(null); setRoutes([]); setStops([]); setCompletedStops([]); return;
     }
     void retryProfile();
   }, [session?.user.id, retryProfile]);
@@ -75,16 +81,16 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     try {
       const data = await loadAssignedStops(profile);
       if (request !== routeRequest.current) return;
-      setRoutes(data.routes); setStops(data.stops); setCurrency(data.currency);
+      setRoutes(data.routes); setStops(data.stops); setCompletedStops(data.completedStops); setCurrency(data.currency);
     } catch (error) { if (request === routeRequest.current) setRouteError((error as Error).message); }
     finally { if (request === routeRequest.current) setLoading(false); }
   }, [profile]);
   useEffect(() => { void refresh(); }, [refresh]);
 
   const value = useMemo(() => ({
-    session, starting, profile, accessError, retryProfile, routes, stops, currency,
+    session, starting, profile, accessError, retryProfile, routes, stops, completedStops, verifiedStopId, setVerifiedStopId, currency,
     loading, routeError, notice, setNotice, refresh,
-  }), [session, starting, profile, accessError, retryProfile, routes, stops, currency,
+  }), [session, starting, profile, accessError, retryProfile, routes, stops, completedStops, verifiedStopId, setVerifiedStopId, currency,
     loading, routeError, notice, refresh]);
   return <DriverContext.Provider value={value}>{children}</DriverContext.Provider>;
 }
@@ -92,7 +98,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
 export function useDriver() {
   const context = useContext(DriverContext);
   if (!context) throw new Error('DriverProvider is missing.');
-  if (context.profile?.id !== context.session?.user.id) return { ...context, profile: null, routes: [], stops: [], currency: '' };
+  if (context.profile?.id !== context.session?.user.id) return { ...context, profile: null, routes: [], stops: [], completedStops: [], verifiedStopId: null, currency: '' };
   return context;
 }
 

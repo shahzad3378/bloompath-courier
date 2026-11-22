@@ -11,9 +11,9 @@ import { colors } from '../theme';
 export default function RootLayout() {
   const [ready, fontError] = useFonts({ DMSans_400Regular, Merriweather_700Bold, ...Feather.font });
   if (!ready && !fontError) return <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.green} /></View>;
-  return <DriverProvider><StatusBar style="dark" /><Stack screenOptions={{
-    headerStyle: { backgroundColor: colors.surface },
-    headerTintColor: colors.ink,
+  return <DriverProvider><StatusBar style="auto" /><Stack screenOptions={{
+    headerStyle: { backgroundColor: colors.darkGreen },
+    headerTintColor: '#fffdf8',
     contentStyle: { backgroundColor: colors.background },
     headerBackTitle: 'Route',
   }}>

@@ -1,4 +1,4 @@
-# BloomPath Courier Driver for Android — 1.2.0
+# BloomPath Courier Driver for Android — 1.3.0
 
 Expo SDK 57 app connected to the existing Courier Supabase project. The web portal is the admin, warehouse and dispatcher workspace. Never use a service-role key in the app.
 
@@ -19,7 +19,7 @@ Photo POD is supported; OTP verification and signature capture are not implement
 ## Configure and build
 
 1. Run from `mobile/driver`. Copy `.env.example` to `.env` for local development; preview/production profiles already contain the Courier public connection settings.
-2. Run `npm ci`, then `node -p "require('./app.json').expo.version"` and verify **1.2.0**.
+2. Run `npm ci`, then `node -p "require('./app.json').expo.version"` and verify **1.3.0**.
 3. Use `npx expo start --android` for development or `npx eas-cli build --platform android --profile preview` for a new APK. EAS needs your Expo login. Production generates an AAB.
 4. Install the new APK on an Android phone. An existing APK or a Vercel redeploy does not update native source.
 
