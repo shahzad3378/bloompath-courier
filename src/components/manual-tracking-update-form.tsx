@@ -10,6 +10,7 @@ const initialState: ManualTrackingState = { status: "idle", message: "" };
 
 export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumber = "" }: { defaultDateTime: string; defaultTrackingNumber?: string }) {
   const [state, action, pending] = useActionState(recordManualTrackingAction, initialState);
+  const [reason, setReason] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<(typeof manualTrackingStatuses)[number]>(manualTrackingStatuses[0]);
   const [occurredAt, setOccurredAt] = useState(defaultDateTime);
   const [timeZone, setTimeZone] = useState<TrackingTimeZone>("Asia/Dubai");
@@ -46,6 +47,7 @@ export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumbe
 
   useEffect(() => {
     if (state.status === "success") {
+      setReason("");
       if (awbRef.current) awbRef.current.value = "";
       const podInput = formRef.current?.querySelector<HTMLInputElement>('input[name="pod"]');
       if (podInput) podInput.value = "";
@@ -78,8 +80,13 @@ export function ManualTrackingUpdateForm({ defaultDateTime, defaultTrackingNumbe
       <label><span className="mb-2 block text-xs font-semibold text-[#526159]">Tracking status</span><select name="status" value={selectedStatus} onChange={(event) => {
         const status = event.target.value as (typeof manualTrackingStatuses)[number];
         setSelectedStatus(status);
+        setReason("");
         if (awbRef.current?.value && !manuallySelectedTimeZone.current) void detectTimeZone(awbRef.current.value, status);
       }} required className="bp-input h-12 w-full"><option value="" disabled>Select status</option>{manualTrackingStatuses.map((status) => <option key={status} value={status}>{customerTrackingLabels[status]}</option>)}</select></label>
+      {selectedStatus === "undelivered" ? <>
+        <label><span className="mb-2 block text-xs font-semibold text-[#526159]">Undelivered reason</span><select name="undelivered_reason" value={reason} onChange={(event) => setReason(event.target.value)} className="bp-input h-12 w-full"><option value="">No reason specified</option><option value="other">Other</option></select></label>
+        {reason === "other" ? <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Internal notes</span><textarea name="undelivered_note" required maxLength={500} rows={3} placeholder="Explain why the delivery was unsuccessful" className="bp-input w-full py-2" /><span className="mt-1 block text-xs text-[#74827b]">Visible to your operations team.</span></label> : null}
+      </> : null}
       {selectedStatus === "delivered" ? <label className="sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-[#526159]">Proof of delivery photo · optional</span><input name="pod" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="bp-input w-full py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-[#13734b] file:px-3 file:py-2 file:text-xs file:font-bold file:text-white" /><span className="mt-1 block text-[11px] font-normal text-[#74827b]">Optional · JPG, PNG or WebP up to 5 MB. Leave empty if no POD is available.</span></label> : null}
       <label><span className="mb-2 block text-xs font-semibold text-[#526159]">Scan time zone</span><select name="time_zone" value={timeZone} onChange={(event) => {
         const nextTimeZone = event.target.value;
