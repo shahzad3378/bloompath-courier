@@ -1,6 +1,8 @@
 import { readSheet, type CellValue } from "read-excel-file/node";
 import { paymentTypes, serviceTypes, type PaymentType, type ServiceType } from "@/lib/shipments";
 
+import { isUaeDomestic, uaeEmirate } from "@/lib/uae-emirates";
+
 export const bulkShipmentHeaders = [
   "reference_number",
   "service_type",
@@ -30,6 +32,18 @@ export const bulkShipmentHeaders = [
   "value",
   "cod_amount",
   "delivery_instructions",
+] as const;
+
+const requiredShipmentHeaders = [
+  "service_type", "payment_type", "sender_name", "sender_phone", "sender_address",
+  "consignee_name", "consignee_phone", "consignee_address", "pieces", "weight_kg", "description",
+] as const;
+
+export const uaeLocalShipmentHeaders = [
+  "reference_number", "service_type", "payment_type",
+  "sender_name", "sender_phone", "sender_address", "sender_state_province",
+  "consignee_name", "consignee_phone", "consignee_address", "consignee_state_province",
+  "pieces", "weight_kg", "description", "cod_amount", "delivery_instructions",
 ] as const;
 
 export const bulkUploadMaxBytes = 20 * 1024 * 1024;
@@ -76,7 +90,7 @@ export type BulkParseResult =
   | { ok: true; rows: ParsedBulkShipment[] }
   | { ok: false; message: string; errors: BulkRowError[] };
 
-type ParseOptions = { defaultCountryCode?: string; currency?: string };
+type ParseOptions = { defaultCountryCode?: string; currency?: string; domestic?: boolean };
 
 function normalizeHeader(value: BulkCell | undefined) {
   return String(value ?? "")
@@ -176,11 +190,14 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     return { ok: false, message: error instanceof Error ? error.message : "The spreadsheet could not be read.", errors: [] };
   }
 
+  const requiredHeaders = options.domestic
+    ? requiredShipmentHeaders
+    : bulkShipmentHeaders.filter((header) => header !== "value");
   const headerIndex = rawRows.slice(0, 10).findIndex((row) => {
     const values = new Set(row.map(normalizeHeader));
-    return bulkShipmentHeaders.filter((header) => header !== "value").every((header) => values.has(header) || (header === "description" && values.has("parcel_description")));
+    return requiredHeaders.every((header) => values.has(header) || (header === "description" && values.has("parcel_description")));
   });
-  if (headerIndex === -1) return { ok: false, message: "The required universal header row was not found. Download a fresh template and keep the column names unchanged.", errors: [] };
+  if (headerIndex === -1) return { ok: false, message: "The required shipment columns were not found. Download a fresh template and keep the column names unchanged.", errors: [] };
 
   const headerMap = new Map<BulkHeader, number>();
   rawRows[headerIndex].forEach((value, index) => {
@@ -210,9 +227,16 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     const paymentType = value("payment_type");
     const senderCountry = country(value("sender_country_code"), defaultCountryCode);
     const consigneeCountry = country(value("consignee_country_code"), defaultCountryCode);
+    const localUae = options.domestic && isUaeDomestic(senderCountry, consigneeCountry);
+    const senderEmirate = localUae ? uaeEmirate(value("sender_state_province")) ?? uaeEmirate(value("sender_city")) : undefined;
+    const consigneeEmirate = localUae ? uaeEmirate(value("consignee_state_province")) ?? uaeEmirate(value("consignee_city")) : undefined;
+    const senderCity = value("sender_city") || senderEmirate || "";
+    const consigneeCity = value("consignee_city") || consigneeEmirate || "";
     const pieces = numberValue(value("pieces"));
     const weightKg = numberValue(value("weight_kg"));
-    const codAmount = numberValue(value("cod_amount"));
+    const codAmount = options.domestic && paymentType === "prepaid" && !value("cod_amount")
+      ? 0
+      : numberValue(value("cod_amount"));
     const declaredValue = value("value") ? numberValue(value("value")) : 0;
     const rowErrorStart = errors.length;
 
@@ -224,7 +248,7 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     requiredText(errors, row, "sender_phone", value("sender_phone"), 7, 20);
     requiredText(errors, row, "sender_address", value("sender_address"), 5, 500);
     optionalText(errors, row, "sender_address_2", value("sender_address_2"), 200);
-    requiredText(errors, row, "sender_city", value("sender_city"), 2, 120);
+    requiredText(errors, row, localUae && !senderCity ? "sender_state_province" : "sender_city", senderCity, 2, 120);
     optionalText(errors, row, "sender_state_province", value("sender_state_province"), 120);
     optionalText(errors, row, "sender_postal_code", value("sender_postal_code"), 30);
     if (!senderCountry) errors.push({ row, field: "sender_country_code", message: "Use a 2-letter country code such as CA, US or AE." });
@@ -234,7 +258,7 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
     optionalText(errors, row, "consignee_alt_phone", value("consignee_alt_phone"), 20, 7);
     requiredText(errors, row, "consignee_address", value("consignee_address"), 5, 500);
     optionalText(errors, row, "consignee_address_2", value("consignee_address_2"), 200);
-    requiredText(errors, row, "consignee_city", value("consignee_city"), 2, 120);
+    requiredText(errors, row, localUae && !consigneeCity ? "consignee_state_province" : "consignee_city", consigneeCity, 2, 120);
     optionalText(errors, row, "consignee_state_province", value("consignee_state_province"), 120);
     optionalText(errors, row, "consignee_postal_code", value("consignee_postal_code"), 30);
     if (!consigneeCountry) errors.push({ row, field: "consignee_country_code", message: "Use a 2-letter country code such as CA, US or AE." });
@@ -267,8 +291,8 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
           sender_phone: value("sender_phone"),
           sender_address: value("sender_address"),
           sender_address_2: value("sender_address_2") || null,
-          sender_city: value("sender_city"),
-          sender_state_province: value("sender_state_province") || null,
+          sender_city: senderCity,
+          sender_state_province: senderEmirate ?? (value("sender_state_province") || null),
           sender_postal_code: value("sender_postal_code") || null,
           sender_country_code: senderCountry,
           consignee_name: value("consignee_name"),
@@ -276,8 +300,8 @@ export async function parseBulkShipmentFile(file: File, options: ParseOptions = 
           consignee_alt_phone: value("consignee_alt_phone") || null,
           consignee_address: value("consignee_address"),
           consignee_address_2: value("consignee_address_2") || null,
-          consignee_city: value("consignee_city"),
-          consignee_state_province: value("consignee_state_province") || null,
+          consignee_city: consigneeCity,
+          consignee_state_province: consigneeEmirate ?? (value("consignee_state_province") || null),
           consignee_postal_code: value("consignee_postal_code") || null,
           consignee_country_code: consigneeCountry,
           consignee_area: value("consignee_area") || null,
