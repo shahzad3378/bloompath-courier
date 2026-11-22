@@ -11,6 +11,7 @@ type TrackingResult = {
   updatedAt: string | null;
   events: TrackingEvent[];
   podUrl?: string | null;
+  timeZone?: string;
 };
 
 const milestones: Array<{ label: string; icon: LucideIcon }> = [
@@ -73,6 +74,7 @@ export function PublicTracking() {
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const [timeZone, setTimeZone] = useState("America/Toronto");
+  const timeZoneSelected = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -112,6 +114,7 @@ export function PublicTracking() {
         setError("Tracking is temporarily unavailable. Please try again.");
         return;
       }
+      if (!timeZoneSelected.current) setTimeZone(payload.timeZone === "Asia/Dubai" ? "Asia/Dubai" : "America/Toronto");
       setResult(payload);
       setShowHistory(true);
     } catch (caught) {
@@ -190,7 +193,7 @@ export function PublicTracking() {
                 {error ? <p id="tracking-error" role="alert" className="inline-flex items-center gap-2 text-sm font-semibold text-white"><CircleAlert className="size-4" aria-hidden="true" />{error}</p> : isLoading ? <p className="text-xs text-white/80">Looking up your shipment…</p> : <span />}
                 <label className="inline-flex items-center gap-2 text-xs font-semibold text-white/90">Select Timezone:
                   <span className="relative inline-flex items-center">
-                    <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)} aria-label="Select timezone" className="max-w-[190px] appearance-none rounded-md border border-white/30 bg-white/95 py-1.5 pl-2.5 pr-7 text-xs font-semibold text-[#315044] outline-none focus:ring-2 focus:ring-white">
+                    <select value={timeZone} onChange={(event) => { timeZoneSelected.current = true; setTimeZone(event.target.value); }} aria-label="Select timezone" className="max-w-[190px] appearance-none rounded-md border border-white/30 bg-white/95 py-1.5 pl-2.5 pr-7 text-xs font-semibold text-[#315044] outline-none focus:ring-2 focus:ring-white">
                       {[...new Set([timeZone, "Asia/Dubai", "America/Toronto", "America/Vancouver", "America/Edmonton", "UTC"])].map((zone) => <option key={zone} value={zone}>{zone}</option>)}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2 size-3.5 text-[#53645b]" aria-hidden="true" />
@@ -281,7 +284,7 @@ export function PublicTracking() {
       </section>
 
       <footer className="mx-auto mt-5 flex w-full max-w-6xl flex-col gap-2 px-1 text-center text-xs text-[#849188] sm:flex-row sm:items-center sm:justify-between sm:text-left">
-        <p>Fast Drop shipment updates are shown here.</p>
+        <p>Shipment tracking updates are shown here.</p>
         <p>Need help? Contact the sender who shared this tracking number.</p>
       </footer>
     </main>
