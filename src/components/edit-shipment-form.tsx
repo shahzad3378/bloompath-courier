@@ -5,6 +5,7 @@ import type { CustomerTrackingEvent } from "@/lib/customer-tracking";
 import { useActionState } from "react";
 import { editShipmentAction } from "@/app/(portal)/shipments/edit-action";
 import { ShipmentStateField } from "@/components/shipment-state-field";
+import { areaTiers, bloomPathUaeOrganization } from "@/lib/bloompath-commercial";
 import type { Shipment } from "@/lib/shipments";
 
 export function EditShipmentForm({ shipment, trackingEvents = [], canCorrectTracking = false }: { shipment: Shipment; trackingEvents?: CustomerTrackingEvent[]; canCorrectTracking?: boolean }) {
@@ -21,6 +22,13 @@ export function EditShipmentForm({ shipment, trackingEvents = [], canCorrectTrac
       <input type="hidden" name="shipment_id" value={shipment.id} />
       <input type="hidden" name="updated_at" value={shipment.updated_at} />
       <p className="text-sm text-[#74827b]">Save corrections to this shipment. Existing carrier labels retain their original details.</p>
+      {canCorrectTracking && shipment.organization_id === bloomPathUaeOrganization && shipment.consignee_country_code === "AE" && !["delivered", "returned_to_shipper", "cancelled"].includes(shipment.status) ? (
+        <label className="block text-xs font-bold">Delivery tier override
+          <select name="bloompath_area_tier_override" className="bp-input mt-1 w-full" defaultValue={shipment.bloompath_area_tier_override ?? ""}>
+            <option value="">Automatic from Service Zone</option>{areaTiers.map(tier => <option key={tier} value={tier}>{tier}</option>)}
+          </select>
+        </label>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         {(["sender", "consignee"] as const).map(side => <fieldset key={side} className="grid min-w-0 gap-3">
           <legend className="mb-3 font-bold text-[#26372f]">{side === "sender" ? "Sender" : "Customer"} · {shipment[`${side}_country_code`]}</legend>

@@ -1,3 +1,4 @@
+import { bloomPathUaeOrganization } from "@/lib/bloompath-commercial";
 import {
   Globe2,
   MapPinned,
@@ -119,7 +120,7 @@ export default async function ServiceZonesPage({
         id,
         country_code,
         name,
-        zone_type,
+        zone_type, bloompath_area_tier,
         postal_prefix,
         postal_from,
         postal_to,
@@ -340,7 +341,7 @@ export default async function ServiceZonesPage({
                           </button>
                         </form>
 
-                        <ServiceZoneEditForm zone={row as EditableServiceZone} />
+                        <ServiceZoneEditForm zone={row as EditableServiceZone} showAreaTier={profile.organization_id === bloomPathUaeOrganization && row.country_code === "AE"} />
                         <details className="relative text-left">
                           <summary aria-label={`Delete ${row.name}`} className="inline-grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-[#edd1d1] text-[#a13f3f] hover:bg-[#fff5f5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a13f3f]">
                             <Trash2 className="size-4" />

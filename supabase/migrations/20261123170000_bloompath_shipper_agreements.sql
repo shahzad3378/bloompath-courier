@@ -14,3 +14,15 @@ create table public.bloompath_shipper_agreements (
 alter table public.bloompath_shipper_agreements enable row level security;
 revoke all on public.bloompath_shipper_agreements from public, anon, authenticated;
 grant select, insert, update on public.bloompath_shipper_agreements to service_role;
+
+alter table public.service_zones add column bloompath_area_tier text
+  check (bloompath_area_tier is null or (
+    organization_id = 'd89203fd-4ae6-460b-a27a-43c703f710b1'::uuid
+    and country_code = 'AE' and bloompath_area_tier in ('normal', 'far', 'remote')
+  ));
+
+alter table public.shipments add column bloompath_area_tier_override text
+  check (bloompath_area_tier_override is null or (
+    organization_id = 'd89203fd-4ae6-460b-a27a-43c703f710b1'::uuid
+    and consignee_country_code = 'AE' and bloompath_area_tier_override in ('normal', 'far', 'remote')
+  ));

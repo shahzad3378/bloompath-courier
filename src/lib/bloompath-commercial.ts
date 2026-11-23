@@ -1,5 +1,9 @@
 export const bloomPathUaeOrganization = "d89203fd-4ae6-460b-a27a-43c703f710b1";
 export const areaTiers = ["normal", "far", "remote"] as const;
+export type AreaTier = (typeof areaTiers)[number];
+export function isAreaTier(value: unknown): value is AreaTier {
+  return areaTiers.some(tier => tier === value);
+}
 type AreaRate = Record<(typeof areaTiers)[number], number>;
 export type CommercialAgreement = {
   fulfillment_fee: number;
