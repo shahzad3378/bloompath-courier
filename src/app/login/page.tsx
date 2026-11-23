@@ -58,6 +58,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               <div className="mt-5 rounded-xl border border-[#f0c6c6] bg-[#fff4f4] px-4 py-3 text-sm text-[#a93434]">This account is pending, inactive or does not have portal access.</div>
             ) : null}
 
+            {params.error === "idle" ? (
+              <p role="status" className="mt-5 rounded-xl bg-[#fff9ec] p-4 text-sm">You were signed out after 30 minutes of inactivity. Sign in to continue.</p>
+            ) : null}
+
             <LoginForm brand={isFastDrop ? "fastdrop" : undefined} />
             <div className="mt-7 flex items-center gap-2 border-t border-[#e7dfd2] pt-5 text-xs text-[#718079]"><CheckCircle2 className="size-4 text-[#e65a20]" /> Secure, role-based access</div>
           </div>

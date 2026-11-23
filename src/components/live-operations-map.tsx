@@ -1,5 +1,7 @@
 "use client";
 
+import { isDriverOnline } from "@/lib/driver-presence";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   CircleMarker,
@@ -59,8 +61,17 @@ export function LiveOperationsMap({
   unmappedStopCount,
   organizationId,
 }: LiveOperationsMapProps) {
-  const [drivers, setDrivers] =
-    useState<DriverLocation[]>(initialDrivers);
+  const [locations, setDrivers] = useState<DriverLocation[]>(initialDrivers);
+  const [now, setNow] = useState(Date.now);
+  const drivers = locations.map((driver) => ({
+    ...driver,
+    is_online: isDriverOnline(driver.is_online, driver.recorded_at, now),
+  }));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const supabase = useMemo(() => createClient(), []);
   const assignedCountByDriver = useMemo(
@@ -105,6 +116,7 @@ export function LiveOperationsMap({
 
           if (!data) return;
 
+          setNow(Date.now());
           setDrivers(
             data.map((row: any) => ({
               driver_id: row.driver_id,

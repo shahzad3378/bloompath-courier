@@ -231,7 +231,7 @@ function ExpandableNavigationGroup({ group, pathname, expanded, onToggle, closeN
   </div>;
 }
 
-export function PortalShell({ profile, branding, isPlatformAdmin = false, isCanadaPortal = false, children }: { profile: Profile; branding: { displayName: string; logoUrl: string | null }; isPlatformAdmin?: boolean; isCanadaPortal?: boolean; children: ReactNode }) {
+export function PortalShell({ profile, branding, isPlatformAdmin = false, isCanadaPortal = false, hasCourierPartners = false, children }: { profile: Profile; branding: { displayName: string; logoUrl: string | null }; isPlatformAdmin?: boolean; isCanadaPortal?: boolean; hasCourierPartners?: boolean; children: ReactNode }) {
   const pathname = usePathname(); const router = useRouter();
   const [themeMode, setThemeMode] = useState<"light" | "dark">("light"); const [mobileOpen, setMobileOpen] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false); const [searchText, setSearchText] = useState(""); const [notificationsOpen, setNotificationsOpen] = useState(false); const [profileOpen, setProfileOpen] = useState(false); const menuAreaRef = useRef<HTMLDivElement>(null);
   const tenantInitials = useMemo(() => branding.displayName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("") || "CO", [branding.displayName]);
@@ -245,6 +245,7 @@ export function PortalShell({ profile, branding, isPlatformAdmin = false, isCana
         children: group.children.filter((child) =>
           (child.href !== "/activity-log" || canManageUsers)
           && (child.href !== "/driver-support" || ["super_admin", "operations_admin", "dispatcher", "customer_service"].includes(profile.role))
+          && (child.href !== "/courier-integrations" || hasCourierPartners)
           && (child.href !== "/carrier-rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
           && (child.href !== "/fulfillment/rates" || ["super_admin", "operations_admin", "finance_staff"].includes(profile.role))
           && (child.href !== "/reports/bloompath-fastdrop" || isCanadaPortal)

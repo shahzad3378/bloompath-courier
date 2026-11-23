@@ -32,6 +32,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const { findPublicAwbTracking } = await import("@/lib/public-awb-tracking");
+    const shipment = await findPublicAwbTracking(trackingNumber);
+    if (shipment) return json(shipment);
+
     const { url, publishableKey } = getSupabaseEnv();
     const upstream = await fetch(
       `${url.replace(/\/$/, "")}/functions/v1/fastdrop-public-tracking`,

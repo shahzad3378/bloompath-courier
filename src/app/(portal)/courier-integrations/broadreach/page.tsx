@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { tenantCarrierOptions } from "@/lib/carrier-tenant";
 import Link from "next/link";
 import { BroadReachBookingForm } from "@/components/broadreach-booking-form";
 import { BroadReachBulkBooking } from "@/components/broadreach-bulk-booking";
@@ -9,6 +11,8 @@ import {CarrierWorkspace} from "@/components/carrier-workspace";
 export const metadata = { title: "BroadReach AWB Booking" };
 export default async function BroadReachPage({ searchParams }: { searchParams: Promise<{ awb?: string; tab?: string; carrier?: string }> }) {
   const profile = await requireProfile(["super_admin", "operations_admin", "dispatcher"]);
+  const carriers = tenantCarrierOptions(profile.organization_id);
+  if (!carriers.includes("broadreach")) redirect("/courier-integrations");
   const config = getBroadReachConfig(profile.organization_id);
   const params = await searchParams;
   let bookings: { id: string; shipment_id: number; partner_tracking_number: string | null; is_test: boolean; status: string }[] = [];
@@ -21,7 +25,7 @@ export default async function BroadReachPage({ searchParams }: { searchParams: P
     } catch { storageUnavailable = true; }
   }
   const configured = Boolean(config) && !storageUnavailable;
-  return <CarrierWorkspace key="broadreach" carrier="broadreach" configured={configured} mode="Test / Live"
+  return <CarrierWorkspace carriers={carriers} key="broadreach" carrier="broadreach" configured={configured} mode="Test / Live"
     notice={!configured ? <p className="mb-5 rounded-xl border border-[var(--line)] p-4 text-sm" role="status">{storageUnavailable ? "Carrier booking storage is unavailable. Contact the administrator." : "BroadReach is awaiting account credentials. Contact the administrator."}</p> : null}
     single={<BroadReachBookingForm configured={configured} liveEnabled={config?.liveEnabled ?? false} initialAwb={params.awb ?? ""} />}
     bulk={<BroadReachBulkBooking configured={configured} liveEnabled={config?.liveEnabled ?? false} />}

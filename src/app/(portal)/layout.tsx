@@ -1,3 +1,5 @@
+import { tenantCarrierOptions } from "@/lib/carrier-tenant";
+import { IdleSession } from "@/components/idle-session";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { PortalShell } from "@/components/portal-shell";
@@ -84,6 +86,7 @@ export default async function PortalLayout({
       branding={branding}
       isPlatformAdmin={isPlatformAdmin}
       isCanadaPortal={isCanadaPortal}
+      hasCourierPartners={tenantCarrierOptions(profile.organization_id).length > 0}
     >
       {profile.role === "driver" && profile.organization_id ? (
         <DriverLocationTracker
@@ -91,6 +94,7 @@ export default async function PortalLayout({
           organizationId={profile.organization_id}
         />
       ) : null}
+      <IdleSession />
       {children}
     </PortalShell>
   );

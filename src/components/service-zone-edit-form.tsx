@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { updateServiceZoneAction } from "@/app/(portal)/service-zones/actions";
+import { areaTiers } from "@/lib/bloompath-commercial";
 import type { ServiceZoneType } from "@/lib/service-zones";
 
 export type EditableServiceZone = {
@@ -10,6 +11,7 @@ export type EditableServiceZone = {
   country_code: string;
   name: string;
   zone_type: string;
+  bloompath_area_tier?: string | null;
   postal_prefix: string | null;
   postal_from: string | null;
   postal_to: string | null;
@@ -20,7 +22,7 @@ export type EditableServiceZone = {
 
 const labelClass = "text-xs font-bold text-[#53645c]";
 
-export function ServiceZoneEditForm({ zone }: { zone: EditableServiceZone }) {
+export function ServiceZoneEditForm({ zone, showAreaTier }: { zone: EditableServiceZone; showAreaTier?: boolean }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ServiceZoneType>(zone.zone_type as ServiceZoneType);
 
@@ -30,6 +32,11 @@ export function ServiceZoneEditForm({ zone }: { zone: EditableServiceZone }) {
     </summary>
     {open ? <form action={updateServiceZoneAction} className="mt-3 grid gap-3 rounded-xl border border-[#e4ebe7] bg-[#fafcfb] p-4 text-left sm:grid-cols-2">
       <input type="hidden" name="zone_id" value={zone.id} />
+      {showAreaTier ? <label className={labelClass}>Delivery tier
+        <select name="bloompath_area_tier" defaultValue={zone.bloompath_area_tier ?? ""} className="bp-input mt-1 w-full">
+          <option value="">Unclassified</option>{areaTiers.map(tier => <option key={tier} value={tier}>{tier}</option>)}
+        </select>
+      </label> : null}
       <div className="text-xs font-bold text-[#53645c]">Market<input value={zone.country_code} readOnly className="bp-input mt-2 bg-[#f1f4f2]" /></div>
       <label className={labelClass}>Mapping type<select name="zone_type" value={type} onChange={event => setType(event.target.value as ServiceZoneType)} className="bp-input mt-2">
         <option value="postal_prefix">Postal / ZIP Prefix</option><option value="postal_range">Postal / ZIP Range</option><option value="city">City</option><option value="district">District</option><option value="area">Area / Zone</option>

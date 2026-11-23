@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { parseBulkShipmentFile, type BulkRowError } from "@/lib/bulk-shipments";
 import { buildShipmentAddress, geocodeAddress, geocodeInBatches } from "@/lib/google-maps";
 import { internalRoles } from "@/lib/roles";
+import { uaeEmirate } from "@/lib/uae-emirates";
 import { createClient } from "@/lib/supabase/server";
 
 export type ImportedShipment = { id: number; trackingNumber: string; referenceNumber: string | null };
@@ -24,10 +25,15 @@ type InsertedShipment = {
   consignee_country_code: string | null;
 };
 
-function matchZone(zones: Zone[], country: string, postal: string | null, city: string) {
+function matchZone(zones: Zone[], country: string, postal: string | null, city: string, state: string | null) {
   const normalizedPostal = (postal ?? "").toUpperCase().replace(/\s+/g, "");
   const normalizedCity = city.trim().toLowerCase();
   const candidates = zones.filter((zone) => zone.is_active && zone.country_code === country);
+  if (country === "AE") {
+    const emirate = uaeEmirate(state) ?? uaeEmirate(city);
+    const emirateZone = emirate && candidates.find((zone) => !zone.postal_prefix && uaeEmirate(zone.city) === emirate);
+    if (emirateZone) return emirateZone;
+  }
   const postalMatch = candidates
     .filter((zone) => zone.postal_prefix && normalizedPostal.startsWith(zone.postal_prefix.toUpperCase().replace(/\s+/g, "")))
     .sort((a, b) => (b.postal_prefix?.length ?? 0) - (a.postal_prefix?.length ?? 0))[0];
@@ -51,7 +57,7 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
 
   const currency = String(settings?.currency ?? "AED").toUpperCase();
   const defaultCountryCode = String(primaryCountry?.country_code ?? "AE").toUpperCase();
-  const parsed = await parseBulkShipmentFile(file, { defaultCountryCode, currency });
+  const parsed = await parseBulkShipmentFile(file, { defaultCountryCode, currency, domestic: true });
   if (!parsed.ok) return { status: "error", message: parsed.message, errors: parsed.errors, imported: [] };
 
   const internationalRows = parsed.rows.filter(({ shipment }) => shipment.sender_country_code !== shipment.consignee_country_code);
@@ -93,7 +99,7 @@ export async function importShipmentsAction(_previousState: BulkUploadState, for
 
   const zones = (zoneData ?? []) as Zone[];
   const insertRows = parsed.rows.map(({ shipment }) => {
-    const zone = matchZone(zones, shipment.consignee_country_code, shipment.consignee_postal_code, shipment.consignee_city);
+    const zone = matchZone(zones, shipment.consignee_country_code, shipment.consignee_postal_code, shipment.consignee_city, shipment.consignee_state_province);
     return {
       ...shipment,
       organization_id: profile.organization_id,

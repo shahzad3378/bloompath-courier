@@ -58,6 +58,11 @@ export async function recordManualTrackingAction(
 
   const tracking = String(formData.get("tracking_number") ?? "").trim().toUpperCase();
   const status = String(formData.get("status") ?? "") as CustomerTrackingStatus;
+  const reason = String(formData.get("undelivered_reason") ?? "");
+  const note = String(formData.get("undelivered_note") ?? "").trim();
+  const isOther = status === "undelivered" && reason === "other";
+  if (reason && !isOther) return { status: "error", message: "Select a valid undelivered reason." };
+  if (isOther && (!note || note.length > 500)) return { status: "error", message: "Enter 1–500 characters in Internal notes for Other." };
   const timeZone = String(formData.get("time_zone") ?? "");
   const occurredAtInput = String(formData.get("occurred_at") ?? "");
   const pod = formData.get("pod");
@@ -161,7 +166,11 @@ export async function recordManualTrackingAction(
     if (uploadError) return { status: "error", message: "POD could not be uploaded. Check the photo and connection, then try again." };
   }
 
-  const { error } = await supabase.from("customer_tracking_events").insert({
+  const { error } = isOther
+    ? await supabase.rpc("record_manual_undelivered_other", {
+      p_shipment_id: shipment.id, p_organization_id: profile.organization_id, p_occurred_at: occurredAt, p_note: note,
+    })
+    : await supabase.from("customer_tracking_events").insert({
     shipment_id: shipment.id,
     organization_id: profile.organization_id,
     status,

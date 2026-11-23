@@ -1,3 +1,5 @@
+import { bloomPathUaeOrganization, isAreaTier, type CommercialAgreement } from "@/lib/bloompath-commercial";
+import { createAdminClient as createCommercialAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { EditShipmentForm } from "@/components/edit-shipment-form";
 import { notFound } from "next/navigation";
@@ -58,10 +60,30 @@ export default async function ShipmentDetailsPage({
   if (isCustomer && eventError) throw new Error("Customer tracking history could not be loaded.");
   if (trackingError) throw new Error("International tracking scans could not be loaded.");
   const shipment = data as Shipment;
+  const showAgreement = profile.organization_id === bloomPathUaeOrganization && shipment.consignee_country_code === "AE" &&
+    ["super_admin", "operations_admin", "finance_staff"].includes(profile.role) && shipment.shipper_id;
+  const [agreementResult, tierResult] = showAgreement ? await Promise.all([
+    createCommercialAdminClient().from("bloompath_shipper_agreements")
+      .select("currency, customer_rates, carrier_costs").eq("organization_id", bloomPathUaeOrganization)
+      .eq("shipper_id", shipment.shipper_id!).eq("enabled", true).maybeSingle(),
+    shipment.service_zone_id
+      ? supabase.from("service_zones").select("bloompath_area_tier")
+          .eq("organization_id", bloomPathUaeOrganization).eq("id", shipment.service_zone_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]) : [{ data: null }, { data: null }];
+  const agreement = agreementResult.data as (Pick<CommercialAgreement, "customer_rates" | "carrier_costs"> & { currency: string }) | null;
+  const shipmentTier = shipment.bloompath_area_tier_override ?? tierResult.data?.bloompath_area_tier;
+
   const events = isCustomer
     ? ((eventData ?? []) as unknown as CustomerTrackingEvent[]).map(event => ({ id: event.id, event_type: "status_changed", previous_status: null, new_status: null, notes: customerEventLabel(event.status), created_at: event.created_at }))
     : (eventData ?? []) as ShipmentEvent[];
   const trackingEvents = (trackingData ?? []) as unknown as CustomerTrackingEvent[];
+  const failedEventIds = trackingEvents.filter((event) => event.status === "undelivered").map((event) => event.id);
+  const { data: manualNotes } = internalRoles.includes(profile.role) && failedEventIds.length
+    ? await supabase.from("manual_undelivered_notes").select("event_id, note").in("event_id", failedEventIds)
+    : { data: null };
+  const noteByEventId = new Map((manualNotes ?? []).map(({ event_id, note }) => [event_id, note]));
+
   const completedMilestones = new Map<InternationalTrackingMilestone, string>();
   for (const event of trackingEvents) {
     if ((internationalTrackingMilestones as readonly string[]).includes(event.status) && !completedMilestones.has(event.status as InternationalTrackingMilestone)) {
@@ -120,6 +142,22 @@ export default async function ShipmentDetailsPage({
       {!archived && internalRoles.includes(profile.role) ? <EditShipmentForm shipment={shipment} trackingEvents={trackingEvents} canCorrectTracking={["super_admin", "operations_admin"].includes(profile.role)} /> : null}
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="space-y-5">
+          {agreement ? <section className="bp-panel space-y-2 p-5 text-sm">
+            <h2 className="font-bold">Agreement rate preview</h2>
+            {isAreaTier(shipmentTier) ? <>
+              <p className="capitalize">{shipmentTier} · {shipment.bloompath_area_tier_override ? "Manual override" : "Service Zone"}</p>
+              <p>Customer delivery charge <strong>{agreement.currency} {Number(agreement.customer_rates[shipmentTier]).toFixed(2)}</strong></p>
+              {agreement.carrier_costs.length ? <ul aria-label="3PL delivery costs" className="space-y-1">
+                {agreement.carrier_costs.map(carrier => <li key={carrier.name}>{carrier.name} cost <strong>{agreement.currency} {Number(carrier[shipmentTier]).toFixed(2)}</strong></li>)}
+              </ul> : null}
+            </> : <p>Classify the Service Zone or select a delivery tier override to preview rates.</p>}
+          </section> : null}
+          {noteByEventId.size ? <section className="bp-panel p-5">
+            <h2 className="font-bold">Manual delivery attempt notes</h2>
+            <ul className="mt-3 space-y-3 text-sm">{trackingEvents.filter((event) => noteByEventId.has(event.id)).map((event) => (
+              <li key={event.id}><p className="font-semibold">Undelivered · Other</p><p className="text-xs text-[#74827b]">{formatDubaiDate(event.created_at)}</p><p className="mt-1 whitespace-pre-wrap break-words">{noteByEventId.get(event.id)}</p></li>
+            ))}</ul>
+          </section> : null}
           <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5 shadow-[0_8px_30px_rgba(24,51,39,0.045)] sm:p-6"><div className="mx-auto max-w-2xl"><ShipmentCodes trackingNumber={shipment.tracking_number} /></div></section>
           <div className="grid gap-5 md:grid-cols-2">
             <section className="rounded-2xl border border-[#e0e8e4] bg-white p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#e7f4ed] text-[#13734b]"><Box className="size-5" /></span><div><p className="text-xs text-[#819088]">Pickup from</p><h2 className="font-bold text-[#26372f]">{shipment.sender_name}</h2></div></div><div className="mt-4 space-y-2 text-sm leading-6 text-[#5d6c65]"><p>{shipment.sender_phone}</p><p>{shipment.sender_address}</p><p className="font-semibold text-[#36473e]">{shipment.sender_city}</p></div></section>

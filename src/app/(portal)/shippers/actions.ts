@@ -6,6 +6,8 @@ import { requireProfile } from "@/lib/auth";
 import { resolveOrganizationCurrency } from "@/lib/organization-finance";
 import { createClient } from "@/lib/supabase/server";
 
+import { bloomPathUaeOrganization, readCommercialAgreement } from "@/lib/bloompath-commercial";
+
 const rateRoles = ["super_admin", "operations_admin", "finance_staff"] as const;
 
 function money(formData: FormData, key: string) {
@@ -135,6 +137,13 @@ export async function createShipperAction(_state: ShipperFormState, formData: Fo
     return formError("Your courier company is unavailable. Refresh and sign in again.");
   }
 
+  let agreement;
+  try {
+    agreement = profile.organization_id === bloomPathUaeOrganization ? readCommercialAgreement(formData) : null;
+  } catch (error) {
+    return formError((error as Error).message);
+  }
+
   const companyName = cleanText(formData, "company_name", 150);
   const contactPerson = cleanText(formData, "contact_person", 150);
   const email = cleanText(formData, "email", 200).toLowerCase();
@@ -250,6 +259,12 @@ export async function createShipperAction(_state: ShipperFormState, formData: Fo
       console.error("CREATE_SHIPPER_RATE_ERROR", rateError);
       throw rateError;
     }
+    if (agreement) {
+      const { error: agreementError } = await admin.from("bloompath_shipper_agreements").insert({
+        ...agreement, organization_id: profile.organization_id, shipper_id: userId, currency, updated_by: profile.id,
+      });
+      if (agreementError) throw agreementError;
+    }
   } catch (error) {
     console.error("CREATE_SHIPPER_FAILED", error);
     await admin.auth.admin.deleteUser(userId);
@@ -352,4 +367,28 @@ export async function resetShipperPasswordAction(_state: ShipperFormState, form:
   const {error:authError}=await admin.auth.admin.updateUserById(id,{password});
   if(authError) return formError("Password could not be reset. Try a stronger password or contact the administrator.");
   return {status:"success",message:"Shipper password reset successfully. Share the new password securely. Existing active sessions are not signed out by this action."};
+}
+
+export async function saveCommercialAgreementAction(_state: ShipperFormState, form: FormData): Promise<ShipperFormState> {
+  const actor = await requireProfile(rateRoles);
+  if (actor.organization_id !== bloomPathUaeOrganization) return formError("This agreement is unavailable for your company.");
+  const id = String(form.get("shipper_id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return formError("Select an existing shipper.");
+  const admin = createAdminClient();
+  const { data: shipper, error: lookupError } = await admin.from("profiles").select("id")
+    .eq("id", id).eq("organization_id", bloomPathUaeOrganization).eq("role", "shipper").maybeSingle();
+  if (lookupError || !shipper) return formError("This shipper does not belong to your company.");
+  let agreement;
+  try { agreement = readCommercialAgreement(form); }
+  catch (error) { return formError((error as Error).message); }
+  const currency = await resolveOrganizationCurrency(await createClient(), bloomPathUaeOrganization);
+  const { error } = agreement
+    ? await admin.from("bloompath_shipper_agreements").upsert({
+        ...agreement, organization_id: bloomPathUaeOrganization, shipper_id: id, currency, enabled: true,
+        updated_by: actor.id, updated_at: new Date().toISOString(),
+      }, { onConflict: "shipper_id" })
+    : await admin.from("bloompath_shipper_agreements").update({ enabled: false, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("shipper_id", id).eq("organization_id", bloomPathUaeOrganization);
+  if (error) return formError("The agreement could not be saved. Try again.");
+  revalidatePath(`/shippers/${id}`);
+  return { status: "success", message: "Shipper agreement saved." };
 }
