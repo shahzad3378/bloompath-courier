@@ -1,5 +1,6 @@
 "use server";
 
+import { bloomPathUaeOrganization, isAreaTier } from "@/lib/bloompath-commercial";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
@@ -190,7 +191,10 @@ export async function updateServiceZoneAction(formData: FormData) {
 
   const name = zoneType === "district" ? `${city} · ${district}` : zoneType === "area" ? `${city} · ${area}` : city;
   const admin = createAdminClient();
+  const tier = formData.get("bloompath_area_tier");
+  if (tier && !isAreaTier(tier)) redirect("/service-zones?error=invalid");
   const { data: updated, error } = await admin.from("service_zones").update({
+    ...(profile.organization_id === bloomPathUaeOrganization && tier !== null ? { bloompath_area_tier: tier || null } : {}),
     name,
     zone_type: zoneType,
     postal_prefix: zoneType === "postal_prefix" ? postalPrefix : null,

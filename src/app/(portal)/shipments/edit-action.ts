@@ -1,5 +1,6 @@
 "use server";
 
+import { bloomPathUaeOrganization, isAreaTier } from "@/lib/bloompath-commercial";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
@@ -19,6 +20,15 @@ export async function editShipmentAction(_state: EditShipmentState, form: FormDa
   if (!shipment) return { message: "Shipment is unavailable." };
   if (shipment.updated_at !== form.get("updated_at")) return { message: "This shipment changed. Reload the page before editing again." };
   const values: Record<string, string | number | null> = {};
+  if (form.has("bloompath_area_tier_override")) {
+    const tier = form.get("bloompath_area_tier_override");
+    if (profile.organization_id !== bloomPathUaeOrganization || shipment.consignee_country_code !== "AE" ||
+        !["super_admin", "operations_admin"].includes(profile.role) ||
+        ["delivered", "returned_to_shipper", "cancelled"].includes(shipment.status) || (tier && !isAreaTier(tier))) {
+      return { message: "Delivery tier cannot be changed for this shipment." };
+    }
+    values.bloompath_area_tier_override = typeof tier === "string" && tier ? tier : null;
+  }
   const fields: [string, number, number][] = [
     ["reference_number", 0, 80], ["sender_name", 2, 120], ["sender_phone", 7, 20],
     ["sender_address", 5, 500], ["sender_address_2", 0, 500], ["sender_city", 2, 80],

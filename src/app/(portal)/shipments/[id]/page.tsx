@@ -1,3 +1,5 @@
+import { bloomPathUaeOrganization, isAreaTier, type CommercialAgreement } from "@/lib/bloompath-commercial";
+import { createAdminClient as createCommercialAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { EditShipmentForm } from "@/components/edit-shipment-form";
 import { notFound } from "next/navigation";
@@ -58,6 +60,20 @@ export default async function ShipmentDetailsPage({
   if (isCustomer && eventError) throw new Error("Customer tracking history could not be loaded.");
   if (trackingError) throw new Error("International tracking scans could not be loaded.");
   const shipment = data as Shipment;
+  const showAgreement = profile.organization_id === bloomPathUaeOrganization && shipment.consignee_country_code === "AE" &&
+    ["super_admin", "operations_admin", "finance_staff"].includes(profile.role) && shipment.shipper_id;
+  const [agreementResult, tierResult] = showAgreement ? await Promise.all([
+    createCommercialAdminClient().from("bloompath_shipper_agreements")
+      .select("currency, customer_rates, carrier_costs").eq("organization_id", bloomPathUaeOrganization)
+      .eq("shipper_id", shipment.shipper_id!).eq("enabled", true).maybeSingle(),
+    shipment.service_zone_id
+      ? supabase.from("service_zones").select("bloompath_area_tier")
+          .eq("organization_id", bloomPathUaeOrganization).eq("id", shipment.service_zone_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]) : [{ data: null }, { data: null }];
+  const agreement = agreementResult.data as (Pick<CommercialAgreement, "customer_rates" | "carrier_costs"> & { currency: string }) | null;
+  const shipmentTier = shipment.bloompath_area_tier_override ?? tierResult.data?.bloompath_area_tier;
+
   const events = isCustomer
     ? ((eventData ?? []) as unknown as CustomerTrackingEvent[]).map(event => ({ id: event.id, event_type: "status_changed", previous_status: null, new_status: null, notes: customerEventLabel(event.status), created_at: event.created_at }))
     : (eventData ?? []) as ShipmentEvent[];
@@ -126,6 +142,16 @@ export default async function ShipmentDetailsPage({
       {!archived && internalRoles.includes(profile.role) ? <EditShipmentForm shipment={shipment} trackingEvents={trackingEvents} canCorrectTracking={["super_admin", "operations_admin"].includes(profile.role)} /> : null}
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="space-y-5">
+          {agreement ? <section className="bp-panel space-y-2 p-5 text-sm">
+            <h2 className="font-bold">Agreement rate preview</h2>
+            {isAreaTier(shipmentTier) ? <>
+              <p className="capitalize">{shipmentTier} · {shipment.bloompath_area_tier_override ? "Manual override" : "Service Zone"}</p>
+              <p>Customer delivery charge <strong>{agreement.currency} {Number(agreement.customer_rates[shipmentTier]).toFixed(2)}</strong></p>
+              {agreement.carrier_costs.length ? <ul aria-label="3PL delivery costs" className="space-y-1">
+                {agreement.carrier_costs.map(carrier => <li key={carrier.name}>{carrier.name} cost <strong>{agreement.currency} {Number(carrier[shipmentTier]).toFixed(2)}</strong></li>)}
+              </ul> : null}
+            </> : <p>Classify the Service Zone or select a delivery tier override to preview rates.</p>}
+          </section> : null}
           {noteByEventId.size ? <section className="bp-panel p-5">
             <h2 className="font-bold">Manual delivery attempt notes</h2>
             <ul className="mt-3 space-y-3 text-sm">{trackingEvents.filter((event) => noteByEventId.has(event.id)).map((event) => (

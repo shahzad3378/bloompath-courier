@@ -2,7 +2,8 @@
 import {useActionState} from "react";
 import {createShipperAction} from "@/app/(portal)/shippers/actions";
 import {Feedback, PasswordInput, useShipperBusy} from "@/components/shipper-account-form";
-export function ShipperCreateForm({currency}:{currency:string}) {
+import { CommercialAgreementFields } from "@/components/commercial-agreement-fields";
+export function ShipperCreateForm({currency, showAgreement}:{currency:string; showAgreement?:boolean}) {
  const [state,action,pending]=useActionState(createShipperAction,{status:"idle" as const,message:""});
  useShipperBusy(pending);
  return (          <form
@@ -172,6 +173,7 @@ export function ShipperCreateForm({currency}:{currency:string}) {
               />
             </label>
 
+            {showAgreement ? <CommercialAgreementFields currency={currency}/> : null}
             <label className="flex items-start gap-3 rounded-xl border border-[#dfeae4] bg-[#f7fbf8] p-4 text-xs font-semibold text-[#526159] lg:col-span-2">
               <input type="checkbox" name="upload_rates_after" value="true" className="mt-0.5 size-4 rounded border-[#cfdad4]" />
               <span><span className="block font-black text-[#34453c]">Add optional 3PL rates after creating this shipper</span><span className="mt-1 block font-normal leading-5 text-[#74827b]">Next page lets you upload local-zone or international carrier rate cards in bulk. These remain separate from the shipper’s delivery charges.</span></span>

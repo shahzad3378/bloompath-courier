@@ -19,6 +19,7 @@ export type ServiceType = (typeof serviceTypes)[number];
 export type PaymentType = (typeof paymentTypes)[number];
 
 export type Shipment = {
+  bloompath_area_tier_override?: string | null;
   id: number;
   organization_id: string;
   tracking_number: string;
